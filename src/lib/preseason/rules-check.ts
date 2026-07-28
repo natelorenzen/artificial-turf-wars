@@ -220,12 +220,18 @@ function parseNumber(value: string): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-/** Deterministic grading. No model call, no partial credit (SPEC §8.4). */
+/**
+ * Deterministic grading. No model call, no partial credit (SPEC §8.4).
+ *
+ * Accepts a raw answer of any scalar type and coerces it. A model answering `20.2`
+ * to "answer with a number only" is correct, and grading must not care which JSON
+ * type it chose to express that in.
+ */
 export function gradeRulesCheck(
-  answers: { id: string; answer: string }[],
+  answers: { id: string; answer: string | number | boolean }[],
   questions = buildRulesCheck(),
 ): RulesCheckGrade {
-  const given = new Map(answers.map((a) => [a.id, a.answer]));
+  const given = new Map(answers.map((a) => [a.id, String(a.answer)]));
 
   const graded = questions.map((q) => {
     const raw = given.get(q.id) ?? '';

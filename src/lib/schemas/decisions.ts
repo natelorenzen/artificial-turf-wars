@@ -43,12 +43,27 @@ export function reasoningSoftViolations(r: Reasoning): string[] {
 // Pre-season
 // ---------------------------------------------------------------------------
 
-/** Step 2, the fairness gate. Answers are scored deterministically (SPEC §4.1b). */
+/**
+ * Step 2, the fairness gate. Answers are scored deterministically (SPEC §4.1b).
+ *
+ * `answer` accepts a number as well as a string. Several questions ask for "a number
+ * only", and a model that replies `20.2` rather than `"20.2"` has answered correctly —
+ * arguably more correctly. Rejecting it would fail a model on JSON typing and report
+ * it publicly as not understanding the scoring table, which is exactly the
+ * misattribution the strict-on-outcomes/lenient-on-cosmetics policy exists to prevent.
+ *
+ * Caught by the very first full-cohort run: one model returned every numeric answer
+ * as a JSON number and scored 0 despite getting the answers right.
+ */
+const answerValue = z
+  .union([z.string().min(1), z.number(), z.boolean()])
+  .transform((v) => String(v));
+
 export const rulesCheckSchema = z.object({
   answers: z.array(
     z.object({
       id: z.string().min(1),
-      answer: z.string().min(1),
+      answer: answerValue,
     }),
   ),
 });
