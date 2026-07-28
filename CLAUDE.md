@@ -125,6 +125,25 @@ against kickoff. Two defenses, both required: ≥4 hours of slack before the eve
 job must precede, and each job asserts the current time is before the week's first
 kickoff and refuses to run if not.
 
+**Vercel Hobby is sufficient — SPEC §5.5 is out of date on this** (verified against
+the docs 2026-07-28). Hobby allows 100 cron jobs per project, and its once-per-day
+frequency cap is satisfied by our one daily + six weekly entries. Hobby's function
+`maxDuration` is 300s, which the ingest job sits inside. The one real Hobby cost is
+scheduling precision: it fires anywhere within the specified hour (±59 min), which
+our ≥4h slack absorbs and the kickoff guard would catch anyway. Upgrade to Pro for
+per-minute precision if that margin ever feels thin.
+
+**Cron paths must not carry query strings.** Vercel documents distinguishing two
+schedules on one path via the `x-vercel-cron-schedule` header, not via a query
+string. Scoring therefore uses two distinct routes, `/api/cron/score-provisional`
+and `/api/cron/score-final`.
+
+**Cron delivery is best effort** — Vercel may miss a run or deliver one twice, and
+never retries a failure. The ingest job is idempotent (upserts). The model-calling
+jobs are NOT: a duplicate invocation would spend eight more model calls. `lineups`
+is protected by `unique (team_id, week)`; `waiver_bids` has no such constraint and
+will need an idempotency key before that job ships.
+
 ## Build status against SPEC §9
 
 | Phase | State |
