@@ -28,6 +28,22 @@ import {
   type WeeklyRow,
 } from '@/lib/backtest/verify-scoring';
 import type { Position } from '@/lib/config/league';
+import { rulebook } from '@/lib/prompt/rulebook';
+import { commitHash } from '@/lib/engine/rng';
+import { generateH2HSchedule } from '@/lib/engine/schedule';
+import { buildLabelMap } from '@/lib/engine/labels';
+import { runDecision } from '@/lib/decisions/run';
+import { optimalLineup, type LineupPlayer } from '@/lib/engine/lineup';
+import { allPlayWeek, h2hWeek, rankStandings } from '@/lib/engine/allplay';
+import {
+  availableFor,
+  commitPick,
+  draftSchedule,
+  nextPickNumber,
+  runPick,
+  type DraftState,
+  type DraftTeam,
+} from '@/lib/engine/draft-runner';
 
 const SEASON = 2025;
 /**
@@ -173,6 +189,7 @@ const AUCTION_OUTPUT_EXAMPLE = {
 
 async function stageAuction() {
   const supabase = db();
+  const { seasonId, teams } = await seasonAndTeams(supabase);
 
   const { data: board, error } = await supabase
     .from('player_projections')
@@ -202,58 +219,91 @@ async function stageAuction() {
     slot_pick_numbers: slotPickNumbers(),
     top_available: topAvailable,
     budget_rule:
-      'Whatever you do not spend here is your entire FAAB budget for all 14 weeks. It does not replenish.',
+      'Whatever you do not spend here is your entire FAAB budget for all 14 weeks, and for the playoff free-agent auction.',
   };
 
-  const prompt = assemblePrompt({
-    data,
-    task:
-      'Bid for your draft slot and rank all 8 slots in preference order. Your bid is deducted ' +
-      'from the single budget that also funds every waiver claim you will make this season.',
-    outputExample: AUCTION_OUTPUT_EXAMPLE,
-  });
-
   console.log(`Slot auction against ${SEASON} pre-season data.`);
-  console.log(`  ${topAvailable.length} players on the board, prompt ~${prompt.estimatedTokens} tokens\n`);
+  console.log(`  ${topAvailable.length} players on the board\n`);
 
   const entries: AuctionEntry[] = [];
   const hashes: string[] = [];
+  const decisionIds = new Map<string, string | null>();
   let cost = 0;
 
-  for (const model of COHORT) {
-    const call = await callModel({
-      openrouterId: model.openrouterId,
-      systemPrompt: prompt.systemPrompt,
-      userPrompt: prompt.userPrompt,
-      schema: auctionSchema,
-    });
-    hashes.push(prompt.contextHash);
-    cost += call.usage.costUsd ?? 0;
+  for (const team of teams) {
+    const record = await runDecision(
+      {
+        seasonId,
+        teamId: team.id,
+        modelId: team.model_id,
+        openrouterId: team.models.openrouter_id,
+        type: 'auction',
+        data,
+        task:
+          'Bid for your draft slot and rank all 8 slots in preference order. Your bid is deducted ' +
+          'from the single budget that also funds every waiver claim you will make this season.',
+        outputExample: AUCTION_OUTPUT_EXAMPLE,
+        schema: auctionSchema,
+      },
+      supabase,
+    );
 
-    if (!call.ok) {
-      console.log(`  ✗ ${model.displayName.padEnd(16)} ${call.providerFailure ? 'provider failure' : 'invalid'}`);
-      console.log(`        finish_reason=${call.finishReason}  out=${call.usage.tokensOut} reasoning=${call.usage.reasoningTokens}`);
-      console.log(`        ${call.validationError?.slice(0, 160)}`);
-      entries.push({ teamId: model.key, bid: null, slotPreference: null });
+    hashes.push(record.contextHash);
+    decisionIds.set(team.id, record.decisionId);
+    cost += record.call.usage.costUsd ?? 0;
+
+    if (!record.parsed) {
+      console.log(`  ✗ ${team.models.display_name.padEnd(16)} ${record.providerFailure ? 'provider failure' : 'invalid'}`);
+      console.log(`        finish_reason=${record.call.finishReason}  out=${record.call.usage.tokensOut} reasoning=${record.call.usage.reasoningTokens}`);
+      console.log(`        ${record.call.validationError?.slice(0, 160)}`);
+      entries.push({ teamId: team.id, bid: null, slotPreference: null });
       continue;
     }
 
-    const { bid, slot_preference, headline, confidence } = call.parsed!;
-    entries.push({ teamId: model.key, bid, slotPreference: slot_preference });
-    console.log(`  $${String(bid).padStart(3)}  slot pref ${slot_preference.join('')}  conf ${confidence.toFixed(2)}  ${model.displayName}`);
+    const { bid, slot_preference, headline, confidence } = record.parsed;
+    entries.push({ teamId: team.id, bid, slotPreference: slot_preference });
+    console.log(`  $${String(bid).padStart(3)}  slot pref ${slot_preference.join('')}  conf ${confidence.toFixed(2)}  ${team.models.display_name}`);
     console.log(`        "${headline}"`);
   }
 
   assertSharedContext(hashes, 'backtest auction');
 
-  const result = resolveAuction(entries, process.env.DRAFT_SEED ?? 'backtest-seed');
+  const result = resolveAuction(entries, BACKTEST_SEED);
   const gate = auctionDiscriminates(result);
+  const byId = new Map(teams.map((t) => [t.id, t]));
+
+  for (const award of result.awards) {
+    const { error: bidError } = await supabase.from('auction_bids').upsert(
+      {
+        team_id: award.teamId,
+        bid: award.bid,
+        slot_preference: award.slotPreference,
+        assigned_slot: award.assignedSlot,
+        tiebroken: award.tiebroken,
+        decision_id: decisionIds.get(award.teamId) ?? null,
+      },
+      { onConflict: 'team_id' },
+    );
+    if (bidError) throw new Error(`auction_bids: ${bidError.message}`);
+
+    const { error: teamError } = await supabase
+      .from('teams')
+      .update({
+        draft_slot: award.assignedSlot,
+        auction_bid: award.bid,
+        slot_preference: award.slotPreference,
+        faab_remaining: award.faabRemaining,
+        waiver_priority: award.waiverPriority,
+      })
+      .eq('id', award.teamId);
+    if (teamError) throw new Error(`teams update: ${teamError.message}`);
+  }
 
   console.log('\n  Resolution:');
   for (const award of result.awards) {
-    const model = COHORT.find((m) => m.key === award.teamId)!;
+    const team = byId.get(award.teamId)!;
     console.log(
-      `    slot ${award.assignedSlot}  ${model.displayName.padEnd(16)} paid $${String(award.bid).padStart(3)}  ` +
+      `    slot ${award.assignedSlot}  ${team.models.display_name.padEnd(16)} paid $${String(award.bid).padStart(3)}  ` +
         `FAAB left $${String(award.faabRemaining).padStart(3)}${award.tiebroken ? '  (tiebroken)' : ''}${award.fallbackApplied ? '  (FALLBACK)' : ''}`,
     );
   }
@@ -261,23 +311,324 @@ async function stageAuction() {
   const d = result.dispersion;
   console.log(`\n  Dispersion: ${d.distinct} distinct bids, $${d.min}-$${d.max}, mean $${d.mean}, stdev ${d.stdev}`);
   console.log(`  Total cost: $${cost.toFixed(4)}`);
-  console.log(
-    gate.ok
-      ? `\n  GATE MET — the auction discriminates. ${gate.reason}`
-      : `\n  *** GATE NOT MET — ${gate.reason}.\n  *** SPEC §4.2: reconsider the mechanism before it runs for real.`,
-  );
+  console.log(gate.ok ? `\n  GATE MET — ${gate.reason}` : `\n  *** GATE NOT MET — ${gate.reason}`);
   if (!gate.ok) process.exitCode = 1;
 }
 
+// ---------------------------------------------------------------------------
+// Stage 2b — seed a 2025 league so the backtest uses the REAL tables
+// ---------------------------------------------------------------------------
+
+const BACKTEST_SEED = `backtest-${SEASON}`;
+
+async function seasonAndTeams(supabase: SupabaseClient) {
+  const { data: season, error } = await supabase.from('seasons').select('id').eq('year', SEASON).single();
+  if (error) throw new Error(`no ${SEASON} season — run --seed first`);
+  const { data: teams, error: teamError } = await supabase
+    .from('teams')
+    .select('id, model_id, draft_slot, auction_bid, faab_remaining, models!inner(openrouter_id, display_name)')
+    .eq('season_id', season.id);
+  if (teamError) throw new Error(`teams: ${teamError.message}`);
+  return { seasonId: season.id as string, teams: teams as unknown as BacktestTeam[] };
+}
+
+interface BacktestTeam {
+  id: string;
+  model_id: string;
+  draft_slot: number | null;
+  auction_bid: number | null;
+  faab_remaining: number | null;
+  models: { openrouter_id: string; display_name: string };
+}
+
+async function stageSeed() {
+  const supabase = db();
+
+  const { data: models } = await supabase.from('models').select('id, key');
+  if (!models || models.length === 0) throw new Error('no models — run scripts/seed.ts first');
+
+  const { error } = await supabase.from('seasons').upsert(
+    {
+      year: SEASON,
+      scoring_config: LEAGUE.scoring as unknown as Record<string, unknown>,
+      rulebook_version: 'rulebook-v2-backtest',
+      rulebook_text: rulebook(),
+      budget_total: LEAGUE.budgetTotal,
+      seed_commit_hash: commitHash(BACKTEST_SEED),
+    },
+    { onConflict: 'year' },
+  );
+  if (error) throw new Error(`seasons: ${error.message}`);
+
+  const { data: season } = await supabase.from('seasons').select('id').eq('year', SEASON).single();
+
+  const { error: teamError } = await supabase.from('teams').upsert(
+    models.map((m) => ({ season_id: season!.id, model_id: m.id, faab_remaining: LEAGUE.budgetTotal })),
+    { onConflict: 'season_id,model_id' },
+  );
+  if (teamError) throw new Error(`teams: ${teamError.message}`);
+
+  const { data: teams } = await supabase.from('teams').select('id').eq('season_id', season!.id);
+  const { count } = await supabase
+    .from('h2h_schedule').select('*', { count: 'exact', head: true }).eq('season_id', season!.id);
+
+  if (!count) {
+    const matchups = generateH2HSchedule(teams!.map((t) => t.id as string), BACKTEST_SEED);
+    await supabase.from('h2h_schedule').insert(
+      matchups.map((m) => ({ season_id: season!.id, week: m.week, home_team_id: m.homeTeamId, away_team_id: m.awayTeamId })),
+    );
+  }
+  console.log(`Backtest league seeded for ${SEASON}: ${teams!.length} teams, schedule ready.`);
+}
+
+// ---------------------------------------------------------------------------
+// Stage 4 — the draft, 120 picks, resumable
+// ---------------------------------------------------------------------------
+
+async function loadDraftState(supabase: SupabaseClient): Promise<DraftState> {
+  const { seasonId, teams } = await seasonAndTeams(supabase);
+  if (teams.some((t) => t.draft_slot === null)) throw new Error('draft slots unassigned — run --auction first');
+
+  const labels = buildLabelMap(teams.map((t) => ({ teamId: t.id, draftSlot: t.draft_slot! })));
+  const draftTeams: DraftTeam[] = teams.map((t) => ({
+    teamId: t.id,
+    modelId: t.model_id,
+    openrouterId: t.models.openrouter_id,
+    displayName: t.models.display_name,
+    draftSlot: t.draft_slot!,
+    label: labels.get(t.id)!,
+  }));
+
+  const pool: DraftState['pool'] = [];
+  for (let from = 0; ; from += 1000) {
+    const { data } = await supabase
+      .from('player_projections')
+      .select('player_id, proj_pts, adp, players!inner(name, position)')
+      .eq('season', SEASON)
+      .order('proj_pts', { ascending: false })
+      .range(from, from + 999);
+    if (!data || data.length === 0) break;
+    for (const row of data) {
+      const p = row.players as unknown as { name: string; position: Position };
+      pool.push({
+        playerId: row.player_id as string,
+        name: p.name,
+        position: p.position,
+        projSeasonPoints: Number(row.proj_pts),
+        adp: row.adp === null ? null : Number(row.adp),
+      });
+    }
+    if (data.length < 1000) break;
+    if (pool.length >= 400) break;
+  }
+
+  const { data: picks } = await supabase
+    .from('draft_picks')
+    .select('pick_overall, round, team_id, player_id, players!inner(name, position)')
+    .eq('season_id', seasonId)
+    .order('pick_overall');
+
+  return {
+    seasonId,
+    season: SEASON,
+    teams: draftTeams,
+    pool,
+    picks: (picks ?? []).map((row) => {
+      const p = row.players as unknown as { name: string; position: Position };
+      return {
+        pickOverall: row.pick_overall as number,
+        round: row.round as number,
+        teamId: row.team_id as string,
+        playerId: row.player_id as string,
+        name: p.name,
+        position: p.position,
+      };
+    }),
+  };
+}
+
+async function stageDraft() {
+  const supabase = db();
+  const state = await loadDraftState(supabase);
+  const schedule = draftSchedule(state.teams);
+  const total = schedule.length;
+
+  const limitArg = process.argv.indexOf('--picks');
+  const limit = limitArg >= 0 ? Number(process.argv[limitArg + 1]) : total;
+
+  console.log(`Draft: ${state.picks.length}/${total} picks already made, pool ${state.pool.length} players.`);
+  console.log(`Running up to ${limit} picks.\n`);
+
+  let cost = 0;
+  let fallbacks = 0;
+  let done = 0;
+
+  while (done < limit) {
+    const next = nextPickNumber(state);
+    if (next > total) break;
+    const slot = schedule[next - 1];
+
+    const result = await runPick(state, supabase, slot.round, next, slot.team);
+    await commitPick(state, supabase, result);
+    cost += result.costUsd;
+    if (result.fallbackApplied) fallbacks++;
+    done++;
+
+    const tag = result.fallbackApplied ? ' [FALLBACK]' : result.narrowed ? ' [narrowed]' : '';
+    console.log(
+      `  ${String(next).padStart(3)}/${total} R${String(result.round).padStart(2)} ${result.team.label} ` +
+        `${result.team.displayName.padEnd(16)} ${result.player.name} (${result.player.position})${tag}`,
+    );
+    if (result.headline) console.log(`         "${result.headline}"`);
+  }
+
+  console.log(`\n  ${state.picks.length}/${total} picks complete, ${fallbacks} fallbacks, $${cost.toFixed(4)} this run.`);
+  if (availableFor(state).length === 0) console.log('  pool exhausted');
+}
+
+// ---------------------------------------------------------------------------
+// Stage 5 — score the drafted rosters against what actually happened
+// ---------------------------------------------------------------------------
+
+async function stageScore() {
+  const supabase = db();
+  const { seasonId, teams } = await seasonAndTeams(supabase);
+  const labels = buildLabelMap(teams.map((t) => ({ teamId: t.id, draftSlot: t.draft_slot! })));
+
+  const { data: rosterRows } = await supabase
+    .from('rosters')
+    .select('team_id, player_id, players!inner(name, position)')
+    .in('team_id', teams.map((t) => t.id));
+
+  const rosters = new Map<string, { playerId: string; position: Position }[]>();
+  for (const row of rosterRows ?? []) {
+    const p = row.players as unknown as { position: Position };
+    const list = rosters.get(row.team_id as string) ?? [];
+    list.push({ playerId: row.player_id as string, position: p.position });
+    rosters.set(row.team_id as string, list);
+  }
+
+  // Actual points, by player, by week.
+  const points = new Map<string, Map<number, number>>();
+  for (let from = 0; ; from += 1000) {
+    const { data } = await supabase
+      .from('player_stats')
+      .select('player_id, week, computed_pts')
+      .eq('season', SEASON)
+      .lte('week', LEAGUE.regularSeasonWeeks)
+      .range(from, from + 999);
+    if (!data || data.length === 0) break;
+    for (const row of data) {
+      const byWeek = points.get(row.player_id as string) ?? new Map<number, number>();
+      byWeek.set(row.week as number, Number(row.computed_pts));
+      points.set(row.player_id as string, byWeek);
+    }
+    if (data.length < 1000) break;
+  }
+
+  const { data: schedule } = await supabase
+    .from('h2h_schedule').select('week, home_team_id, away_team_id').eq('season_id', seasonId);
+
+  const totals = new Map<string, number>();
+  const allplay = new Map<string, { w: number; l: number }>();
+  const h2h = new Map<string, { w: number; l: number; t: number }>();
+  for (const t of teams) {
+    totals.set(t.id, 0);
+    allplay.set(t.id, { w: 0, l: 0 });
+    h2h.set(t.id, { w: 0, l: 0, t: 0 });
+  }
+
+  for (let week = 1; week <= LEAGUE.regularSeasonWeeks; week++) {
+    const weekScores = teams.map((t) => {
+      const roster: LineupPlayer[] = (rosters.get(t.id) ?? []).map((p) => ({
+        playerId: p.playerId,
+        position: p.position,
+        points: points.get(p.playerId)?.get(week) ?? 0,
+      }));
+      // Optimal lineup isolates ROSTER quality from lineup-setting skill, which no
+      // model exercised here — nobody set a lineup in this backtest.
+      return { teamId: t.id, points: optimalLineup(roster).total };
+    });
+
+    for (const s of weekScores) totals.set(s.teamId, (totals.get(s.teamId) ?? 0) + s.points);
+    for (const rec of allPlayWeek(weekScores)) {
+      const a = allplay.get(rec.teamId)!;
+      a.w += rec.wins;
+      a.l += rec.losses;
+    }
+    const weekGames = (schedule ?? []).filter((m) => m.week === week);
+    for (const [teamId, outcome] of h2hWeek(
+      weekGames.map((m) => ({ homeTeamId: m.home_team_id as string, awayTeamId: m.away_team_id as string })),
+      weekScores,
+    )) {
+      const r = h2h.get(teamId)!;
+      if (outcome === 'W') r.w++;
+      else if (outcome === 'L') r.l++;
+      else r.t++;
+    }
+  }
+
+  const standings = rankStandings(
+    teams.map((t) => ({
+      teamId: t.id,
+      h2hW: h2h.get(t.id)!.w,
+      h2hL: h2h.get(t.id)!.l,
+      h2hT: h2h.get(t.id)!.t,
+      allplayW: allplay.get(t.id)!.w,
+      allplayL: allplay.get(t.id)!.l,
+      cumPts: totals.get(t.id) ?? 0,
+    })),
+  );
+
+  const byId = new Map(teams.map((t) => [t.id, t]));
+  console.log(`\n${SEASON} backtest results — optimal lineups, weeks 1-${LEAGUE.regularSeasonWeeks}\n`);
+  console.log('  rk  team              label  slot  bid  points   H2H     all-play');
+  for (const row of standings) {
+    const t = byId.get(row.teamId)!;
+    console.log(
+      `  ${String(row.rank).padStart(2)}  ${t.models.display_name.padEnd(16)} ${labels.get(t.id)!.slice(5)}` +
+        `      ${String(t.draft_slot).padStart(2)}  $${String(t.auction_bid ?? 0).padStart(3)}  ` +
+        `${row.cumPts.toFixed(1).padStart(7)}  ${row.h2hW}-${row.h2hL}${row.h2hT ? '-' + row.h2hT : ''}` +
+        `   ${row.allplayW}-${row.allplayL}`,
+    );
+  }
+
+  // Did paying for a slot pay off?
+  const withBids = teams.filter((t) => t.auction_bid !== null);
+  if (withBids.length > 0) {
+    const paired = withBids.map((t) => ({
+      bid: t.auction_bid!,
+      pts: totals.get(t.id) ?? 0,
+    }));
+    const meanBid = paired.reduce((s, p) => s + p.bid, 0) / paired.length;
+    const meanPts = paired.reduce((s, p) => s + p.pts, 0) / paired.length;
+    const cov = paired.reduce((s, p) => s + (p.bid - meanBid) * (p.pts - meanPts), 0) / paired.length;
+    const sdBid = Math.sqrt(paired.reduce((s, p) => s + (p.bid - meanBid) ** 2, 0) / paired.length);
+    const sdPts = Math.sqrt(paired.reduce((s, p) => s + (p.pts - meanPts) ** 2, 0) / paired.length);
+    const r = sdBid && sdPts ? cov / (sdBid * sdPts) : 0;
+    console.log(`\n  Auction bid vs season points: r = ${r.toFixed(3)}`);
+    console.log(
+      r > 0.3
+        ? '  Paying for slot correlated with a better roster.'
+        : r < -0.3
+          ? '  Paying for slot correlated with a WORSE roster — the low bidders were right.'
+          : '  No meaningful relationship — slot value is close to noise, as SPEC §4.2 measured.',
+    );
+  }
+}
+
 async function main() {
-  const any = flag('ingest') || flag('verify') || flag('auction');
+  const any = flag('ingest') || flag('verify') || flag('seed') || flag('auction') || flag('draft') || flag('score');
   if (!any) {
-    console.log('Pick a stage: --ingest, --verify, --auction');
+    console.log('Pick a stage: --ingest, --verify, --seed, --auction, --draft, --score');
     return;
   }
   if (flag('ingest')) await stageIngest();
   if (flag('verify')) await stageVerify();
+  if (flag('seed')) await stageSeed();
   if (flag('auction')) await stageAuction();
+  if (flag('draft')) await stageDraft();
+  if (flag('score')) await stageScore();
 }
 
 main().catch((err) => {
