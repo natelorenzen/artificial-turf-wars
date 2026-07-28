@@ -55,6 +55,27 @@ async function main() {
       : '  all tables empty',
   );
 
+  // Does the ingested data actually look like a draftable board?
+  if ((rows.player_projections ?? 0) > 0) {
+    const season = Number(process.env.SEASON_YEAR ?? '2026');
+    console.log(`\nTop projected players, ${season} (our scoring):`);
+    for (const position of ['QB', 'RB', 'WR', 'TE', 'K', 'DEF']) {
+      const { data } = await admin
+        .from('player_projections')
+        .select('proj_pts, adp, players!inner(name, position)')
+        .eq('season', season)
+        .eq('players.position', position)
+        .order('proj_pts', { ascending: false })
+        .limit(3);
+
+      const top = (data ?? []).map((r) => {
+        const player = r.players as unknown as { name: string };
+        return `${player.name} ${Number(r.proj_pts).toFixed(1)}${r.adp ? ` (adp ${r.adp})` : ''}`;
+      });
+      console.log(`  ${position.padEnd(4)} ${top.join('  |  ') || '—'}`);
+    }
+  }
+
   // RLS: anon reads, anon never writes.
   const { error: readError } = await anon.from('models').select('id').limit(1);
   console.log(`\nRLS anon read:  ${readError ? `BLOCKED — ${readError.message}` : 'allowed (correct)'}`);

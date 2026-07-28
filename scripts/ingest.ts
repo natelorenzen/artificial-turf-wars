@@ -37,8 +37,8 @@ async function main() {
   if (all || flag('players')) console.log('players:', await ingestPlayers());
   if (all || flag('schedule')) console.log('schedule:', await ingestSchedule(season));
   if (all || flag('projections')) {
-    const { projections, withAdp, calibration } = await ingestProjections(season);
-    console.log('projections:', { projections, withAdp, sourceSeason: calibration.sourceSeason });
+    const { projections, withAdp, skipped, calibration } = await ingestProjections(season);
+    console.log("projections:", { projections, withAdp, skipped, sourceSeason: calibration.sourceSeason });
   }
   if (flag('stats')) {
     const week = Number(value('week'));

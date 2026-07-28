@@ -152,12 +152,46 @@ export async function fetchCalibration(priorSeason: number): Promise<ProjectionC
   return buildCalibration(priorSeason, def.data, k.data);
 }
 
+/**
+ * Every id in `players`, paged. Supabase caps a select at 1000 rows by default, and
+ * silently returning the first 1000 here would make the FK filter below drop most of
+ * the league.
+ */
+async function fetchAllPlayerIds(db: SupabaseClient): Promise<Set<string>> {
+  const ids = new Set<string>();
+  const page = 1000;
+  for (let from = 0; ; from += page) {
+    const { data, error } = await db
+      .from('players')
+      .select('sleeper_id')
+      .range(from, from + page - 1);
+    if (error) throw new Error(`player id scan: ${error.message}`);
+    if (!data || data.length === 0) break;
+    for (const row of data) ids.add(row.sleeper_id as string);
+    if (data.length < page) break;
+  }
+  return ids;
+}
+
 export async function ingestProjections(
   season: number,
   opts: { calibration?: ProjectionCalibration; db?: SupabaseClient } = {},
 ) {
   const db = opts.db ?? supabaseServer();
   const calibration = opts.calibration ?? (await fetchCalibration(season - 1));
+  // Sleeper's projections host and its player pool do not agree on position:
+  // `position[]=RB` on the projections feed returns FULLBACKS, which the pool lists
+  // as `FB` — a position our fantasy filter excludes. Verified 2026-07-28: all 74
+  // dropped players are fullbacks and special-teamers, the best of them projecting
+  // 19.9 points against a 120th-pick draftable floor of 165, so none would ever be
+  // drafted. `scripts/skipped-check.ts` re-verifies this and fails loudly if a drop
+  // ever lands inside draftable range.
+  //
+  // Dropping is the right call over inventing player rows from the projection
+  // payload: a player the pool has never heard of has no depth chart, no injury
+  // status, and no bye week, so he could not be reasoned about anyway.
+  const knownPlayers = await fetchAllPlayerIds(db);
+  const skipped: Record<string, number> = {};
 
   // ADP comes from the WEEK-1 endpoint; the season-long endpoint returns adp: null.
   const adpByPlayer = new Map<string, { adp: number | null; posAdp: number | null }>();
@@ -191,6 +225,10 @@ export async function ingestProjections(
     });
 
     for (const rec of result.data) {
+      if (!knownPlayers.has(rec.player_id)) {
+        skipped[position] = (skipped[position] ?? 0) + 1;
+        continue;
+      }
       const { points } = projectSeasonPoints(position, rec, calibration);
       const adp = adpByPlayer.get(rec.player_id);
       if (adp?.adp != null) withAdp++;
@@ -207,7 +245,7 @@ export async function ingestProjections(
   }
 
   await upsertChunked(db, 'player_projections', rows, 'player_id,season,week');
-  return { projections: rows.length, withAdp, calibration };
+  return { projections: rows.length, withAdp, skipped, calibration };
 }
 
 // ---------------------------------------------------------------------------
