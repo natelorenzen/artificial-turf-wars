@@ -1730,6 +1730,7 @@ five weeks.** Everything after the draft lands week by week once games are playe
 | 10 | Public site: standings, team pages, draft board, **disagreement view**, gameplan-vs-actual, decision viewer, recap | Site live |
 | 11 | **Weekly wrap:** facts packet, beat-writer call, number check | A column publishes with every figure verified |
 | 12 | Share card, methodology page, seed reveal | Growth loop live |
+| 13 | **[NEW] Syndication to X** (§13) — launch run, weekly wrap post, contrarian resolutions | A post publishes with every figure verified against the facts packet |
 
 **Phases 8 and 9 can land after Week 1.** Only Phases 0–6 are gated by the draft deadline.
 Waivers do not matter until there is a Week 1 result to react to, and move evaluation is
@@ -1910,6 +1911,94 @@ The retro sports frame maps onto this project's content without forcing:
 
 **Open:** wordmark and favicon. Impact-set type works as a placeholder but a real
 custom-lettered mark would carry the identity further.
+
+---
+
+## 13. Syndication to X — **[NEW]**
+
+The site is the product, but nobody arrives at a URL unprompted. This is the
+distribution step, and **most of it already exists in this spec** — §7.5 produces a
+~40-word `short_post` explicitly designed as a share-card caption, and §7.4 has
+`/api/og/week/[n]` rendering the card. What was never specified is where either goes.
+
+### 13.1 What gets posted
+
+Three kinds of post, in descending order of how much they earn their place:
+
+1. **The pre-season launch run.** Eight declared gameplans and eight auction bids,
+   published before a single game. §7.4 already calls `/preseason` the launch moment;
+   it is the most shareable artifact the project has and it exists weeks before there
+   are standings to talk about.
+2. **The weekly wrap**, Tuesday — `short_post` plus the share card, linking to
+   `/week/[n]/wrap`.
+3. **Contrarian resolutions**, opportunistically. "Seven teams started him. One
+   benched him. Here is what happened." This comes straight from the disagreement
+   view (§7.3), which is the best content this project produces, and it is the only
+   one of the three that should be allowed to skip a week when nothing interesting
+   happened.
+
+### 13.2 Cost — **[verified 2026-07-28]**
+
+X moved to pay-per-usage: **$0.015 per post, $0.200 per post containing a URL**, no
+subscription and no free allowance. At roughly 14 weekly posts plus a launch run and
+occasional resolutions, the season lands **under $10** — negligible against the ~$40
+model budget (§9).
+
+Note the 13× premium on posts with links. It does not matter at this volume, but if
+posting ever scales, put the link in a reply rather than in the post body.
+
+### 13.3 The risk this adds, and the mechanism against it
+
+§7.5 already worries that "one invented stat in a widely-shared post costs more
+credibility than the recap adds." **Syndication makes that failure mode strictly
+worse**, for two reasons that need mechanical answers rather than good intentions:
+
+1. **A post leaves its context behind.** On the site, the wrap sits under the §1
+   exhibition caveat with a link to the raw decision one click away. Screenshotted on
+   X, it is just a claim about a named commercial product. The tone guardrails in
+   §7.5 — mock decisions never the model or lab as an entity, punch at outcomes never
+   at capability — stop being stylistic and become the thing that keeps this from
+   reading as a product review of eight companies' flagships.
+2. **A post is not really retractable.** Deleting it does not unscreenshot it.
+
+**Therefore:**
+
+- **The §7.5 number check is a hard gate, not a warning.** If any figure in the post
+  fails to match the deterministic facts packet, nothing is posted and the failure
+  alerts instead. A missed week is recoverable; a wrong stat under the project's own
+  name is not.
+- **Every post links back**, so the caveat and the audit trail are always one tap
+  from the claim.
+- **The byline discloses the writer.** The wrap is written by a non-competing model
+  (`mistralai/mistral-medium-3-5`); posts say so, exactly as §7.5 requires of the
+  site.
+- **A kill switch.** One env var stops all syndication without a redeploy.
+
+### 13.4 Publish gate — **[OPEN]**
+
+Whether posts go out automatically or wait for approval is a genuine choice, and it
+is the account owner's to make, not the builder's:
+
+- **Approval gate (recommended, at least for the first weeks).** The job generates
+  the post and card, stores them `pending`, and notifies. A human taps approve. Costs
+  a few minutes a week and makes the tone calibratable against real reactions before
+  it runs unattended.
+- **Fully automatic.** Defensible *only* once the number check has been observed
+  catching things and the voice has settled. The failure mode is unattended.
+
+Recommendation: start gated, move to automatic mid-season if the wrap has earned it.
+
+### 13.5 Schema and placement
+
+```
+social_posts  id, season_id, week, kind ('launch'|'wrap'|'resolution'),
+              body, card_url, target_url, status ('pending'|'approved'|'posted'|'blocked'),
+              number_check_passed, blocked_reason, external_id, posted_at, decision_id
+```
+
+**This is Phase 13 and it is downstream of Phases 11 and 12** — there is nothing to
+post until the wrap and the share card exist. The one exception is the launch run,
+which fires before Week 1 and needs only `/preseason`.
 
 ---
 
