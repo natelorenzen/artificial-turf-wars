@@ -1,15 +1,18 @@
 /**
  * All-play, head-to-head, and the standings order (SPEC §6.1).
  *
- * All-play is the OFFICIAL ranking: every team is compared against all seven others
- * each week, which removes both strength-of-schedule luck and timing luck. H2H is
- * published as a co-headline but never ranks.
+ * SPEC §14.2 reversed which of these ranks. HEAD-TO-HEAD is now official: it is what
+ * makes the opponent matter, and therefore what makes punting, variance-seeking, and
+ * cross-week budgeting into real decisions instead of noise. ALL-PLAY is still
+ * computed and published every week as the timing-luck-free read on who actually
+ * managed best, and where the two disagree the site leads with the disagreement.
  *
  * Exact ties are not rare — kicker and DEF/ST outputs are small integers — so the
  * rule is stated rather than left to whatever `>` happens to do: an all-play tie
  * awards HALF A WIN to each team, and a H2H tie is recorded as a tie.
  */
 
+import { RANKING_BASIS } from '@/lib/config/league';
 import { round2 } from '@/lib/scoring/engine';
 
 export interface WeekScore {
@@ -68,26 +71,45 @@ export function h2hWeek(
   return out;
 }
 
-export interface StandingRow {
+export interface StandingInput {
   teamId: string;
+  /** Head-to-head — the official basis since the v3 amendment (SPEC §14.2). */
+  h2hW: number;
+  h2hL: number;
+  h2hT: number;
+  /** All-play — still computed and published, no longer ranks. */
   allplayW: number;
   allplayL: number;
   cumPts: number;
+}
+
+export interface StandingRow extends StandingInput {
   rank: number;
   /** True when this team shares its rank with another — no coin flip is used. */
   coRanked: boolean;
 }
 
+/** A tie is half a win for ordering purposes; the schedule is balanced so games are equal. */
+export function h2hScore(row: { h2hW: number; h2hT: number }): number {
+  return row.h2hW + row.h2hT * 0.5;
+}
+
 /**
- * Season rank: cumulative all-play, tiebreak cumulative points. If both are exactly
- * equal the teams are declared CO-RANKED. No coin flip, no seed tiebreak — leaving
- * it undefined would be worse than an outcome nobody will see.
+ * Season rank. Basis is head-to-head record, tiebreak cumulative points (SPEC §14.2).
+ * If both are exactly equal the teams are declared CO-RANKED — no coin flip, no seed
+ * tiebreak. Leaving it undefined would be worse than an outcome nobody will see.
+ *
+ * All-play ranking is retained behind `basis` because the site publishes that table
+ * too, and where the two disagree is meant to be led with, not buried.
  */
 export function rankStandings(
-  rows: { teamId: string; allplayW: number; allplayL: number; cumPts: number }[],
+  rows: StandingInput[],
+  basis: 'h2h' | 'allplay' = RANKING_BASIS,
 ): StandingRow[] {
+  const primary = (row: StandingInput) => (basis === 'h2h' ? h2hScore(row) : row.allplayW);
+
   const sorted = [...rows].sort((a, b) => {
-    const w = cmp(b.allplayW, a.allplayW);
+    const w = cmp(primary(b), primary(a));
     if (w !== 0) return w;
     const p = cmp(b.cumPts, a.cumPts);
     if (p !== 0) return p;
@@ -96,7 +118,7 @@ export function rankStandings(
   });
 
   const isTied = (a: (typeof sorted)[number], b: (typeof sorted)[number]) =>
-    cmp(a.allplayW, b.allplayW) === 0 && cmp(a.cumPts, b.cumPts) === 0;
+    cmp(primary(a), primary(b)) === 0 && cmp(a.cumPts, b.cumPts) === 0;
 
   const out: StandingRow[] = [];
   let rank = 0;
@@ -105,14 +127,7 @@ export function rankStandings(
     if (i === 0 || !prev || !isTied(sorted[i], prev)) rank = i + 1;
     const next = sorted[i + 1];
     const coRanked = Boolean((prev && isTied(sorted[i], prev)) || (next && isTied(sorted[i], next)));
-    out.push({
-      teamId: sorted[i].teamId,
-      allplayW: sorted[i].allplayW,
-      allplayL: sorted[i].allplayL,
-      cumPts: round2(sorted[i].cumPts),
-      rank,
-      coRanked,
-    });
+    out.push({ ...sorted[i], cumPts: round2(sorted[i].cumPts), rank, coRanked });
   }
   return out;
 }

@@ -95,29 +95,56 @@ describe('all-play', () => {
 });
 
 describe('standings', () => {
-  it('ranks on all-play, tiebreaks on points', () => {
+  const row = (
+    teamId: string,
+    h2hW: number,
+    h2hL: number,
+    cumPts: number,
+    opts: { h2hT?: number; allplayW?: number } = {},
+  ) => ({
+    teamId,
+    h2hW,
+    h2hL,
+    h2hT: opts.h2hT ?? 0,
+    allplayW: opts.allplayW ?? 0,
+    allplayL: 0,
+    cumPts,
+  });
+
+  it('ranks on head-to-head, tiebreaks on points (SPEC §14.2)', () => {
     const ranked = rankStandings([
-      { teamId: 'a', allplayW: 40, allplayL: 30, cumPts: 1200 },
-      { teamId: 'b', allplayW: 40, allplayL: 30, cumPts: 1300 },
-      { teamId: 'c', allplayW: 45, allplayL: 25, cumPts: 1100 },
+      row('a', 8, 6, 1200),
+      row('b', 8, 6, 1300),
+      row('c', 9, 5, 1100),
     ]);
     expect(ranked.map((r) => r.teamId)).toEqual(['c', 'b', 'a']);
     expect(ranked.map((r) => r.rank)).toEqual([1, 2, 3]);
   });
 
-  it('declares co-ranked teams rather than flipping a coin', () => {
+  it('does NOT rank on all-play, even when all-play disagrees', () => {
+    // 'b' dominates on all-play but lost the matchups that mattered.
     const ranked = rankStandings([
-      { teamId: 'a', allplayW: 40, allplayL: 30, cumPts: 1200 },
-      { teamId: 'b', allplayW: 40, allplayL: 30, cumPts: 1200 },
+      row('a', 10, 4, 1000, { allplayW: 40 }),
+      row('b', 4, 10, 1400, { allplayW: 70 }),
     ]);
+    expect(ranked[0].teamId).toBe('a');
+    // The all-play view is still available and still disagrees — that is the story.
+    expect(rankStandings([row('a', 10, 4, 1000, { allplayW: 40 }), row('b', 4, 10, 1400, { allplayW: 70 })], 'allplay')[0].teamId).toBe('b');
+  });
+
+  it('counts a head-to-head tie as half a win for ordering', () => {
+    const ranked = rankStandings([row('a', 7, 6, 1000, { h2hT: 1 }), row('b', 7, 7, 1200)]);
+    expect(ranked[0].teamId).toBe('a'); // 7.5 beats 7
+  });
+
+  it('declares co-ranked teams rather than flipping a coin', () => {
+    const ranked = rankStandings([row('a', 8, 6, 1200), row('b', 8, 6, 1200)]);
     expect(ranked.map((r) => r.rank)).toEqual([1, 1]);
     expect(ranked.every((r) => r.coRanked)).toBe(true);
   });
 
   it('seeds the playoff from the same order the site shows', () => {
-    const ranked = rankStandings(
-      TEAMS.map((teamId, i) => ({ teamId, allplayW: i, allplayL: 7 - i, cumPts: 1000 + i })),
-    );
+    const ranked = rankStandings(TEAMS.map((teamId, i) => row(teamId, i, 14 - i, 1000 + i)));
     const seeds = playoffSeeds(ranked, LEAGUE.playoffTeams);
     expect(seeds).toHaveLength(4);
     expect(semifinalMatchups(seeds)).toEqual([

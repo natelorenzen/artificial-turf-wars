@@ -65,10 +65,43 @@ export function buildRulesCheck(): RulesQuestion[] {
     },
     {
       id: 'allplay_record',
-      prompt: `Your lineup outscores 5 of the other ${opponents} teams this week. What is your all-play record for that week? Answer in the form W-L.`,
+      prompt: `All-play is a statistic this league publishes but does not rank on. Your lineup outscores 5 of the other ${opponents} teams this week. What is your all-play record for that week? Answer in the form W-L.`,
       answer: `5-${opponents - 5}`,
       kind: 'text',
-      tests: 'the stated objective is all-play',
+      tests: 'all-play is still computed, and is not the objective',
+    },
+    {
+      id: 'ranking_basis',
+      prompt:
+        'Which record determines your standings and your playoff seeding in this league: your head-to-head record, or your all-play record? Answer "head-to-head" or "all-play".',
+      answer: 'head-to-head',
+      kind: 'text',
+      accepts: ['head-to-head', 'head to head', 'headtohead', 'h2h', 'the head-to-head record'],
+      tests: 'the v3 objective — H2H ranks, all-play does not',
+    },
+    {
+      id: 'margin_is_worthless',
+      prompt:
+        'You beat your weekly opponent by 40 points. Another team beats its opponent by 1 point. How many more head-to-head wins do you earn than that team for this week? Answer with a number only.',
+      answer: '0',
+      kind: 'number',
+      tests: 'running up the score buys nothing under H2H',
+    },
+    {
+      id: 'playoff_teams',
+      prompt: `How many of the ${LEAGUE.teams} teams reach the playoffs? Answer with a number only.`,
+      answer: String(LEAGUE.playoffTeams),
+      kind: 'number',
+      tests: 'the qualification target',
+    },
+    {
+      id: 'playoff_pool',
+      prompt:
+        'After the regular season ends, can a team that made the playoffs bid on a player who finished the season on an eliminated team\'s roster? Answer yes or no.',
+      answer: 'yes',
+      kind: 'text',
+      accepts: ['yes', 'y', 'true'],
+      tests: 'the playoff pool release — unspent budget buys a playoff roster',
     },
     {
       id: 'budget_split',
@@ -138,10 +171,11 @@ export function buildRulesCheck(): RulesQuestion[] {
     {
       id: 'tie_rule',
       prompt:
-        'Your lineup scores exactly the same number of points as one other team this week. How many all-play wins does that single comparison give you? Answer with a number only.',
-      answer: '0.5',
-      kind: 'number',
-      tests: 'the exact-tie rule',
+        'Your lineup scores exactly the same number of points as the team you are matched against this week. Is the result a win, a loss, or a tie? Answer with one word.',
+      answer: 'tie',
+      kind: 'text',
+      accepts: ['tie', 'a tie', 'draw', 'tied'],
+      tests: 'the exact-tie rule under head-to-head',
     },
     {
       id: 'pts_allowed_band',

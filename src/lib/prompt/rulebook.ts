@@ -40,21 +40,48 @@ export function generateRulebook(): string {
   return `=== LEAGUE RULEBOOK ${RULEBOOK_VERSION} ===
 
 OBJECTIVE (this is what you are optimizing):
-Maximize your cumulative ALL-PLAY record over ${LEAGUE.regularSeasonWeeks} weeks. Each week your
-starting lineup's total points is compared against all ${opponents} other teams. You
-earn one win for every team you outscore, so a weekly result runs from 0-${opponents}
-to ${opponents}-0. Season rank is cumulative all-play record; ties break on cumulative
-total points. An exact scoring tie awards half a win to each team.
-Because you are measured against all ${opponents} opponents every week rather than one,
-consistent scoring is more valuable than high-variance upside. You are not
-trying to beat one opponent; you are trying to finish above as many teams as
-possible every single week.
-A head-to-head record is also published, but it does NOT determine rank.
+WIN THE LEAGUE. That is three things, in order:
+  1. Win your weekly head-to-head matchup. Each week you are paired against
+     exactly one other team. Whoever scores more points wins. A tie is a tie.
+  2. Finish in the top ${LEAGUE.playoffTeams} of ${LEAGUE.teams} after week ${LEAGUE.regularSeasonWeeks} to reach the playoffs.
+     Seeding is head-to-head record; ties break on cumulative total points.
+  3. Win the ${LEAGUE.playoffWeeks.length}-week playoff bracket.
+Nothing else ranks you. An ALL-PLAY record (your score compared against all
+${opponents} other teams each week) is also computed and published, but it does NOT
+determine standings, seeding, or the title.
 
-TEAMS: ${LEAGUE.teams}. You are one of them. You cannot see other teams' rosters,
-lineups, or reasoning.
+WHAT THIS MEANS FOR HOW YOU PLAY:
+Because you face ONE opponent each week, the right decision depends on WHO
+that opponent is and what they are likely to score.
+  - Beating a projected total by 40 points is worth exactly as much as
+    beating it by 1. Running up the score buys you nothing.
+  - If you are a heavy underdog, a safe lineup loses. Higher-variance
+    players give you a real chance at the outlier week you need.
+  - If you are a heavy favorite, the opposite holds. Protect the floor.
+  - A week you are very likely to lose is a week worth spending nothing on.
+    Budget you keep is budget you can use on a week you can win.
+  - Late in the season, what matters is not points but qualifying. Know
+    where you stand and what you need.
+These are your judgments to make. We do not tell you your win probability;
+you are given your opponent's roster and scoring history and are expected
+to form your own view.
 
-SEASON: NFL weeks 1-${LEAGUE.regularSeasonWeeks}.
+TEAMS: ${LEAGUE.teams}. You are one of them, and you are told which one.
+Other teams appear under stable anonymous labels (for example "Team C")
+which do not change all season. You are shown their rosters and their
+completed results. You are NOT shown their lineup for the current week
+before it locks, their reasoning, or which AI model any of them is.
+
+SEASON: NFL weeks 1-${LEAGUE.regularSeasonWeeks}, then playoffs in weeks ${LEAGUE.playoffWeeks.join('-')}.
+Every team plays every other team exactly twice over the ${LEAGUE.regularSeasonWeeks} weeks.
+
+PLAYOFFS:
+The top ${LEAGUE.playoffTeams} seeds advance. Week ${LEAGUE.playoffWeeks[0]}: seed 1 plays seed ${LEAGUE.playoffTeams}, seed 2 plays seed 3.
+Week ${LEAGUE.playoffWeeks[1]}: the winners meet for the title. Week 17 is not played.
+When the regular season ends, EVERY player on the ${LEAGUE.teams - LEAGUE.playoffTeams} eliminated teams is
+released into a free-agent pool, and the ${LEAGUE.playoffTeams} surviving teams bid their
+remaining budget on them in one final waiver run. Budget you did not
+spend during the season is what buys you a playoff roster.
 
 ROSTER (${LEAGUE.rosterSize} players):
 Starters (${STARTERS_COUNT}): ${slotLine}
@@ -99,9 +126,6 @@ Sealed bids. Highest bid wins a player; ties break on waiver priority
 (seeded in reverse draft-slot order; a successful claim drops you to the
 bottom). Your roster is always exactly ${LEAGUE.rosterSize}, so every add requires a drop.
 A $0 bid is legal. Bidding nothing at all is legal.
-
-PLAYOFFS: weeks ${LEAGUE.playoffWeeks.join('-')}, top ${LEAGUE.playoffTeams} teams by all-play record, head-to-head
-bracket. Week 17 is not played.
 
 NOT AVAILABLE THIS SEASON: trades, IR slots, open free agency between
 waiver runs, and roster moves at any time other than the weekly waiver

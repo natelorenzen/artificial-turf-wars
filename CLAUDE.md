@@ -7,6 +7,14 @@ Real Sleeper results score them. Every prompt and every raw response is publishe
 anything — it is the reconciled build spec and it is authoritative. Section numbers
 below refer to it.
 
+**⚠️ SPEC §14 (v3, 2026-07-28) supersedes parts of §3.3, §4.3–§4.5, §6.1 and the
+§4.1-iii rulebook.** The goal is exposing model reasoning under *bounded chaos*, so:
+head-to-head now ranks (all-play is published but does not), models see their
+opponent and the draft board, and eliminated rosters are released into a playoff FAAB
+pool. Under all-play there was no opponent, and therefore no punting, no
+variance-seeking, and no cross-week budgeting — the model just started its highest
+projections forever.
+
 ---
 
 ## Stack
@@ -52,6 +60,18 @@ client in server-side routes.
    writes `final`, and the diff is published (§5.5).
 8. **Model IDs are pinned** in `league.ts` before the draft and never swapped
    mid-season, even if a lab ships something newer in October.
+9. **No lab or model name may ever reach a DATA block** (§14.3). Rivals appear only as
+   stable anonymous labels derived from draft slot (`src/lib/engine/labels.ts`).
+   Without this the season stops measuring fantasy reasoning and starts measuring how
+   these models treat each other's brands. Guard prompts with `assertNoLabelLeak`.
+10. **Models never see our win probability** (§6.4). They get the opponent's roster and
+    scoring history — descriptive facts — and form their own view. Handing them our
+    estimator would mean they are reasoning from it rather than the shared data, and
+    it would destroy the calibration finding.
+11. **The context-hash claim is now two-part** (§14.6). Opponent data means the eight
+    DATA blocks differ by construction. Assert the *base* block is identical across
+    all eight AND that each per-team overlay replays from `(base, teamId)`. The
+    methodology page must state this weaker claim, not the old one.
 
 ---
 
@@ -82,10 +102,13 @@ src/
     config/league.ts      # ← source of truth: rules, scoring, cohort
     scoring/engine.ts     # raw Sleeper stats → our points
     sleeper/              # HTTP client + ingest jobs, snapshot + hash
-    prompt/               # rulebook generator, system prompt, memory block, hashing
+    prompt/               # rulebook generator, system prompt, memory, hashing
+      context.ts          #   ← v3: opponent view, lookahead, standings, draft board
     openrouter/           # one adapter, eight models, retries, fallbacks
     schemas/              # zod schemas, one per decision type
     engine/               # auction, draft, all-play, H2H schedule, FAAB, evaluation
+      labels.ts           #   ← v3: anonymous stable rival labels
+      playoff-pool.ts     #   ← v3: eliminated-roster release + final FAAB run
   types/
 supabase/migrations/      # apply in order via the Supabase SQL editor
 scripts/                  # one-shot operator scripts (tsx)
@@ -151,10 +174,11 @@ will need an idempotency key before that job ships.
 | 0 — scaffold, schema, cron config | **done** — migration `0001_init.sql` not yet applied to a live project |
 | 1 — Sleeper ingest + snapshots | **done** — verified against the live feed (`npx tsx scripts/ingest.ts --dry-run`) |
 | Scoring engine | **done** — 14 tests incl. the return-TD and absent-key traps |
-| Rulebook / prompt assembly | **done** — generated from config, context hashing, ceiling assertion |
+| Rulebook / prompt assembly | **done** — `rulebook-v2`, split base/overlay hashing |
 | 2/3 — OpenRouter adapter | **code complete, never called** — needs `OPENROUTER_API_KEY` |
-| League engine | **done** — auction, snake draft, all-play, H2H, FAAB, lineup/optimal |
-| 5 — rules comprehension check | **done** — 13 questions, deterministic grading |
+| League engine | **done** — auction, snake draft, H2H ranking, all-play, FAAB, lineup/optimal |
+| v3 — labels, opponent context, playoff pool | **done** — 19 tests |
+| 5 — rules comprehension check | **done** — 17 questions, deterministic grading |
 | Cron guard | **done** — auth, kickoff/DST refusal, irreversible-job lock |
 | 4 — 2025 backtest | **not started** — gates the draft |
 | 6 — auction + draft run | **not started** — needs Phase 4 first |

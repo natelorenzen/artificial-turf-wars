@@ -11,7 +11,16 @@ export type Position = 'QB' | 'RB' | 'WR' | 'TE' | 'K' | 'DEF';
 export type StarterSlot = 'QB' | 'RB' | 'WR' | 'TE' | 'FLEX' | 'K' | 'DEF';
 
 export const PROMPT_VERSION = 'sys-v2';
-export const RULEBOOK_VERSION = 'rulebook-v1';
+/** Bumped for the v3 amendment (SPEC §14): H2H objective, opponent awareness. */
+export const RULEBOOK_VERSION = 'rulebook-v2';
+
+/**
+ * SPEC §14.2 — head-to-head decides the season. All-play is still computed and
+ * published every week as the timing-luck-free measure of who managed best, but it
+ * no longer ranks. Under all-play there is no opponent, and therefore no punting, no
+ * variance-seeking, and no allocating resources across weeks.
+ */
+export const RANKING_BASIS = 'h2h' as const;
 
 /** Yahoo default starting nine (SPEC §3.1). */
 export const SLOTS: Record<StarterSlot, number> = {
@@ -108,6 +117,14 @@ export const LEAGUE = {
   regularSeasonWeeks: 14,
   playoffWeeks: [15, 16] as const,
   playoffTeams: 4,
+  /**
+   * SPEC §14.5 — after Week 14 the eliminated teams' rosters are released into a
+   * free-agent pool and the four survivors bid remaining FAAB on them. Eliminated
+   * teams stop setting lineups.
+   */
+  playoffPoolRelease: true,
+  /** How many upcoming opponents a model is shown, so "save it for next week" is groundable. */
+  lookaheadOpponents: 3,
   /** Soft cap fires from this round if a required position is still unfilled (SPEC §4.3). */
   softCapRound: 13,
   /** SPEC §8.1: same temperature requested of every model. */

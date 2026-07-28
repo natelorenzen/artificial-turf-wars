@@ -20,18 +20,29 @@ describe('the rules comprehension check', () => {
     expect(byId.get('fg_vs_catch')).toBe('field goal'); // 4 beats 3
     expect(byId.get('qb_line')).toBe('24.48'); // 11.48 + 8 - 1 + 6
     expect(byId.get('def_line')).toBe('17'); // 3 + 4 + 10
-    expect(byId.get('tie_rule')).toBe('0.5');
+    expect(byId.get('tie_rule')).toBe('tie');
     expect(byId.get('pts_allowed_band')).toBe('4');
     expect(byId.get('starters_count')).toBe('9');
+  });
+
+  it('tests the v3 objective, not the superseded all-play one', () => {
+    const byId = new Map(questions.map((q) => [q.id, q.answer]));
+    expect(byId.get('ranking_basis')).toBe('head-to-head');
+    expect(byId.get('margin_is_worthless')).toBe('0');
+    expect(byId.get('playoff_teams')).toBe('4');
+    expect(byId.get('playoff_pool')).toBe('yes');
   });
 
   it('is answerable from the rulebook alone — every rule it tests is stated there', () => {
     const text = rulebook();
     expect(text).toContain('FULL PPR');
-    expect(text).toContain('half a win');
+    expect(text).toContain('A tie is a tie');
     expect(text).toContain('An unfilled starting slot scores 0');
     expect(text).toContain('every add requires a drop');
     expect(text).toContain('credited to the DEF/ST unit');
+    expect(text).toContain('Seeding is head-to-head record');
+    expect(text).toContain('released into a free-agent pool');
+    expect(text).toContain('Running up the score buys you nothing');
   });
 
   it('never leaks the answers into the DATA block', () => {
@@ -57,22 +68,27 @@ describe('grading', () => {
     expect(failed.graded.find((g) => !g.correct)!.id).toBe('ppr_line');
   });
 
+  // Look answers up by id, never by position — inserting a question must not silently
+  // repoint an assertion at a different question.
+  const gradeOne = (id: string, answer: string) =>
+    gradeRulesCheck([{ id, answer }], questions).graded.find((g) => g.id === id)!.correct;
+
   it('accepts a number wrapped in prose or currency, since only the value is asked for', () => {
-    expect(gradeRulesCheck([{ id: 'budget_split', answer: '$40' }], questions).graded[2].correct).toBe(true);
-    expect(
-      gradeRulesCheck([{ id: 'ppr_line', answer: '20.20 points' }], questions).graded[0].correct,
-    ).toBe(true);
+    expect(gradeOne('budget_split', '$40')).toBe(true);
+    expect(gradeOne('ppr_line', '20.20 points')).toBe(true);
   });
 
   it('does not accept a near-miss number', () => {
-    expect(gradeRulesCheck([{ id: 'ppr_line', answer: '20.5' }], questions).graded[0].correct).toBe(false);
+    expect(gradeOne('ppr_line', '20.5')).toBe(false);
     // Half-PPR would give 17.2 — exactly the prior this question exists to catch.
-    expect(gradeRulesCheck([{ id: 'ppr_line', answer: '17.2' }], questions).graded[0].correct).toBe(false);
+    expect(gradeOne('ppr_line', '17.2')).toBe(false);
   });
 
   it('accepts documented spellings of a text answer only', () => {
-    expect(gradeRulesCheck([{ id: 'return_td_owner', answer: 'DEF/ST' }], questions).graded[6].correct).toBe(true);
-    expect(gradeRulesCheck([{ id: 'return_td_owner', answer: 'the returner' }], questions).graded[6].correct).toBe(false);
+    expect(gradeOne('return_td_owner', 'DEF/ST')).toBe(true);
+    expect(gradeOne('return_td_owner', 'the returner')).toBe(false);
+    expect(gradeOne('ranking_basis', 'h2h')).toBe(true);
+    expect(gradeOne('ranking_basis', 'all-play')).toBe(false);
   });
 
   it('scores a missing answer as wrong rather than throwing', () => {

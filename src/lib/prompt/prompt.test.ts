@@ -7,9 +7,35 @@ import { LEAGUE, OFFENSE_SCORING } from '@/lib/config/league';
 describe('generated rulebook', () => {
   const text = generateRulebook();
 
-  it('states the objective as all-play, not head-to-head', () => {
-    expect(text).toContain('Maximize your cumulative ALL-PLAY record');
-    expect(text).toContain('A head-to-head record is also published, but it does NOT determine rank');
+  it('states the objective as winning the league via head-to-head (SPEC §14.2)', () => {
+    expect(text).toContain('WIN THE LEAGUE');
+    expect(text).toContain('Win your weekly head-to-head matchup');
+    expect(text).toContain('Seeding is head-to-head record');
+    expect(text).toContain('does NOT\ndetermine standings, seeding, or the title');
+  });
+
+  it('spells out the strategies head-to-head makes correct (SPEC §14.4)', () => {
+    // Without these the models have the objective but not its consequences, and the
+    // spec is explicit that unstated rules get filled from differing training priors.
+    expect(text).toContain('Running up the score buys you nothing');
+    expect(text).toContain('If you are a heavy underdog, a safe lineup loses');
+    expect(text).toContain('worth spending nothing on');
+  });
+
+  it('tells models what they can and cannot see about rivals (SPEC §14.3)', () => {
+    expect(text).toContain('stable anonymous labels');
+    expect(text).toContain('NOT shown their lineup for the current week');
+    expect(text).toContain('which AI model any of them is');
+  });
+
+  it('never hands the models our win probability (SPEC §6.4)', () => {
+    expect(text).toContain('We do not tell you your win probability');
+    expect(text).not.toMatch(/win probability[^;]*is \d/i);
+  });
+
+  it('states the playoff pool release (SPEC §14.5)', () => {
+    expect(text).toContain('released into a free-agent pool');
+    expect(text).toContain('Budget you did not\nspend during the season');
   });
 
   it('carries the exact scoring values the engine uses', () => {
@@ -18,9 +44,10 @@ describe('generated rulebook', () => {
     expect(text).toContain('Reception ............... 1.0        (FULL PPR)');
   });
 
-  it('names the all-play range from the team count', () => {
-    expect(text).toContain(`0-${LEAGUE.teams - 1}`);
-    expect(text).toContain(`${LEAGUE.teams - 1}-0`);
+  it('derives the playoff field and opponent count from the team count', () => {
+    expect(text).toContain(`top ${LEAGUE.playoffTeams} of ${LEAGUE.teams}`);
+    expect(text).toContain(`all\n${LEAGUE.teams - 1} other teams`);
+    expect(text).toContain(`${LEAGUE.teams - LEAGUE.playoffTeams} eliminated teams`);
   });
 
   it('resolves the return-TD owner explicitly so the models cannot double-count', () => {
@@ -34,7 +61,7 @@ describe('generated rulebook', () => {
   });
 
   it('states the exact-tie rule', () => {
-    expect(text).toContain('An exact scoring tie awards half a win to each team');
+    expect(text).toContain('A tie is a tie');
   });
 
   it('lists the full Yahoo starting nine in printed order', () => {
