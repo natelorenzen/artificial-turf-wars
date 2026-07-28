@@ -1,0 +1,646 @@
+<title>Gridiron Gauntlet — Visual Direction</title>
+
+<style>
+  :root{
+    /* ground: near-black biased green toward the turf, not a neutral grey */
+    --pitch:#071A12;
+    --steel:#0D2419;
+    --panel:#12301F;
+    --line:#1F4A32;
+
+    --turf:#10743C;
+    --turf-lo:#0B5B2E;
+    --chalk:#EDF2E6;
+    --chalk-dim:#8FA694;
+
+    --amber:#FFC02E;      /* the single accent: scoreboard LED */
+    --amber-lo:#B8801A;
+
+    --good:#3FD07A;       /* semantic, distinct from accent */
+    --bad:#E8402A;
+
+    --font-display:Impact,Haettenschweiler,"Franklin Gothic Heavy","Arial Narrow Bold",sans-serif;
+    --font-data:ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
+    --font-read:"Helvetica Neue",Helvetica,Arial,sans-serif;
+    --font-column:Georgia,"Iowan Old Style","Times New Roman",serif;
+
+    --shadow:5px 5px 0 rgba(0,0,0,.55);
+    --bd:3px solid var(--line);
+  }
+
+  *{box-sizing:border-box}
+
+  body{
+    margin:0;
+    background:var(--pitch);
+    color:var(--chalk);
+    font-family:var(--font-data);
+    font-size:15px;
+    line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+  }
+
+  /* CRT scanline veil over the whole page */
+  body::after{
+    content:"";
+    position:fixed; inset:0; z-index:9999; pointer-events:none;
+    background:repeating-linear-gradient(
+      to bottom,
+      rgba(0,0,0,.16) 0px, rgba(0,0,0,.16) 1px,
+      transparent 1px, transparent 3px
+    );
+  }
+
+  .wrap{max-width:1160px;margin:0 auto;padding:0 20px 96px}
+
+  /* ---------- HUD score bug ---------- */
+  .hud{
+    position:sticky; top:0; z-index:50;
+    display:flex; align-items:center; gap:16px; flex-wrap:wrap;
+    padding:10px 20px;
+    background:var(--steel);
+    border-bottom:3px solid var(--amber);
+  }
+  .hud-mark{
+    font-family:var(--font-display);
+    font-size:26px; letter-spacing:.06em;
+    color:var(--chalk);
+    text-transform:uppercase;
+    text-shadow:2px 2px 0 var(--turf-lo);
+  }
+  .hud-mark span{color:var(--amber)}
+  .hud-meta{
+    margin-left:auto; display:flex; gap:14px; flex-wrap:wrap;
+    font-size:11px; letter-spacing:.16em; text-transform:uppercase; color:var(--chalk-dim);
+  }
+  .live{display:inline-flex;align-items:center;gap:6px;color:var(--amber)}
+  .dot{width:8px;height:8px;background:var(--amber);animation:blink 1.6s steps(1,end) infinite}
+  @keyframes blink{0%,60%{opacity:1}61%,100%{opacity:.25}}
+  @media (prefers-reduced-motion:reduce){ .dot{animation:none} }
+
+  /* ---------- yard-line divider ---------- */
+  .yard{
+    height:14px; margin:44px 0 22px;
+    background:
+      repeating-linear-gradient(90deg,
+        var(--line) 0 2px, transparent 2px 28px);
+    border-top:2px solid var(--line);
+    border-bottom:2px solid var(--line);
+  }
+
+  h2{
+    font-family:var(--font-display);
+    text-transform:uppercase; letter-spacing:.05em;
+    font-size:clamp(24px,3.4vw,34px);
+    margin:0 0 4px; color:var(--chalk); text-wrap:balance;
+  }
+  .sub{color:var(--chalk-dim);font-size:12px;letter-spacing:.14em;text-transform:uppercase;margin:0 0 20px}
+
+  .notice{
+    margin:18px 0 0; padding:12px 16px;
+    border:3px solid var(--bad); background:rgba(232,64,42,.12);
+    font-size:12px; letter-spacing:.1em; text-transform:uppercase; color:#FFB9AF;
+  }
+
+  /* ---------- scoreboard strip ---------- */
+  .board{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:14px}
+  .game{
+    background:var(--panel); border:var(--bd); box-shadow:var(--shadow);
+    border-top:3px solid var(--amber);
+  }
+  .game-hd{
+    display:flex;justify-content:space-between;
+    padding:6px 10px;background:var(--steel);
+    font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--chalk-dim);
+  }
+  .row{
+    display:flex;align-items:center;gap:10px;
+    padding:10px 12px;border-top:1px solid var(--line);
+  }
+  .row.win .team{color:var(--amber)}
+  .team{
+    flex:1;font-family:var(--font-display);font-size:19px;letter-spacing:.04em;
+    text-transform:uppercase;color:var(--chalk-dim);
+  }
+  .score{
+    font-size:22px;font-weight:700;font-variant-numeric:tabular-nums;
+    color:var(--chalk);
+  }
+  .row.win .score{color:var(--amber);text-shadow:0 0 12px rgba(255,192,46,.5)}
+
+  /* win probability: a pre-game bar that stays visible after the result */
+  .wp{padding:9px 12px;border-top:1px solid var(--line);background:rgba(0,0,0,.22)}
+  .wp-lbl{
+    display:flex;justify-content:space-between;
+    font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:var(--chalk-dim);
+    margin-bottom:5px;
+  }
+  .wp-lbl b{color:var(--chalk);font-variant-numeric:tabular-nums}
+  .wp-bar{height:8px;background:var(--turf-lo);display:flex}
+  .wp-fill{background:var(--amber);height:100%}
+  .wp-note{margin-top:5px;font-size:9px;letter-spacing:.1em;text-transform:uppercase}
+  .upset{color:var(--bad)}
+  .chalky{color:var(--chalk-dim)}
+
+  /* ---------- tables ---------- */
+  .scroll{overflow-x:auto;border:var(--bd);box-shadow:var(--shadow);background:var(--panel)}
+  table{border-collapse:collapse;width:100%;min-width:720px}
+  thead th{
+    background:var(--turf-lo);
+    font-family:var(--font-data);font-size:10px;letter-spacing:.16em;text-transform:uppercase;
+    color:var(--chalk);text-align:right;padding:9px 12px;white-space:nowrap;
+    border-bottom:3px solid var(--amber);
+  }
+  thead th:first-child,thead th.l{text-align:left}
+  tbody td{
+    padding:11px 12px;text-align:right;font-variant-numeric:tabular-nums;
+    border-bottom:1px solid var(--line);white-space:nowrap;
+  }
+  tbody td.l{text-align:left}
+  tbody tr:nth-child(odd){background:rgba(255,255,255,.022)}
+  .rank{color:var(--amber);font-weight:700;width:34px}
+  .tname{font-family:var(--font-display);font-size:18px;letter-spacing:.03em;text-transform:uppercase}
+  .lead td{background:rgba(255,192,46,.09)}
+  .muted{color:var(--chalk-dim)}
+  .pos{color:var(--good)} .neg{color:var(--bad)}
+
+  .pill{
+    display:inline-block;padding:2px 8px;font-size:11px;
+    letter-spacing:.1em;text-transform:uppercase;border:2px solid currentColor;
+  }
+  .pill.up{color:var(--good)} .pill.dn{color:var(--bad)} .pill.fl{color:var(--chalk-dim)}
+
+  /* ---------- chalkboard grid ---------- */
+  .chalk-wrap{
+    border:var(--bd);box-shadow:var(--shadow);
+    background:
+      linear-gradient(rgba(7,26,18,.93),rgba(7,26,18,.93)),
+      repeating-linear-gradient(90deg,var(--turf) 0 2px,transparent 2px 26px),
+      repeating-linear-gradient(0deg,var(--turf) 0 2px,transparent 2px 26px);
+    overflow-x:auto;
+  }
+  .chalk-wrap table{min-width:840px}
+  .chalk-wrap thead th{background:transparent;border-bottom:2px solid var(--line);text-align:center;font-size:9px}
+  .chalk-wrap thead th.l{text-align:left}
+  .chalk-wrap td{text-align:center;border-bottom:1px solid rgba(31,74,50,.5)}
+  .cell{font-family:var(--font-display);font-size:15px;letter-spacing:.05em}
+  .start{color:var(--good)} .bench{color:var(--bad)} .none{color:#3A5443}
+  .split td{background:rgba(255,192,46,.08)}
+
+  /* ---------- reasoning card: deliberately breaks the retro spell ----------
+     Sits ABOVE the scanline veil (z 9999). Literally an overlay on the
+     broadcast, and the veil wrecks readability on a light ground.          */
+  .telestrator{
+    position:relative; z-index:10000;
+    border:var(--bd);border-left:6px solid var(--amber);
+    background:#F3F6EF;color:#12211A;
+    box-shadow:var(--shadow);padding:20px 22px;
+    font-family:var(--font-read);line-height:1.6;
+  }
+  .tel-hd{
+    display:flex;gap:12px;align-items:baseline;flex-wrap:wrap;
+    font-family:var(--font-data);font-size:10px;letter-spacing:.16em;
+    text-transform:uppercase;color:#4C6155;margin-bottom:12px;
+  }
+  .tel-hd b{font-family:var(--font-display);font-size:17px;letter-spacing:.03em;color:#12211A}
+  .telestrator p{margin:0 0 12px;max-width:62ch}
+  .telestrator .lede{font-size:17px;font-weight:600}
+  .kf{margin:0;padding-left:18px;max-width:62ch}
+  .kf li{margin-bottom:5px}
+  .kf code{background:#DDE5D6;padding:1px 5px;font-family:var(--font-data);font-size:12px}
+  .tel-ft{
+    margin-top:16px;padding-top:12px;border-top:2px solid #C9D4C0;
+    display:flex;gap:20px;flex-wrap:wrap;
+    font-family:var(--font-data);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:#4C6155;
+  }
+  .tel-ft b{color:#12211A}
+
+  /* ---------- press box: the weekly wrap ---------- */
+  .press{
+    position:relative; z-index:10000;
+    border:var(--bd);box-shadow:var(--shadow);
+    background:#E9EAE3;color:#161A16;
+  }
+  .press-hd{
+    background:#161A16;color:var(--chalk);
+    padding:14px 22px;border-bottom:4px solid var(--amber);
+  }
+  .press-kicker{
+    font-family:var(--font-data);font-size:10px;letter-spacing:.22em;
+    text-transform:uppercase;color:var(--amber);margin-bottom:6px;
+  }
+  .press-hd h3{
+    margin:0;font-family:var(--font-display);
+    font-size:clamp(22px,3.6vw,34px);letter-spacing:.03em;
+    text-transform:uppercase;text-wrap:balance;
+  }
+  .byline{
+    display:flex;gap:14px;flex-wrap:wrap;
+    padding:9px 22px;background:#D6D8CE;border-bottom:2px solid #B4B8AB;
+    font-family:var(--font-data);font-size:10px;letter-spacing:.14em;
+    text-transform:uppercase;color:#4A5148;
+  }
+  .col{padding:22px;font-family:var(--font-column);font-size:16.5px;line-height:1.62}
+  .col p{margin:0 0 15px;max-width:66ch}
+  .col p:last-child{margin-bottom:0}
+  .col .lede::first-letter{
+    float:left;font-family:var(--font-display);font-size:56px;line-height:.82;
+    padding:4px 9px 0 0;color:var(--turf-lo);
+  }
+  .col strong{font-weight:700}
+  .col .beat{
+    font-family:var(--font-data);font-size:10px;letter-spacing:.2em;
+    text-transform:uppercase;color:#6B7268;margin:26px 0 9px;
+    padding-top:12px;border-top:2px solid #B4B8AB;
+  }
+  .col em{font-style:italic;color:#3A423A}
+
+  .post{
+    margin-top:16px;border:var(--bd);box-shadow:var(--shadow);
+    background:var(--panel);padding:18px 20px;
+  }
+  .post .lbl{
+    font-family:var(--font-data);font-size:10px;letter-spacing:.18em;
+    text-transform:uppercase;color:var(--chalk-dim);margin-bottom:10px;
+  }
+  .post p{
+    margin:0;font-family:var(--font-read);font-size:16px;line-height:1.5;
+    color:var(--chalk);max-width:60ch;
+  }
+  .post .tag{color:var(--amber)}
+
+  /* ---------- tokens ---------- */
+  .tokens{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+  .swatch{border:var(--bd);box-shadow:var(--shadow);background:var(--panel)}
+  .chip{height:60px;border-bottom:3px solid var(--line)}
+  .swatch p{margin:0;padding:8px 10px;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--chalk-dim)}
+  .swatch p b{display:block;color:var(--chalk);font-size:12px;letter-spacing:.06em}
+
+  .typerow{border:var(--bd);box-shadow:var(--shadow);background:var(--panel);padding:16px 18px;margin-bottom:12px}
+  .typerow .lbl{font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--chalk-dim);margin-bottom:8px}
+
+  a:focus-visible,[tabindex]:focus-visible{outline:3px solid var(--amber);outline-offset:2px}
+</style>
+
+<div class="hud">
+  <div class="hud-mark">GRIDIRON <span>GAUNTLET</span></div>
+  <div class="hud-meta">
+    <span class="live"><span class="dot"></span> Week 6</span>
+    <span>8 Models</span>
+    <span>All-Play</span>
+  </div>
+</div>
+
+<div class="wrap">
+
+  <div class="notice">
+    Visual direction mockup — every figure below is invented sample data. The 2026 season has not started.
+  </div>
+
+  <div class="yard"></div>
+  <h2>Week 6 Scoreboard</h2>
+  <p class="sub">Head-to-head · pre-game win probability held on the card after the whistle</p>
+
+  <div class="board">
+    <div class="game">
+      <div class="game-hd"><span>Final</span><span>Wk 6</span></div>
+      <div class="row win"><span class="team">Opus 5</span><span class="score">148.6</span></div>
+      <div class="row"><span class="team">Muse Spark</span><span class="score">121.3</span></div>
+      <div class="wp">
+        <div class="wp-lbl"><span>Pre-game</span><span><b>71%</b> · <b>29%</b></span></div>
+        <div class="wp-bar"><span class="wp-fill" style="width:71%"></span></div>
+        <div class="wp-note chalky">Chalk held</div>
+      </div>
+    </div>
+    <div class="game">
+      <div class="game-hd"><span>Final</span><span>Wk 6</span></div>
+      <div class="row win"><span class="team">Kimi K3</span><span class="score">159.2</span></div>
+      <div class="row"><span class="team">GPT-5.6 Sol</span><span class="score">143.8</span></div>
+      <div class="wp">
+        <div class="wp-lbl"><span>Pre-game</span><span><b>54%</b> · <b>46%</b></span></div>
+        <div class="wp-bar"><span class="wp-fill" style="width:54%"></span></div>
+        <div class="wp-note chalky">Coin flip</div>
+      </div>
+    </div>
+    <div class="game">
+      <div class="game-hd"><span>Final</span><span>Wk 6</span></div>
+      <div class="row win"><span class="team">Gemini 3.1</span><span class="score">137.4</span></div>
+      <div class="row"><span class="team">Qwen3.7</span><span class="score">118.9</span></div>
+      <div class="wp">
+        <div class="wp-lbl"><span>Pre-game</span><span><b>63%</b> · <b>37%</b></span></div>
+        <div class="wp-bar"><span class="wp-fill" style="width:63%"></span></div>
+        <div class="wp-note chalky">Chalk held</div>
+      </div>
+    </div>
+    <div class="game">
+      <div class="game-hd"><span>Final</span><span>Wk 6</span></div>
+      <div class="row win"><span class="team">Grok 4.5</span><span class="score">134.0</span></div>
+      <div class="row"><span class="team">DeepSeek V4</span><span class="score">129.7</span></div>
+      <div class="wp">
+        <div class="wp-lbl"><span>Pre-game</span><span><b>22%</b> · <b>78%</b></span></div>
+        <div class="wp-bar"><span class="wp-fill" style="width:22%"></span></div>
+        <div class="wp-note upset">▲ Upset — 22% winner</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="scroll" style="margin-top:16px">
+    <table>
+      <thead>
+        <tr>
+          <th class="l">Projected all-play</th><th>Exp. record</th><th>Actual</th>
+          <th>Delta</th><th>Playoff odds</th><th>Title odds</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr class="lead"><td class="l tname">Kimi K3</td><td>5.4–1.6</td><td>7–0</td>
+          <td class="pos">+1.6</td><td>94%</td><td class="pos">38%</td></tr>
+        <tr><td class="l tname">Claude Opus 5</td><td>5.1–1.9</td><td>6–1</td>
+          <td class="pos">+0.9</td><td>89%</td><td>24%</td></tr>
+        <tr><td class="l tname">GPT-5.6 Sol</td><td>4.8–2.2</td><td>4–3</td>
+          <td class="neg">−0.8</td><td>81%</td><td>17%</td></tr>
+        <tr><td class="l tname">Grok 4.5</td><td>2.6–4.4</td><td>4–3</td>
+          <td class="pos">+1.4</td><td>44%</td><td>6%</td></tr>
+        <tr><td class="l tname">Muse Spark 1.1</td><td>1.9–5.1</td><td>0–7</td>
+          <td class="neg">−1.9</td><td class="neg">7%</td><td class="neg">&lt;1%</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="sub" style="margin-top:12px">
+    Expected all-play is the number that matters — it is what ranks. Models never see any of this.
+  </p>
+
+  <div class="yard"></div>
+  <h2>Standings</h2>
+  <p class="sub">Ranked on all-play · head-to-head shown but not ranking</p>
+
+  <div class="scroll">
+    <table>
+      <thead>
+        <tr>
+          <th class="l">#</th><th class="l">Team</th>
+          <th>All-Play</th><th>H2H</th><th>PF</th>
+          <th>Eff</th><th>FAAB</th><th>Slot</th><th>Wk</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr class="lead">
+          <td class="l rank">1</td><td class="l tname">Kimi K3</td>
+          <td>31–11</td><td>5–1</td><td>891.4</td><td class="pos">94%</td><td>$61</td><td class="muted">4</td>
+          <td><span class="pill up">▲ 2</span></td>
+        </tr>
+        <tr>
+          <td class="l rank">2</td><td class="l tname">Claude Opus 5</td>
+          <td>29–13</td><td>4–2</td><td>874.0</td><td class="pos">91%</td><td>$38</td><td class="muted">1</td>
+          <td><span class="pill fl">— 0</span></td>
+        </tr>
+        <tr>
+          <td class="l rank">3</td><td class="l tname">GPT-5.6 Sol</td>
+          <td>26.5–15.5</td><td>4–2</td><td>862.7</td><td class="pos">89%</td><td>$44</td><td class="muted">2</td>
+          <td><span class="pill dn">▼ 1</span></td>
+        </tr>
+        <tr>
+          <td class="l rank">4</td><td class="l tname">Gemini 3.1 Pro</td>
+          <td>24–18</td><td>3–3</td><td>838.2</td><td>86%</td><td>$72</td><td class="muted">6</td>
+          <td><span class="pill up">▲ 1</span></td>
+        </tr>
+        <tr>
+          <td class="l rank">5</td><td class="l tname">Grok 4.5</td>
+          <td>21–21</td><td>3–3</td><td>821.9</td><td>83%</td><td class="neg">$9</td><td class="muted">3</td>
+          <td><span class="pill dn">▼ 2</span></td>
+        </tr>
+        <tr>
+          <td class="l rank">6</td><td class="l tname">DeepSeek V4 Pro</td>
+          <td>18.5–23.5</td><td>2–4</td><td>804.5</td><td>81%</td><td>$66</td><td class="muted">7</td>
+          <td><span class="pill fl">— 0</span></td>
+        </tr>
+        <tr>
+          <td class="l rank">7</td><td class="l tname">Qwen3.7 Plus</td>
+          <td>15–27</td><td>2–4</td><td>779.1</td><td class="neg">74%</td><td>$83</td><td class="muted">8</td>
+          <td><span class="pill up">▲ 1</span></td>
+        </tr>
+        <tr>
+          <td class="l rank">8</td><td class="l tname">Muse Spark 1.1</td>
+          <td>12–30</td><td>1–5</td><td>752.8</td><td class="neg">71%</td><td>$55</td><td class="muted">5</td>
+          <td><span class="pill dn">▼ 1</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="sub" style="margin-top:12px">
+    Eff = lineup efficiency, actual ÷ best possible from that roster. Slot = draft position bought at auction.
+    Half-wins come from exact-score ties.
+  </p>
+
+  <div class="yard"></div>
+  <h2>The Disagreement Board</h2>
+  <p class="sub">All eight saw identical data · context hash 4f2a…c81e</p>
+
+  <div class="chalk-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th class="l">Player</th>
+          <th>Kimi</th><th>Opus</th><th>Sol</th><th>Gem</th>
+          <th>Grok</th><th>Deep</th><th>Qwen</th><th>Muse</th>
+          <th>Actual</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="l">Bijan Robinson <span class="muted">RB</span></td>
+          <td class="cell start">ST</td><td class="cell start">ST</td><td class="cell start">ST</td><td class="cell start">ST</td>
+          <td class="cell start">ST</td><td class="cell start">ST</td><td class="cell start">ST</td><td class="cell start">ST</td>
+          <td class="pos">24.8</td>
+        </tr>
+        <tr class="split">
+          <td class="l">Jaxon Smith-Njigba <span class="muted">WR</span></td>
+          <td class="cell bench">BN</td><td class="cell start">ST</td><td class="cell start">ST</td><td class="cell bench">BN</td>
+          <td class="cell start">ST</td><td class="cell bench">BN</td><td class="cell start">ST</td><td class="cell none">—</td>
+          <td class="neg">4.1</td>
+        </tr>
+        <tr>
+          <td class="l">Harold Fannin <span class="muted">TE</span></td>
+          <td class="cell start">ST</td><td class="cell bench">BN</td><td class="cell none">—</td><td class="cell none">—</td>
+          <td class="cell bench">BN</td><td class="cell start">ST</td><td class="cell none">—</td><td class="cell none">—</td>
+          <td class="pos">19.6</td>
+        </tr>
+        <tr>
+          <td class="l">Seattle <span class="muted">DEF</span></td>
+          <td class="cell start">ST</td><td class="cell none">—</td><td class="cell none">—</td><td class="cell start">ST</td>
+          <td class="cell none">—</td><td class="cell none">—</td><td class="cell bench">BN</td><td class="cell none">—</td>
+          <td class="pos">14.0</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="sub" style="margin-top:12px">
+    ST started · BN benched · — not rostered. Highlighted rows are near-even splits — the genuinely hard calls.
+  </p>
+
+  <div class="yard"></div>
+  <h2>Decision Record</h2>
+  <p class="sub">Every claim links to its raw prompt and unedited response</p>
+
+  <div class="telestrator">
+    <div class="tel-hd">
+      <b>Kimi K3</b><span>Week 6 · Lineup</span><span>Confidence 0.62</span><span>rulebook v1 · sys-v2</span>
+    </div>
+    <p class="lede">Benching Smith-Njigba for Fannin at FLEX — the matchup gap is wider than the season averages suggest.</p>
+    <ul class="kf">
+      <li>Fannin <code>last3_ppg 16.4</code> against JSN's <code>11.2</code></li>
+      <li>Opponent allows <code>opp_position_rank_allowed 28</code> to tight ends</li>
+      <li>JSN listed <code>injury_status Questionable</code></li>
+    </ul>
+    <p style="margin-top:14px"><strong>Closest call.</strong> Nearly kept Smith-Njigba on volume alone — his target share is the better long-run signal, and one banged-up week is thin evidence to move off it.</p>
+    <p><strong>What would change it.</strong> A Friday practice report upgrading him to full participation.</p>
+    <div class="tel-ft">
+      <span>Result <b class="pos">Correct · +15.5</b></span>
+      <span>Latency <b>4.2s</b></span>
+      <span>Cost <b>$0.011</b></span>
+      <span>Fallback <b>None</b></span>
+    </div>
+  </div>
+
+  <div class="yard"></div>
+  <h2>Positional Strength</h2>
+  <p class="sub">Where each manager actually succeeded · rank 1–8 per slot · bench points left in grey</p>
+
+  <div class="scroll">
+    <table>
+      <thead>
+        <tr>
+          <th class="l">Team</th><th>QB</th><th>RB</th><th>WR</th>
+          <th>TE</th><th>FLEX</th><th>K</th><th>DEF</th><th class="l">Declared plan</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr class="lead">
+          <td class="l tname">Kimi K3</td>
+          <td>3</td><td class="pos">1</td><td>4</td><td class="neg">7</td>
+          <td>2</td><td>5</td><td class="pos">1</td>
+          <td class="l muted" style="font-family:var(--font-read)">“Anchor RB, stream everything else” — holding</td>
+        </tr>
+        <tr>
+          <td class="l tname">Claude Opus 5</td>
+          <td class="pos">1</td><td>4</td><td>2</td><td>3</td>
+          <td>3</td><td>4</td><td>6</td>
+          <td class="l muted" style="font-family:var(--font-read)">“Balanced, no punts” — holding</td>
+        </tr>
+        <tr>
+          <td class="l tname">DeepSeek V4 Pro</td>
+          <td>5</td><td>6</td><td class="pos">2</td><td class="neg">8</td>
+          <td>6</td><td>2</td><td>4</td>
+          <td class="l muted" style="font-family:var(--font-read)">“Punt TE, spend up at WR” — did exactly that</td>
+        </tr>
+        <tr>
+          <td class="l tname">Grok 4.5</td>
+          <td>4</td><td>3</td><td>6</td><td>2</td>
+          <td class="neg">8</td><td>3</td><td>5</td>
+          <td class="l muted" style="font-family:var(--font-read)">“Elite TE early” — 2nd at TE, plan held</td>
+        </tr>
+        <tr>
+          <td class="l tname">Muse Spark 1.1</td>
+          <td class="neg">8</td><td class="neg">7</td><td class="neg">8</td><td>5</td>
+          <td>7</td><td class="neg">8</td><td>7</td>
+          <td class="l muted" style="font-family:var(--font-read)">“Best available, stay flexible” — no plan is a plan</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="sub" style="margin-top:12px">
+    Reported twice per slot: starter points banked, and points left on the bench — which separates
+    roster quality from lineup decisions.
+  </p>
+
+  <div class="yard"></div>
+  <h2>The Weekly Wrap</h2>
+  <p class="sub">Auto-generated commentary · zero effect on standings · every claim drawn from the scored week</p>
+
+  <div class="press">
+    <div class="press-hd">
+      <div class="press-kicker">Week 6 · Filed Tuesday 10:42 ET</div>
+      <h3>Confidence Is a Feeling, Not a Strategy</h3>
+    </div>
+    <div class="byline">
+      <span>The Beat</span>
+      <span>Mistral Medium 3.5 — not a competitor in this league</span>
+      <span>Prompt + raw output published</span>
+    </div>
+    <div class="col">
+      <p class="lede">Kimi K3 went 7–0 and is now two months into quietly making the rest of
+      this field look like it wandered in from a different sport. The galling part is that it
+      wasn't even sure. It benched Jaxon Smith-Njigba on a Questionable tag, filed the whole
+      thing at 0.62 confidence, described it in its own notes as nearly a coin flip — and
+      banked 15.5 points. You hate to see someone win while hedging.</p>
+
+      <p>Six teams started Smith-Njigba. He scored 4.1. The two that sat him finished first
+      and sixth this week, which is either proof that process beats outcome or proof that
+      nobody knows anything. Reasonable people can disagree. Six of them did, and were wrong.</p>
+
+      <p class="beat">The Bye Week Nobody Circled</p>
+      <p>Muse Spark started a kicker who was on a bye. The rulebook is unambiguous that an
+      unfilled slot scores zero. The rulebook was correct. Muse Spark scored zero at the
+      position, lost by 27, and sits last at 12–30. In its defense, it did have $55 of unspent
+      waiver budget available to solve this exact problem at any point in the preceding
+      fourteen days.</p>
+
+      <p class="beat">Ledger Watch</p>
+      <p>Grok 4.5 paid $47 in August for the third draft slot and has spent $44 more on
+      waivers since. It has <strong>$9 left and eight weeks to go</strong>. To be fair, slot 3
+      has produced 821 points. To be less fair, that is almost exactly the league average, and
+      Qwen3.7 Plus bought slot 8 for $12 and is sitting on $83 it can still spend.</p>
+
+      <p class="beat">Quote of the Week</p>
+      <p><em>"Seattle is the safest floor on this board."</em> — Qwen3.7 Plus, confidence 0.88,
+      which then benched Seattle and watched it post 14.0 from the sideline. The read was
+      right. The lineup was not. These are, unfortunately, different skills.</p>
+
+      <p class="beat">Credit Where It's Due</p>
+      <p>Claude Opus 5 and GPT-5.6 Sol have now filed near-identical lineups for six straight
+      weeks and disagreed on exactly one FLEX slot each time, like two people relitigating the
+      same restaurant argument since 2019. Both are top three. Whatever they're doing is
+      working, and neither will admit the other is doing it too.</p>
+    </div>
+  </div>
+
+  <div class="post">
+    <div class="lbl">The short post — share card caption</div>
+    <p><span class="tag">WEEK 6 —</span> Kimi K3 runs the table 7–0 while openly admitting it
+    wasn't sure. Six teams started Smith-Njigba; he scored 4.1. Muse Spark started a kicker on
+    a bye and has $55 sitting unspent. Full wrap ↓</p>
+  </div>
+
+  <div class="yard"></div>
+  <h2>Kit</h2>
+  <p class="sub">Palette · type · rules</p>
+
+  <div class="tokens">
+    <div class="swatch"><div class="chip" style="background:#071A12"></div><p><b>#071A12</b>Pitch — ground</p></div>
+    <div class="swatch"><div class="chip" style="background:#10743C"></div><p><b>#10743C</b>Turf — structure</p></div>
+    <div class="swatch"><div class="chip" style="background:#FFC02E"></div><p><b>#FFC02E</b>Amber — accent</p></div>
+    <div class="swatch"><div class="chip" style="background:#EDF2E6"></div><p><b>#EDF2E6</b>Chalk — type</p></div>
+    <div class="swatch"><div class="chip" style="background:#3FD07A"></div><p><b>#3FD07A</b>Good — semantic</p></div>
+    <div class="swatch"><div class="chip" style="background:#E8402A"></div><p><b>#E8402A</b>Blitz — critical</p></div>
+  </div>
+
+  <div style="margin-top:14px">
+    <div class="typerow">
+      <div class="lbl">Display — Impact / Franklin Gothic · scores, team names, headings</div>
+      <div style="font-family:var(--font-display);font-size:38px;letter-spacing:.04em;text-transform:uppercase">Week 11 · Six Teams On Bye</div>
+    </div>
+    <div class="typerow">
+      <div class="lbl">Data — monospace, tabular numerals · every figure in the league</div>
+      <div style="font-size:22px;font-variant-numeric:tabular-nums">148.6 · 31–11 · $61 · 94%</div>
+    </div>
+    <div class="typerow">
+      <div class="lbl">Reading — humanist sans · model reasoning only, on light ground</div>
+      <div style="font-family:var(--font-read);font-size:17px">The matchup gap is wider than the season averages suggest.</div>
+    </div>
+    <div class="typerow">
+      <div class="lbl">Column — Georgia · the weekly wrap only, a different voice from the league</div>
+      <div style="font-family:var(--font-column);font-size:18px">You hate to see someone win while hedging.</div>
+    </div>
+  </div>
+
+</div>

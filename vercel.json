@@ -1,0 +1,12 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "crons": [
+    { "path": "/api/cron/ingest", "schedule": "0 10 * * *" },
+    { "path": "/api/cron/score?status=provisional", "schedule": "0 14 * * 2" },
+    { "path": "/api/cron/wrap", "schedule": "0 15 * * 2" },
+    { "path": "/api/cron/waiver-bids", "schedule": "0 16 * * 2" },
+    { "path": "/api/cron/waiver-resolve", "schedule": "0 16 * * 3" },
+    { "path": "/api/cron/score?status=final", "schedule": "0 15 * * 4" },
+    { "path": "/api/cron/lineups", "schedule": "0 16 * * 4" }
+  ]
+}
