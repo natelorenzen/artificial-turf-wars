@@ -6,11 +6,11 @@ Eight frontier language models each run a fantasy football team for the 2026 sea
 with no human help. They draft, set a lineup every week, and bid against each other on
 waivers. Real NFL results score them. Every prompt and every raw response is published.
 
-**The product is the reasoning, not the trophy.** All eight models receive a
-byte-identical block of data, so every difference in what they do is attributable to
-the model itself. This repository is built to show that: where they agreed, where one
-broke from the field, what each said was its hardest call, and — after the games — who
-was right.
+**The product is the reasoning, not the trophy.** All eight models are briefed from the
+same generated rulebook and the same data snapshot, verified by hash, so the differences
+between them are attributable to the models rather than to what they were told. This
+repository is built to show that: where they agreed, where one broke from the field,
+what each said was its hardest call, and — after the games — who was right.
 
 ## This is an exhibition, not a benchmark
 
@@ -68,23 +68,52 @@ most open-ended decision in the project — there is no consensus answer even am
 humans — and it converts draft position from disclosed luck into an earned advantage.
 
 **Every week.** Each model sets nine starters from fifteen, then submits sealed FAAB
-waiver bids. Both come back as structured reasoning: a headline, the data fields that
-drove it, the call it was least sure about, what would have changed its mind, and a
-self-rated confidence.
+waiver bids. It sees who it is playing — that team's roster, its scoring history and
+volatility, and its own next few opponents — but never that opponent's lineup before it
+locks, and never which model any rival is. Both decisions come back as structured
+reasoning: a headline, the data fields that drove it, the call it was least sure about,
+what would have changed its mind, and a self-rated confidence.
+
+We never hand a model our own win-probability estimate. It gets the opponent's facts and
+forms its own view, which means its implied confidence can be compared against an
+independent baseline it never saw.
 
 **Scoring.** Yahoo's default values, full PPR, computed from raw Sleeper stats by our own
-engine. Ranking is **all-play** — each team is compared against all seven others every
-week — because that removes both schedule luck and timing luck. A balanced double
-round-robin head-to-head record is published alongside it as a co-headline, and where the
-two disagree we lead with the disagreement.
+engine. Ranking is **head-to-head** over a balanced double round-robin — eight teams over
+fourteen weeks is exactly two complete rotations, so every team plays every other twice
+and there is no strength-of-schedule luck at all. An **all-play** record (your score
+against all seven others each week) is computed and published alongside it as the
+timing-luck-free read on who actually managed best, and where the two disagree we lead
+with the disagreement.
+
+**Why head-to-head decides it.** All-play is the cleaner measurement, and an earlier
+version of this project ranked on it. It was the wrong call, because under all-play
+*there is no opponent* — and with no opponent there is no punting a lost week, no
+raising variance as an underdog, no allocating budget across the season. The model just
+starts its highest projections, every week, forever. When the product is the reasoning,
+a noisier ranking that produces real decisions beats a cleaner one that produces none.
+
+**What that unlocks.** Beating your opponent by 40 is worth exactly what beating them by
+1 is worth, so running up the score buys nothing. A heavy underdog *should* start the
+boom-or-bust receiver, and a heavy favourite should protect the floor — same roster,
+opposite correct answer, decided entirely by the matchup. A week you are likely to lose
+is a week worth spending nothing on. After the regular season, every player on the four
+eliminated teams is released into a pool the four survivors bid their leftover budget on,
+so fourteen weeks of discipline buys a playoff roster.
 
 ## What makes it fair
 
 Fairness here is mechanical, not aspirational:
 
-- One frozen context per week, hashed, sent to all eight. **All eight decisions in a week
-  must share one `context_hash`** — that is the machine-checkable proof no model got
-  different data.
+- One frozen context per week, hashed. For any decision with no per-team component —
+  the rules check, the pre-season gameplan, the slot auction — **all eight decisions must
+  share one `context_hash`**, the machine-checkable proof that nobody got different data.
+- For weekly decisions, models now see their own opponent, so the eight data blocks
+  differ by construction and that claim would be false. It is replaced by a weaker one
+  we can actually keep: the **shared base block** must hash identically across all eight,
+  and every **per-team overlay** must replay exactly from `(base, team)`. Rivals appear
+  only as stable anonymous labels — "Team C", never "Kimi K3" — so no model can tailor
+  its behaviour to a particular lab.
 - Identical system prompt and identical generated rulebook in every call. The rulebook is
   generated from the same config that drives the scoring engine, so it cannot drift from
   the rules it describes.
@@ -107,14 +136,29 @@ asymmetry is visible and quantified rather than silent.
 
 The season has not started. NFL Week 1 opens 2026-09-09 and the draft runs late August.
 
-Built and tested: the Sleeper ingest, the scoring engine, the rulebook generator and
-prompt assembly, the commissioner engine (auction, snake draft, all-play, head-to-head
-schedule, FAAB), the rules comprehension check, the OpenRouter adapter, and the audit
-logging path. 103 tests pass.
+**Two gates are already met, against live data:**
 
-Not yet built: the 2025 backtest that gates the draft, the live auction and draft runs,
-the weekly jobs, and the public site. No model has been called yet — not one API request
-has been made to any competitor.
+- **All eight models scored 17/17 on the rules comprehension check, first attempt.**
+  Every question's answer is computed from the same config that generates the rulebook,
+  and grading is deterministic. All eight received a byte-identical data block, verified
+  by a single shared context hash across the cohort.
+- **The 2025 backtest passed both of its gates** — 846 of 846 offensive players match
+  between weekly-sum and season-total scoring at a worst delta of 0.00, and the slot
+  auction produced genuine dispersion (7 distinct bids, $0–$27). It also found two bugs
+  that would have corrupted the real season. Full write-up: [`BACKTEST.md`](BACKTEST.md).
+
+Built and tested: Sleeper ingest and snapshotting, the scoring engine, the rulebook
+generator and prompt assembly, the commissioner engine (auction, snake draft,
+head-to-head and all-play, schedule, FAAB, playoff pool), the rules comprehension gate,
+the OpenRouter adapter, and the audit log. 139 tests pass.
+
+Live in Postgres: 4,256 players, 3,220 season projections, 273 games, 32 bye weeks, and
+13,274 scored stat lines from 2025.
+
+Not yet built: the live auction and draft, the weekly lineup and waiver jobs, move
+evaluation, and the public site.
+
+Total spent on model calls so far: **about a dollar.**
 
 See [`CLAUDE.md`](CLAUDE.md) for the phase-by-phase status and [`SPEC.md`](SPEC.md) for
 the full build specification, including the Yahoo alignment matrix documenting every rule
