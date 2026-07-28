@@ -6,6 +6,11 @@
 
 **Tagline:** Eight AI models. One NFL fantasy season. Watch them think.
 
+> **⚠️ v3 amendment (2026-07-28) — read §14 first.** The objective changed from all-play
+> to head-to-head, models now see their opponent, and eliminated rosters are released
+> into a playoff pool. §14 supersedes §3.3's playoff rules, §6.1's ranking, the
+> OBJECTIVE block of the §4.1-iii rulebook, and the context objects in §4.3–§4.5.
+
 Eight frontier models each run one fantasy team with no human help. They draft, set a lineup
 every week, and bid against each other on waivers. Real NFL results score them. Every prompt
 and every raw response is published.
@@ -295,6 +300,10 @@ head-to-head record published alongside it (§6.1).
 as "optional four-team playoff for drama" was a gap: it named no seeding, no bracket, and no
 scoring rule, so it could not have been built.
 
+> **⚠️ SUPERSEDED BY §14.5.** Seeding is now by H2H record, and after Week 14 the four
+> eliminated rosters are released into a FAAB pool the playoff teams bid on. Eliminated
+> teams stop setting lineups.
+
 - **Seeding** is by regular-season all-play record, tiebreak cumulative points — the same
   order as the final standings, so the ranking the site has shown all season is the one that
   decides who plays.
@@ -385,6 +394,11 @@ markdown, no code fences.
 Injected verbatim into every call, generated from the same config that drives the scoring
 engine — so **the rulebook cannot drift from the code that enforces it.** Generate it, never
 hand-write it.
+
+> **⚠️ The OBJECTIVE block below is SUPERSEDED BY §14.2** — the objective is now to win
+> your weekly matchup, reach the top 4, and win the bracket. All-play is published but
+> no longer ranks. The rest of the rulebook stands. The generator in
+> `src/lib/prompt/rulebook.ts` is the authority; this is an illustration of its output.
 
 ```
 === LEAGUE RULEBOOK v1 ===
@@ -1277,6 +1291,11 @@ make every earlier decision uninterpretable.
 
 ### 6.1 Standings
 
+> **⚠️ SUPERSEDED BY §14.2.** Head-to-head is now the official ranking; all-play is
+> still computed and published every week as the timing-luck-free measure. Everything
+> below about *how* all-play and the exact-tie rule are computed still stands — only
+> which number ranks the league has changed.
+
 Rank on **all-play** — it removes schedule luck and reads well for spectators.
 
 1. Each week, score every team's nine starters from actual results.
@@ -1999,6 +2018,113 @@ social_posts  id, season_id, week, kind ('launch'|'wrap'|'resolution'),
 **This is Phase 13 and it is downstream of Phases 11 and 12** — there is nothing to
 post until the wrap and the share card exist. The one exception is the launch run,
 which fires before Week 1 and needs only `/preseason`.
+
+---
+
+## 14. v3 amendment — head-to-head objective and opponent awareness — **[NEW 2026-07-28]**
+
+### 14.1 The goal, restated
+
+**Expose how these models reason under chaotic conditions.** Fantasy football is
+bounded chaos with a clear objective: enough randomness that no policy is obviously
+correct, enough structure that every decision is scoreable after the fact.
+
+That reframing has a consequence the earlier draft got wrong. The old design optimised
+for *measurement purity* — all-play removes timing luck, so it reads skill more cleanly
+over a short season. But it also deletes most of the interesting decisions. Under
+all-play there is no opponent, so there is no punting, no variance-seeking, no
+allocating resources across weeks. The model just starts its highest projections,
+every week, forever.
+
+**When the product is the reasoning, a noisier ranking that produces richer decisions
+beats a cleaner ranking that produces none.**
+
+### 14.2 Objective — **[CHANGED, supersedes §6.1]**
+
+**Head-to-head is now the official ranking.** All-play is still computed and published
+every week as the timing-luck-free measure of who actually managed best, and where the
+two disagree the site leads with the disagreement — but H2H decides the season.
+
+The models' objective is stated as three stages, because that is what generates the
+week-to-week tension:
+
+1. Win your weekly matchup.
+2. Finish top 4 to reach the playoffs. Seeding is H2H record, tiebreak cumulative points.
+3. Win the two-week bracket.
+
+### 14.3 What each model now sees — **[NEW, supersedes the §4.3–§4.5 context objects]**
+
+Added to the DATA block:
+
+| Decision | Added |
+|---|---|
+| Draft (§4.3) | **The full draft board** — every team's picks as they happen, not just its own roster. It is on the wall in every real draft; withholding it was an accident, not a design. |
+| Lineup (§4.4) | Opponent's roster with projections, opponent's season scoring mean and volatility, **the next 2–3 opponents**, own record, games back of 4th, weeks remaining |
+| Waivers (§4.5) | Rival rosters alongside the `budget_spent_by_others` already present |
+
+**Opponents are anonymised and stable:** "Team C" all season, never "Kimi K3". A model
+can build a picture of a rival across fourteen weeks, but cannot tailor behaviour to a
+specific lab — which keeps §8.1's isolation rule intact and stops the results being a
+referendum on how models treat each other's brands.
+
+**Models still never see our win probability.** §6.4 holds and now matters more: they
+get the opponent's *descriptive* facts and form their own read. This is strictly
+better than handing them our estimator, because it creates a new measurable — each
+model's implied estimate of its own win chance, against ours. A model that concludes
+it is cooked when the math says coin flip is a publishable finding.
+
+### 14.4 The strategies this legalises
+
+None of these were available under all-play. All are correct fantasy play, and each is
+a decision a model can visibly get right or wrong:
+
+- **Punting a week.** Projected to lose badly? Points have near-zero marginal value.
+  Conserve FAAB for a week you can win. Requires knowing *next* week's opponent, which
+  is why the upcoming schedule is in the DATA block.
+- **Variance-seeking as an underdog.** A boom/bust receiver is the right start when you
+  need an outlier and the wrong one when you are favoured and need a floor. **Same
+  roster, opposite correct answer, determined entirely by the matchup.** Watching which
+  models find this — and which start the highest projection regardless — is the single
+  best artifact in the design.
+- **Schedule-aware waiver timing.** Bidding hard before a stretch of winnable games.
+- **Playoff-race arithmetic.** From roughly Week 10 the question stops being "score
+  points" and becomes "what do I need, and against whom."
+
+### 14.5 Playoff pool — **[CHANGED, supersedes §3.3]**
+
+After Week 14, the four eliminated teams' rosters are **released into a free-agent
+pool**, and the four playoff teams bid their remaining FAAB on them for the two-week
+sprint. Eliminated teams stop setting lineups.
+
+This reverses §3.3's rule that non-playoff teams keep playing. The old rule protected
+against ending the experiment early to serve a bracket; the pool is worth more,
+because it forces a genuinely different question — *what do I need for two games, not
+a season* — onto four models at once, with fourteen weeks of FAAB discipline deciding
+who can act on the answer. A team that hoarded budget all year gets paid here.
+
+Mechanically it is the §4.5 waiver run with a different pool and a one-week window.
+Ordering: Week 14 final scores → seeding → pool released → sealed bids → Week 15
+lineups.
+
+### 14.6 What this costs, stated honestly
+
+1. **Timing luck returns.** A team can post the second-highest score of the week and
+   lose. Over fourteen weeks that is real noise in the ranking. Mitigated, not solved,
+   by publishing all-play alongside — and the schedule is a balanced double
+   round-robin, so there is no strength-of-schedule luck on top of it.
+2. **The byte-identical context hash weakens.** Per-opponent data means the eight DATA
+   blocks differ by construction, so §8.1 #1's cleanest claim needs replacing:
+   - Hash the **shared base block** (all league-wide data) — must be identical across
+     all eight, published as before.
+   - Hash each **per-team overlay** separately, and assert every overlay is a
+     deterministic function of `(base, teamId)` by replaying the generator.
+   Still machine-checkable, but it is a weaker sentence and the methodology page must
+   say so rather than quietly keeping the old claim.
+3. **The rules comprehension check must be rewritten.** Several questions test the
+   all-play objective. `RULEBOOK_VERSION` bumps, and every model re-sits the check.
+4. **Playoff variance is now the whole finish**, with no all-play backstop in Weeks
+   15–16. The site should say plainly that the bracket is the luckiest part of the
+   season.
 
 ---
 
