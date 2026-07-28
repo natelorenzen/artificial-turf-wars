@@ -129,7 +129,19 @@ export const LEAGUE = {
   softCapRound: 13,
   /** SPEC §8.1: same temperature requested of every model. */
   temperature: 0.2,
-  maxOutputTokens: 4000,
+  /**
+   * SPEC §8.1 #12 — identical for all eight, and high enough that the bounded
+   * reasoning schema never truncates for anyone.
+   *
+   * Raised from 4000 after the 2025 backtest: reasoning-tier models spend the budget
+   * on thinking before writing a single character of JSON, and two of eight returned
+   * EMPTY CONTENT on the auction — which is indistinguishable from a refusal unless
+   * `finish_reason` is captured. Kimi K3 used 2,946 output tokens on a one-player
+   * board; the real board is sixty.
+   *
+   * Costs nothing to raise: providers bill tokens generated, not the ceiling.
+   */
+  maxOutputTokens: 16_000,
   /** Below Grok 4.5's 500K window so no model truncates first (SPEC §8.1 #11). */
   contextCeilingTokens: 400_000,
   /** SPEC §4.1b: dossier must be asserted under this. */

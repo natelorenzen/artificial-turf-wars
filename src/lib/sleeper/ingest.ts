@@ -257,6 +257,41 @@ export async function ingestProjections(
  * Both rows are kept — a published score is never overwritten silently (SPEC §5.5),
  * and any difference is written to `stat_corrections` for the public diff.
  */
+/**
+ * Historical stat feeds reference players the CURRENT pool no longer contains —
+ * retirees, cuts, anyone off an active roster. Dropping their rows would silently
+ * corrupt a backtest, so they are backfilled from the stat payload's own embedded
+ * player object and marked inactive.
+ *
+ * Marking them inactive matters: the draft board is built from season projections,
+ * which they do not have, so they can never leak into a live draft pool.
+ */
+async function backfillMissingPlayers(
+  db: SupabaseClient,
+  records: SleeperStatRecord[],
+  known: Set<string>,
+  position: SleeperPosition,
+): Promise<number> {
+  const missing = records.filter((rec) => !known.has(rec.player_id));
+  if (missing.length === 0) return 0;
+
+  const rows = missing.map((rec) => ({
+    sleeper_id: rec.player_id,
+    name:
+      [rec.player?.first_name, rec.player?.last_name].filter(Boolean).join(' ').trim() ||
+      rec.player_id,
+    position: rec.player?.position ?? position,
+    nfl_team: rec.team ?? rec.player?.team ?? null,
+    active: false,
+    years_exp: rec.player?.years_exp ?? null,
+    updated_at: new Date().toISOString(),
+  }));
+
+  await upsertChunked(db, 'players', rows, 'sleeper_id');
+  rows.forEach((r) => known.add(r.sleeper_id));
+  return rows.length;
+}
+
 export async function ingestWeeklyStats(
   season: number,
   week: number,
@@ -265,6 +300,8 @@ export async function ingestWeeklyStats(
 ) {
   const rows: Record<string, unknown>[] = [];
   let skippedDefenses = 0;
+  let backfilled = 0;
+  const known = await fetchAllPlayerIds(db);
 
   for (const position of FANTASY_POSITIONS) {
     const result = await fetchWeeklyStats(season, week, position);
@@ -276,6 +313,8 @@ export async function ingestWeeklyStats(
       rowCount: result.data.length,
     });
 
+    backfilled += await backfillMissingPlayers(db, result.data, known, position);
+
     for (const rec of result.data) {
       const stats = rec.stats ?? {};
       // A DEF row with no pts_allow key would band as a shutout worth +10. That is
@@ -285,7 +324,17 @@ export async function ingestWeeklyStats(
         continue;
       }
       if (Object.keys(stats).length === 0) continue;
-      if (n(stats, 'gp') === 0 && position !== 'DEF') continue;
+
+      // Do NOT filter on `gp`. Sleeper omits the key entirely on some scoring lines,
+      // and `n()` reads an absent key as 0 — so a `gp` filter discards real points.
+      //
+      // Caught by the 2025 backtest: Jelani Woods' week 18 line is
+      // {"pts_ppr":2,"rec_2pt":1} with no `gp`. A two-point conversion, dropped
+      // silently. Two points decides head-to-head matchups, and under the v3
+      // objective a single matchup decides playoff qualification.
+      //
+      // This is the §5.2 absent-key trap appearing in our own filter rather than in
+      // the scoring engine it was written to protect.
 
       rows.push({
         player_id: rec.player_id,
@@ -303,7 +352,7 @@ export async function ingestWeeklyStats(
   await upsertChunked(db, 'player_stats', rows, 'player_id,season,week,status');
 
   const corrections = status === 'final' ? await writeCorrections(db, season, week) : 0;
-  return { scored: rows.length, skippedDefenses, corrections };
+  return { scored: rows.length, skippedDefenses, backfilled, corrections };
 }
 
 /** Compare final against provisional and publish the diff rather than hiding it. */

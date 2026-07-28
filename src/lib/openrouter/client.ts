@@ -32,6 +32,12 @@ export interface CallResult<T> {
   providerFailure: boolean;
   retryCount: number;
   latencyMs: number;
+  /**
+   * Why generation stopped. `length` means the model hit max_tokens — for a reasoning
+   * model that can mean it spent the entire budget thinking and returned empty
+   * content, which looks identical to a refusal unless this is captured.
+   */
+  finishReason: string | null;
   temperatureRequested: number;
   temperatureHonored: number | null;
   usage: CallUsage;
@@ -150,6 +156,7 @@ export async function callModel<T>(options: CallOptions<T>): Promise<CallResult<
   let retryCount = 0;
   let lastRaw: string | null = null;
   let lastValidationError: string | null = null;
+  let finishReason: string | null = null;
   let usage: CallUsage = { tokensIn: null, tokensOut: null, reasoningTokens: null, costUsd: null };
 
   for (let attempt = 0; attempt <= parseRetries; attempt++) {
@@ -181,6 +188,7 @@ export async function callModel<T>(options: CallOptions<T>): Promise<CallResult<
         providerFailure: true,
         retryCount,
         latencyMs: Date.now() - started,
+        finishReason,
         temperatureRequested: LEAGUE.temperature,
         temperatureHonored: null,
         usage,
@@ -197,6 +205,7 @@ export async function callModel<T>(options: CallOptions<T>): Promise<CallResult<
     };
 
     const content = body.choices?.[0]?.message?.content ?? '';
+    finishReason = body.choices?.[0]?.finish_reason ?? null;
     lastRaw = content;
 
     try {
@@ -209,12 +218,19 @@ export async function callModel<T>(options: CallOptions<T>): Promise<CallResult<
         providerFailure: false,
         retryCount,
         latencyMs: Date.now() - started,
+        finishReason,
         temperatureRequested: LEAGUE.temperature,
         temperatureHonored: null,
         usage,
       };
     } catch (err) {
-      lastValidationError = err instanceof Error ? err.message : String(err);
+      lastValidationError =
+        content.trim().length === 0
+          ? `model returned empty content (finish_reason=${finishReason ?? 'unknown'}` +
+            `, ${body.usage?.completion_tokens ?? '?'} completion tokens of which ` +
+            `${body.usage?.completion_tokens_details?.reasoning_tokens ?? 0} were reasoning) — ` +
+            'it most likely spent the whole output budget thinking'
+          : err instanceof Error ? err.message : String(err);
     }
   }
 
@@ -226,6 +242,7 @@ export async function callModel<T>(options: CallOptions<T>): Promise<CallResult<
     providerFailure: false,
     retryCount,
     latencyMs: Date.now() - started,
+    finishReason,
     temperatureRequested: LEAGUE.temperature,
     temperatureHonored: null,
     usage,
