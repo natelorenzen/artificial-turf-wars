@@ -348,3 +348,95 @@ export async function loadBacktestSummary(
     },
   };
 }
+
+// ---------------------------------------------------------------------------
+// Full draft board
+// ---------------------------------------------------------------------------
+
+export interface BoardPick extends BacktestPick {
+  closestCall: string | null;
+  citedFields: string[];
+  unsupportedClaims: string[];
+  softViolations: string[];
+  fallbackApplied: boolean;
+  poolNarrowed: boolean;
+}
+
+/**
+ * Every pick, with the reasoning attached. This is the draft-board page for both the
+ * backtest and the live season — the same component reads both, so the August board
+ * has already been exercised against 120 real picks.
+ */
+export async function loadDraftBoard(db: SupabaseClient, season: number): Promise<BoardPick[]> {
+  const { data: seasonRow } = await db.from('seasons').select('id').eq('year', season).maybeSingle();
+  if (!seasonRow) return [];
+  const seasonId = seasonRow.id as string;
+
+  const { data: teamRows } = await db
+    .from('teams')
+    .select('id, draft_slot, models!inner(display_name)')
+    .eq('season_id', seasonId);
+  const teams = (teamRows ?? []) as unknown as TeamRow[];
+  if (teams.length === 0 || teams.some((t) => t.draft_slot === null)) return [];
+  const labels = buildLabelMap(teams.map((t) => ({ teamId: t.id, draftSlot: t.draft_slot! })));
+  const modelOf = new Map(teams.map((t) => [t.id, t.models.display_name]));
+
+  const picks = await pageAll<{
+    pick_overall: number;
+    round: number;
+    team_id: string;
+    decision_id: string | null;
+    pool_narrowed: boolean;
+    players: { name: string; position: Position };
+  }>(
+    (from, to) =>
+      db
+        .from('draft_picks')
+        .select('pick_overall, round, team_id, decision_id, pool_narrowed, players!inner(name, position)')
+        .eq('season_id', seasonId)
+        .order('pick_overall')
+        .range(from, to) as never,
+    'draft_picks',
+  );
+
+  const decisions = await pageAll<{
+    id: string;
+    headline: string | null;
+    closest_call: string | null;
+    confidence: number | null;
+    cited_fields: string[] | null;
+    unsupported_claims: string[] | null;
+    soft_violations: string[] | null;
+    fallback_applied: boolean;
+  }>(
+    (from, to) =>
+      db
+        .from('decisions')
+        .select('id, headline, closest_call, confidence, cited_fields, unsupported_claims, soft_violations, fallback_applied')
+        .eq('season_id', seasonId)
+        .eq('type', 'draft_pick')
+        .range(from, to) as never,
+    'decisions',
+  );
+  const byId = new Map(decisions.map((d) => [d.id, d]));
+
+  return picks.map((pick) => {
+    const d = pick.decision_id ? byId.get(pick.decision_id) : undefined;
+    return {
+      pickOverall: pick.pick_overall,
+      round: pick.round,
+      model: modelOf.get(pick.team_id) ?? '—',
+      label: labels.get(pick.team_id) ?? '—',
+      player: pick.players.name,
+      position: pick.players.position,
+      headline: d?.headline ?? null,
+      confidence: d?.confidence ?? null,
+      closestCall: d?.closest_call ?? null,
+      citedFields: d?.cited_fields ?? [],
+      unsupportedClaims: d?.unsupported_claims ?? [],
+      softViolations: d?.soft_violations ?? [],
+      fallbackApplied: Boolean(d?.fallback_applied),
+      poolNarrowed: Boolean(pick.pool_narrowed),
+    };
+  });
+}

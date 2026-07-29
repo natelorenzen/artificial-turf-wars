@@ -584,3 +584,16 @@ a:focus-visible,
     gap: 6px;
   }
 }
+
+/* Automated citation flags, shown next to the claim they concern rather than in a
+   separate report. They are advisory: the checker was wrong about most of what it
+   flagged the first time it ran, which is disclosed on /methodology. */
+.flags {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+  font-family: var(--font-data);
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--bad);
+}

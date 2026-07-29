@@ -91,3 +91,13 @@ describe('rulebook grounding', () => {
     expect(unsupportedClaims.some((c) => c.includes('99.7'))).toBe(true);
   });
 });
+
+describe('one finding per bullet', () => {
+  it('does not report the same sentence twice', () => {
+    // Cites an invented number AND grounds itself in nothing else. That is one
+    // problem, not two, and counting it twice inflates every published total.
+    const { unsupportedClaims } = checkCitations(['He put up 70 last year in a different system'], DATA);
+    expect(unsupportedClaims).toHaveLength(1);
+    expect(unsupportedClaims[0]).toContain('not in DATA');
+  });
+});

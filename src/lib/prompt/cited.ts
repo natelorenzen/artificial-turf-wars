@@ -114,8 +114,13 @@ export function checkCitations(
       ? []
       : checkable.filter((v) => !index.numbers.has(normalizeNumber(v)));
 
+    // A bullet gets at most ONE finding. Reporting the same sentence twice — once for
+    // an unsupported value and again for citing nothing — double-counts a single
+    // problem and inflates every published total.
+    let flagged = false;
     if (missing.length > 0) {
       unsupportedClaims.push(`${factor} — value(s) not in DATA: ${missing.join(', ')}`);
+      flagged = true;
     } else if (checkable.length > 0) {
       supported = true;
     }
@@ -131,7 +136,7 @@ export function checkCitations(
       }
     }
 
-    if (!supported) {
+    if (!supported && !flagged) {
       unsupportedClaims.push(`${factor} — cites no DATA field, value, or name`);
     }
   }

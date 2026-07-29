@@ -17,6 +17,7 @@ function Hud() {
       </Link>
       <nav className="hud-nav">
         <Link href="/backtest">Backtest</Link>
+        <Link href="/backtest/draft">Draft board</Link>
         <Link href="/methodology">Methodology</Link>
       </nav>
       <div className="hud-meta">
