@@ -25,7 +25,21 @@ export interface LeagueFacts {
   budgetTotal: number;
   rulesChecks: RulesCheckResult[];
   rulesCheckContextHash: string | null;
-  dossier: { hash: string; tokenCount: number; players: number } | null;
+  dossier: {
+    hash: string;
+    tokenCount: number;
+    players: number;
+    builtAt: string;
+    curves: {
+      position: string;
+      best: number;
+      replacementRank: number;
+      replacementPoints: number;
+      spread: number;
+    }[];
+  } | null;
+  gameplansFiled: number;
+  auctionResolved: boolean;
   draftComplete: boolean;
 }
 
@@ -88,11 +102,21 @@ export async function loadLeagueFacts(
 
   const { data: dossierRow } = await db
     .from('dossiers')
-    .select('content_hash, token_count, content')
+    .select('content_hash, token_count, content, built_at')
     .eq('season_id', seasonRow.id)
     .order('built_at', { ascending: false })
     .limit(1)
     .maybeSingle();
+
+  const { count: gameplansFiled } = await db
+    .from('gameplans')
+    .select('*', { count: 'exact', head: true })
+    .in('team_id', [...modelOf.keys()]);
+
+  const { count: auctionBids } = await db
+    .from('auction_bids')
+    .select('*', { count: 'exact', head: true })
+    .in('team_id', [...modelOf.keys()]);
 
   return {
     season,
@@ -102,14 +126,43 @@ export async function loadLeagueFacts(
     budgetTotal: seasonRow.budget_total as number,
     rulesChecks,
     rulesCheckContextHash: (checkDecision?.context_hash as string) ?? null,
-    dossier: dossierRow
-      ? {
-          hash: dossierRow.content_hash as string,
-          tokenCount: dossierRow.token_count as number,
-          players:
-            ((dossierRow.content as { players?: unknown[] })?.players ?? []).length,
-        }
-      : null,
+    dossier: dossierRow ? shapeDossier(dossierRow) : null,
+    gameplansFiled: gameplansFiled ?? 0,
+    auctionResolved: (auctionBids ?? 0) > 0,
     draftComplete: Boolean(seasonRow.draft_completed_at),
+  };
+}
+
+interface DossierRow {
+  content_hash: string;
+  token_count: number;
+  built_at: string;
+  content: unknown;
+}
+
+function shapeDossier(row: DossierRow): NonNullable<LeagueFacts['dossier']> {
+  const content = row.content as {
+    players?: unknown[];
+    scarcity_curves?: {
+      position: string;
+      points_by_rank: { rank: number; proj_season_points: number }[];
+      replacement_rank: number;
+      replacement_points: number;
+      spread_over_replacement: number;
+    }[];
+  };
+
+  return {
+    hash: row.content_hash,
+    tokenCount: row.token_count,
+    players: (content.players ?? []).length,
+    builtAt: row.built_at,
+    curves: (content.scarcity_curves ?? []).map((c) => ({
+      position: c.position,
+      best: c.points_by_rank[0]?.proj_season_points ?? 0,
+      replacementRank: c.replacement_rank,
+      replacementPoints: c.replacement_points,
+      spread: c.spread_over_replacement,
+    })),
   };
 }

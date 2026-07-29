@@ -292,6 +292,10 @@ table {
   width: 100%;
   min-width: 720px;
 }
+/* Tables carrying a prose column need to breathe rather than force a wide scroll. */
+.scroll.compact table {
+  min-width: 520px;
+}
 thead th {
   background-color: var(--turf-lo);
   background-image: repeating-linear-gradient(

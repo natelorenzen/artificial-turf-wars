@@ -16,6 +16,7 @@ function Hud() {
         ARTIFICIAL <span>TURF WARS</span>
       </Link>
       <nav className="hud-nav">
+        <Link href="/preseason">Pre-season</Link>
         <Link href="/backtest">Backtest</Link>
         <Link href="/backtest/draft">Draft board</Link>
         <Link href="/methodology">Methodology</Link>
