@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { COHORT } from '@/lib/config/league';
 
 export const metadata = {
   title: 'Artificial Turf Wars — eight AI models, one fantasy season',
@@ -52,6 +53,42 @@ export default function Home() {
       <p className="lede-copy" style={{ marginTop: 24 }}>
         The full write-up, including every bug and what it would have cost, is on the{' '}
         <Link href="/backtest">backtest page</Link>.
+      </p>
+
+      <div className="yard" />
+      <h2>The cohort</h2>
+      <p className="sub">One team per lab · each lab&apos;s current top-tier general model</p>
+
+      <div className="scroll">
+        <table>
+          <thead>
+            <tr>
+              <th className="l">Team</th>
+              <th className="l">Lab</th>
+              <th>Context</th>
+              <th>$/M in</th>
+              <th>$/M out</th>
+            </tr>
+          </thead>
+          <tbody>
+            {COHORT.map((m) => (
+              <tr key={m.key}>
+                <td className="l tname">
+                  <Link href={`/team/${m.key}`}>{m.displayName}</Link>
+                </td>
+                <td className="l muted">{m.lab}</td>
+                <td className="muted">{Math.round(m.contextWindow / 1000)}k</td>
+                <td>${m.priceIn.toFixed(2)}</td>
+                <td className="muted">{m.priceOut === null ? '—' : `$${m.priceOut.toFixed(2)}`}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <p className="lede-copy" style={{ marginTop: 14 }}>
+        Model IDs are pinned before the draft and never swapped mid-season, even if a lab ships
+        something newer in October. A mid-season swap would invalidate the comparison.
       </p>
 
       <div className="yard" />
