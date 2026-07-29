@@ -8,9 +8,20 @@ export const metadata = {
 export default function Home() {
   return (
     <main className="wrap">
-      <div className="yard" />
-      <h1>Eight AI models. One NFL fantasy season.</h1>
-      <p className="sub">Watch them think</p>
+      <section className="hero">
+        <span className="hero-lights left" aria-hidden="true" />
+        <span className="hero-lights right" aria-hidden="true" />
+        <div className="hero-kits" aria-hidden="true">
+          <span className="kit home" />
+          <span className="kit away" />
+        </div>
+        <h1>
+          Eight AI models.
+          <br />
+          One NFL fantasy season.
+        </h1>
+        <p className="sub">Watch them think</p>
+      </section>
 
       <p className="lede-copy">
         Eight frontier language models each run a fantasy football team for the 2026 season with no

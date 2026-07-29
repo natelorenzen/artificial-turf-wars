@@ -34,6 +34,26 @@
   --good: #3fd07a;
   --bad: #e8402a;
 
+  /* ---- Arcade palette, from the ATW key art ----
+     Used for CHROME ONLY — hero, wordmark, dividers, badges. Reading surfaces keep
+     the calmer turf ground, because the reasoning is still the product.
+
+     There is deliberately NO second yellow here. An earlier pass added one and it
+     fought --amber across the whole site: two near-identical accents read as a
+     mistake, not as a palette. --amber is the only accent, everywhere.
+
+     No smooth gradients either. 16-bit hardware could not blend, so period art used
+     hard colour bands and ordered dithering. A soft radial bloom instantly reads as
+     modern, which is why the sky below is banded and dithered rather than faded. */
+  --sky-1: #120b30;
+  --sky-2: #241356;
+  --sky-3: #3d1a72;
+  --sky-4: #5b2183;
+  --field: #3fbb45;
+  --field-lo: #1f7f2c;
+  --home: #2f6fd6;
+  --away: #d93b2b;
+
   --font-display: Impact, Haettenschweiler, 'Franklin Gothic Heavy', 'Arial Narrow Bold', sans-serif;
   --font-data: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace;
   --font-read: 'Helvetica Neue', Helvetica, Arial, sans-serif;
@@ -106,15 +126,25 @@ body {
 }
 .hud-mark {
   font-family: var(--font-display);
-  font-size: 26px;
-  letter-spacing: 0.06em;
+  font-size: 27px;
+  letter-spacing: 0.05em;
   color: var(--chalk);
   text-transform: uppercase;
-  text-shadow: 2px 2px 0 var(--turf-lo);
   text-decoration: none;
+  /* Hard outline plus a dropped shadow — the sticker treatment on the ATW mark,
+     rather than the single soft offset the mockup used. */
+  text-shadow:
+    2px 0 0 var(--sky-1),
+    -2px 0 0 var(--sky-1),
+    0 2px 0 var(--sky-1),
+    0 -2px 0 var(--sky-1),
+    3px 3px 0 #000;
 }
 .hud-mark span {
   color: var(--amber);
+}
+.hud-mark:hover span {
+  color: #fff;
 }
 .hud-nav {
   display: flex;
@@ -872,4 +902,153 @@ a:focus-visible,
 }
 .footer-warn a {
   color: #ffb9af;
+}
+
+/* ---------- arcade hero ----------
+   A 16-bit night stadium: hard-banded sky, ordered dithering between bands, a grid of
+   floodlight bulbs, and a striped field. Every edge is hard on purpose — the hardware
+   this references could not blend two colours, so any smooth gradient reads as modern
+   and breaks the illusion instantly. */
+.hero {
+  position: relative;
+  margin: 0 -20px 8px;
+  padding: 40px 24px 22px;
+  overflow: hidden;
+  border-bottom: 4px solid var(--amber);
+  /* Four hard sky bands, darkest at the top, plus a dithered seam on each boundary.
+     The checkerboards are 4px ordered dither — the same trick Genesis artists used to
+     fake a gradient out of two flat colours. */
+  background-image:
+    /* dither seam 3 */
+    repeating-conic-gradient(from 0deg at 50% 50%, var(--sky-4) 0% 25%, transparent 0% 50%),
+    /* dither seam 2 */
+    repeating-conic-gradient(from 0deg at 50% 50%, var(--sky-3) 0% 25%, transparent 0% 50%),
+    /* dither seam 1 */
+    repeating-conic-gradient(from 0deg at 50% 50%, var(--sky-2) 0% 25%, transparent 0% 50%),
+    /* the bands themselves */
+    linear-gradient(
+      to bottom,
+      var(--sky-1) 0 26%,
+      var(--sky-2) 26% 50%,
+      var(--sky-3) 50% 72%,
+      var(--sky-4) 72% 100%
+    );
+  background-size:
+    8px 8px,
+    8px 8px,
+    8px 8px,
+    100% 100%;
+  background-position:
+    0 72%,
+    0 50%,
+    0 26%,
+    0 0;
+  background-repeat: repeat-x, repeat-x, repeat-x, no-repeat;
+}
+
+/* Floodlight banks — hard-edged bulbs in a grid, as in the key art. No bloom. */
+.hero-lights {
+  position: absolute;
+  z-index: 2;
+  top: 12px;
+  width: 78px;
+  height: 34px;
+  background-image: radial-gradient(circle at center, #fff 0 2.5px, transparent 2.6px);
+  background-size: 13px 11px;
+  opacity: 0.95;
+}
+.hero-lights.left {
+  left: 18px;
+}
+.hero-lights.right {
+  right: 18px;
+}
+
+/* The field: mow stripes with yard lines over them. */
+.hero::after {
+  content: '';
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 52px;
+  background-image:
+    repeating-linear-gradient(90deg, #fff 0 2px, transparent 2px 40px),
+    repeating-linear-gradient(90deg, var(--field) 0 20px, var(--field-lo) 20px 40px);
+  border-top: 3px solid #fff;
+}
+/* Only the TEXT needs lifting above the background layers. Using `.hero > *` here
+   matched the absolutely-positioned lights and kit chips at equal specificity and,
+   being the later rule, stripped their positioning off entirely. */
+.hero h1,
+.hero .sub {
+  position: relative;
+  z-index: 1;
+}
+.hero h1 {
+  font-size: clamp(28px, 5.6vw, 52px);
+  line-height: 1.06;
+  padding-bottom: 4px;
+  color: #fff;
+  /* Chunky sticker outline — thick, hard, offset. No blur anywhere. */
+  text-shadow:
+    2px 0 0 var(--sky-1),
+    -2px 0 0 var(--sky-1),
+    0 2px 0 var(--sky-1),
+    0 -2px 0 var(--sky-1),
+    5px 6px 0 #000;
+  margin-bottom: 10px;
+}
+.hero .sub {
+  color: var(--amber);
+  margin-bottom: 62px;
+}
+.hero-kits {
+  position: absolute;
+  z-index: 2;
+  left: 24px;
+  bottom: 62px;
+  display: flex;
+  gap: 8px;
+  z-index: 1;
+}
+.kit {
+  width: 22px;
+  height: 22px;
+  border: 3px solid #000;
+  box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.55);
+}
+.kit.home {
+  background: var(--home);
+}
+.kit.away {
+  background: var(--away);
+}
+@media (max-width: 560px) {
+  .hero-lights {
+    width: 52px;
+  }
+}
+
+/* Section headings keep a hard offset, no blur. */
+h2 {
+  text-shadow: 3px 3px 0 #000;
+}
+
+/* Yard-line dividers, brightened to the key art's field markings. */
+.yard {
+  background: repeating-linear-gradient(90deg, var(--field-lo) 0 3px, transparent 3px 28px);
+  border-top: 2px solid var(--field-lo);
+  border-bottom: 2px solid var(--field-lo);
+}
+
+/* Scoreboard numerals: hard offset shadow, single accent. */
+.tile .v {
+  text-shadow: 3px 3px 0 #000;
+}
+
+/* Team-colour chips for anything that pairs two sides. */
+.side-home {
+  color: #8db6ff;
+}
+.side-away {
+  color: #ff9a8d;
 }
