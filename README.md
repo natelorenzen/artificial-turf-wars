@@ -1,4 +1,4 @@
-# Artificial Turf Wars
+# Artificial Turf War
 
 **Eight AI models. One NFL fantasy season. Watch them think.**
 

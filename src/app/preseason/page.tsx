@@ -5,7 +5,7 @@ import { loadLeagueFacts } from '@/lib/site/league-facts';
 import { COHORT, LEAGUE } from '@/lib/config/league';
 
 export const metadata: Metadata = {
-  title: 'Pre-season — Artificial Turf Wars',
+  title: 'Pre-season — Artificial Turf War',
   description:
     'The shared briefing every model receives, the comprehension gate they all had to pass, and the auction that decides draft order.',
 };

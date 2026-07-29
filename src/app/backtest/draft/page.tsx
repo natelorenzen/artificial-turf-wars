@@ -5,7 +5,7 @@ import { loadDraftBoard, type BoardPick } from '@/lib/backtest/results';
 import { LEAGUE } from '@/lib/config/league';
 
 export const metadata: Metadata = {
-  title: 'The 2025 backtest draft board — Artificial Turf Wars',
+  title: 'The 2025 backtest draft board — Artificial Turf War',
   description:
     'All 120 picks from the backtest draft, with the reason each model gave for taking the player it took.',
 };

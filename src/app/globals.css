@@ -679,3 +679,197 @@ a:focus-visible,
   color: var(--amber);
   border-bottom-color: var(--amber);
 }
+
+/* ---------- grouped HUD navigation ----------
+   The site holds two seasons that look alike and mean different things. Groups are
+   labelled in the bar itself rather than hidden in a dropdown, because a reader must
+   always know whether they are looking at the live league or the rehearsal. */
+.hud-groups {
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+.hud-group {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.hud-group-label {
+  font-size: 9px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--turf);
+  white-space: nowrap;
+}
+.hud-group-items {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.hud-group-items a {
+  color: var(--chalk-dim);
+  text-decoration: none;
+  border-bottom: 2px solid transparent;
+  padding-bottom: 1px;
+  white-space: nowrap;
+}
+.hud-group-items a:hover,
+.hud-group-items a[aria-current='page'] {
+  color: var(--amber);
+  border-bottom-color: var(--amber);
+}
+.hud-x {
+  margin-left: auto;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--chalk-dim);
+  text-decoration: none;
+  border: 2px solid var(--line);
+  padding: 5px 10px;
+  white-space: nowrap;
+}
+.hud-x:hover {
+  color: var(--amber);
+  border-color: var(--amber);
+}
+@media (max-width: 720px) {
+  .hud-x {
+    margin-left: 0;
+  }
+}
+
+/* A rehearsal page must never be mistaken for the live season. */
+.season-banner {
+  background: rgba(255, 192, 46, 0.12);
+  border-bottom: 3px solid var(--amber);
+  padding: 10px 20px;
+  font-family: var(--font-read);
+  font-size: 14px;
+  line-height: 1.5;
+  color: #ffe0a3;
+  text-align: center;
+}
+.season-banner strong {
+  color: var(--amber);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.season-banner a {
+  color: var(--amber);
+}
+
+/* ---------- follow modal ---------- */
+.modal-veil {
+  position: fixed;
+  inset: 0;
+  z-index: 10050;
+  background: rgba(3, 12, 8, 0.82);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+.modal {
+  position: relative;
+  width: 100%;
+  max-width: 420px;
+  background: var(--panel);
+  border: var(--bd);
+  border-top: 3px solid var(--amber);
+  box-shadow: var(--shadow);
+  padding: 26px 24px 20px;
+}
+.modal-close {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  background: none;
+  border: 0;
+  color: var(--chalk-dim);
+  font-size: 15px;
+  cursor: pointer;
+  padding: 4px 6px;
+}
+.modal-close:hover {
+  color: var(--amber);
+}
+.modal-kicker {
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--amber);
+  margin-bottom: 8px;
+}
+.modal h3 {
+  font-size: 26px;
+  margin: 0 0 12px;
+  color: var(--chalk);
+}
+.modal p {
+  font-family: var(--font-read);
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--chalk);
+  margin: 0 0 18px;
+}
+.btn-x {
+  display: block;
+  text-align: center;
+  background: var(--amber);
+  color: #12211a;
+  font-family: var(--font-display);
+  font-size: 18px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  text-decoration: none;
+  padding: 12px 16px;
+  border: 3px solid var(--amber);
+  box-shadow: 4px 4px 0 rgba(0, 0, 0, 0.5);
+}
+.btn-x:hover {
+  background: var(--chalk);
+  border-color: var(--chalk);
+}
+.btn-plain {
+  display: block;
+  width: 100%;
+  margin-top: 10px;
+  background: none;
+  border: 2px solid var(--line);
+  color: var(--chalk-dim);
+  font-family: var(--font-data);
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  padding: 9px;
+  cursor: pointer;
+}
+.btn-plain:hover {
+  color: var(--chalk);
+  border-color: var(--chalk-dim);
+}
+.modal-fine {
+  margin: 16px 0 0 !important;
+  font-family: var(--font-data) !important;
+  font-size: 10px !important;
+  letter-spacing: 0.08em;
+  color: var(--chalk-dim) !important;
+  text-align: center;
+}
+
+.footer-warn {
+  color: #ffb9af;
+  border: 2px solid var(--bad);
+  background: rgba(232, 64, 42, 0.1);
+  padding: 10px 14px;
+  margin: 0 auto 18px;
+  max-width: 780px;
+}
+.footer-warn a {
+  color: #ffb9af;
+}

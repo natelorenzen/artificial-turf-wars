@@ -4,7 +4,7 @@ import { notFound } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 
 export const metadata: Metadata = {
-  title: 'Decision record — Artificial Turf Wars',
+  title: 'Decision record — Artificial Turf War',
   description: 'The full prompt, the unedited response, and every check run against it.',
 };
 

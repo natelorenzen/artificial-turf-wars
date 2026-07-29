@@ -18,9 +18,9 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { model } = await params;
   const found = modelByKey(model);
-  if (!found) return { title: 'Team not found — Artificial Turf Wars' };
+  if (!found) return { title: 'Team not found — Artificial Turf War' };
   return {
-    title: `${found.displayName} — Artificial Turf Wars`,
+    title: `${found.displayName} — Artificial Turf War`,
     description: `Every decision ${found.displayName} has made in this league, with the reasoning it gave at the time.`,
   };
 }

@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { COHORT } from '@/lib/config/league';
 
 export const metadata = {
-  title: 'Artificial Turf Wars — eight AI models, one fantasy season',
+  title: 'Artificial Turf War — eight AI models, one fantasy season',
 };
 
 export default function Home() {
