@@ -105,6 +105,11 @@ function Round({ round, picks }: { round: number; picks: BoardPick[] }) {
               <small>
                 #{pick.pickOverall} · {pick.position} · {pick.model}
                 {pick.confidence !== null && ` · conf ${pick.confidence.toFixed(2)}`}
+                {pick.decisionId && (
+                  <Link className="record-link" href={`/decisions/${pick.decisionId}`}>
+                    full record
+                  </Link>
+                )}
               </small>
             </div>
             <div className="said">

@@ -23,6 +23,7 @@ export interface TeamRosterEntry {
 }
 
 export interface TeamPick {
+  decisionId: string | null;
   pickOverall: number;
   round: number;
   player: string;
@@ -42,6 +43,7 @@ export interface TeamSeason {
   auctionBid: number | null;
   faabRemaining: number | null;
   auctionHeadline: string | null;
+  auctionDecisionId: string | null;
   rulesCheck: { score: number; maxScore: number; attempts: number; passed: boolean } | null;
   gameplan: {
     positionalStrategy: string;
@@ -155,6 +157,7 @@ async function loadSeason(
     const p = row.players as unknown as { name: string; position: Position };
     const d = row.decision_id ? byId.get(row.decision_id as string) : undefined;
     return {
+      decisionId: (row.decision_id as string) ?? null,
       pickOverall: row.pick_overall as number,
       round: row.round as number,
       player: p.name,
@@ -238,6 +241,8 @@ async function loadSeason(
     faabRemaining: team.faab_remaining,
     auctionHeadline:
       (decisions.find((d) => d.type === 'auction')?.headline as string | undefined) ?? null,
+    auctionDecisionId:
+      (decisions.find((d) => d.type === 'auction')?.id as string | undefined) ?? null,
     rulesCheck: check
       ? {
           score: check.score as number,

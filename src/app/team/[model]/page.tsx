@@ -214,6 +214,13 @@ function Rehearsal({ season, name }: { season: TeamSeason; name: string }) {
             <span>
               bid ${season.auctionBid} · took slot {season.draftSlot}
             </span>
+            {season.auctionDecisionId && (
+              <span>
+                <Link className="record-link" href={`/decisions/${season.auctionDecisionId}`}>
+                  full record
+                </Link>
+              </span>
+            )}
           </div>
           <p className="lede">&ldquo;{season.auctionHeadline}&rdquo;</p>
         </div>
@@ -278,6 +285,11 @@ function Rehearsal({ season, name }: { season: TeamSeason; name: string }) {
                   <small>
                     R{pick.round} · #{pick.pickOverall} · {pick.position}
                     {pick.confidence !== null && ` · conf ${pick.confidence.toFixed(2)}`}
+                    {pick.decisionId && (
+                      <Link className="record-link" href={`/decisions/${pick.decisionId}`}>
+                        full record
+                      </Link>
+                    )}
                   </small>
                 </div>
                 <div className="said">

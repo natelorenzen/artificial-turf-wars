@@ -612,3 +612,70 @@ a:focus-visible,
   color: var(--amber);
   border-bottom-color: var(--amber);
 }
+
+/* ---------- disclosure blocks ----------
+   Full prompts run to thousands of characters. They are all present in the page —
+   nothing is truncated or summarised — but collapsed by default so the record stays
+   navigable. The raw response is the one that opens on load, because it is the thing
+   a sceptical reader came for. */
+.disclose {
+  border: var(--bd);
+  box-shadow: var(--shadow);
+  background: var(--panel);
+  margin-bottom: 14px;
+}
+.disclose > summary {
+  cursor: pointer;
+  padding: 12px 16px;
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--amber);
+  background: var(--steel);
+  border-bottom: 2px solid var(--line);
+  list-style: none;
+}
+.disclose > summary::-webkit-details-marker {
+  display: none;
+}
+.disclose > summary::before {
+  content: '▸ ';
+}
+.disclose[open] > summary::before {
+  content: '▾ ';
+}
+.disclose > summary:hover {
+  color: var(--chalk);
+}
+.disclose pre {
+  margin: 0;
+  padding: 16px;
+  overflow-x: auto;
+  max-height: 620px;
+  overflow-y: auto;
+  font-family: var(--font-data);
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--chalk);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* Link from any displayed reasoning to its full record. The audit trail is only
+   credible if it is one click from the claim, not buried behind a menu item. */
+.record-link {
+  display: inline-block;
+  margin-left: 8px;
+  font-family: var(--font-data);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--chalk-dim);
+  text-decoration: none;
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+}
+.record-link:hover {
+  color: var(--amber);
+  border-bottom-color: var(--amber);
+}

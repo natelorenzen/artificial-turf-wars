@@ -29,6 +29,7 @@ export interface BacktestStanding {
 }
 
 export interface BacktestBid {
+  decisionId: string | null;
   model: string;
   bid: number;
   assignedSlot: number;
@@ -39,6 +40,7 @@ export interface BacktestBid {
 }
 
 export interface BacktestPick {
+  decisionId: string | null;
   pickOverall: number;
   round: number;
   model: string;
@@ -263,6 +265,7 @@ export async function loadBacktestSummary(
     .map((row) => {
       const decision = row.decision_id ? decisionById.get(row.decision_id as string) : undefined;
       return {
+        decisionId: (row.decision_id as string) ?? null,
         model: modelOf.get(row.team_id as string) ?? '—',
         bid: row.bid as number,
         assignedSlot: row.assigned_slot as number,
@@ -319,6 +322,7 @@ export async function loadBacktestSummary(
       .map((p) => {
         const decision = p.decision_id ? decisionById.get(p.decision_id) : undefined;
         return {
+          decisionId: p.decision_id ?? null,
           pickOverall: p.pick_overall,
           round: p.round,
           model: modelOf.get(p.team_id) ?? '—',
@@ -423,6 +427,7 @@ export async function loadDraftBoard(db: SupabaseClient, season: number): Promis
   return picks.map((pick) => {
     const d = pick.decision_id ? byId.get(pick.decision_id) : undefined;
     return {
+      decisionId: pick.decision_id ?? null,
       pickOverall: pick.pick_overall,
       round: pick.round,
       model: modelOf.get(pick.team_id) ?? '—',

@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 import { loadBacktestSummary } from '@/lib/backtest/results';
 
@@ -232,6 +233,11 @@ function Auction({ summary }: { summary: Summary }) {
               <small>
                 ${bid.bid} · slot {bid.assignedSlot}
                 {bid.confidence !== null && ` · conf ${bid.confidence.toFixed(2)}`}
+                {bid.decisionId && (
+                  <Link className="record-link" href={`/decisions/${bid.decisionId}`}>
+                    full record
+                  </Link>
+                )}
               </small>
             </div>
             <div className="said">{bid.headline ?? '—'}</div>
@@ -313,6 +319,11 @@ function EarlyPicks({ summary }: { summary: Summary }) {
               {pick.model}
               <small>
                 pick {pick.pickOverall} · {pick.player} ({pick.position})
+                {pick.decisionId && (
+                  <Link className="record-link" href={`/decisions/${pick.decisionId}`}>
+                    full record
+                  </Link>
+                )}
               </small>
             </div>
             <div className="said">
