@@ -15,6 +15,7 @@ import type { ZodType } from 'zod';
 import { LEAGUE, PROMPT_VERSION, RULEBOOK_VERSION } from '@/lib/config/league';
 import { callModel, type CallResult } from '@/lib/openrouter/client';
 import { assemblePrompt, assertContextCeiling } from '@/lib/prompt/assemble';
+import { rulebook } from '@/lib/prompt/rulebook';
 import { checkCitations } from '@/lib/prompt/cited';
 import { reasoningSoftViolations } from '@/lib/schemas/decisions';
 import type { DecisionType } from '@/lib/schemas/decisions';
@@ -95,7 +96,7 @@ export async function runDecision<T>(
   const reasoning = extractReasoning(call.parsed);
   const citations =
     reasoning.keyFactors.length > 0
-      ? checkCitations(reasoning.keyFactors, input.data)
+      ? checkCitations(reasoning.keyFactors, input.data, rulebook())
       : { citedFields: [], unsupportedClaims: [] };
   const softViolations = call.parsed ? safeSoftViolations(call.parsed) : [];
 
@@ -136,7 +137,10 @@ export async function runDecision<T>(
     what_would_change_it: reasoning.whatWouldChangeIt,
     confidence: reasoning.confidence,
     cited_fields: citations.citedFields,
-    unsupported_claims: [...citations.unsupportedClaims, ...softViolations],
+    // Kept apart deliberately: "made something up" and "wrote 25 words instead of 20"
+    // are different findings, and merging them publishes the second as the first.
+    unsupported_claims: citations.unsupportedClaims,
+    soft_violations: softViolations,
   };
 
   let decisionId: string | null = null;

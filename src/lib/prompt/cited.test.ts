@@ -58,3 +58,36 @@ describe('cited fields', () => {
     expect(unsupportedClaims.some((c) => c.includes('not in DATA'))).toBe(false);
   });
 });
+
+describe('rulebook grounding', () => {
+  const RULEBOOK = 'Passing yards ... 0.04 each\nPassing TD ... 4\nInterception thrown ... -1';
+
+  it('accepts a bullet grounded in the rulebook rather than the DATA block', () => {
+    const { citedFields, unsupportedClaims } = checkCitations(
+      ['Scoring awards 4 per pass TD and 0.04 per pass yard'],
+      DATA,
+      RULEBOOK,
+    );
+    expect(citedFields).toContain('RULEBOOK');
+    expect(unsupportedClaims).toEqual([]);
+  });
+
+  it('still flags an invented number when the rulebook does not contain it', () => {
+    const { unsupportedClaims } = checkCitations(
+      ['Scoring awards 9 per pass TD'],
+      DATA,
+      RULEBOOK,
+    );
+    expect(unsupportedClaims).toHaveLength(1);
+  });
+
+  it('does not let a real field name license an invented value beside it', () => {
+    // Cites a genuine field AND a number that appears nowhere.
+    const { unsupportedClaims } = checkCitations(
+      ['projection for Puka Nacua is 99.7 this week'],
+      DATA,
+      RULEBOOK,
+    );
+    expect(unsupportedClaims.some((c) => c.includes('99.7'))).toBe(true);
+  });
+});

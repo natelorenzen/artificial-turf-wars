@@ -56,13 +56,39 @@ function normalizeNumber(value: number): string {
   return String(Number(value.toFixed(4)));
 }
 
-export function checkCitations(keyFactors: string[], data: unknown): CitationCheck {
+/**
+ * The system prompt tells models to "Ground every claim in a specific DATA or
+ * RULEBOOK field", so a claim grounded in the rulebook is grounded. Checking only
+ * against the DATA block flags correct citations of the scoring table as inventions
+ * — which is worse than not checking at all, because it publishes a false accusation.
+ */
+function rulebookSupports(factor: string, rulebookText: string): boolean {
+  const haystack = rulebookText.toLowerCase();
+  const numbers = factor.match(/-?\d+(?:\.\d+)?/g) ?? [];
+  // Every number in the bullet appears in the rulebook, and there is at least one.
+  return numbers.length > 0 && numbers.every((raw) => haystack.includes(raw));
+}
+
+export function checkCitations(
+  keyFactors: string[],
+  data: unknown,
+  rulebookText = '',
+): CitationCheck {
   const index = collectDataIndex(data);
   const citedFields = new Set<string>();
   const unsupportedClaims: string[] = [];
 
   for (const factor of keyFactors) {
     let supported = false;
+    // Tracked separately from `supported`: rulebook grounding is the ONLY thing that
+    // exempts a bullet's numbers from the DATA check. Citing a real field must not
+    // license inventing a value in the same sentence.
+    const rulebookGrounded = Boolean(rulebookText) && rulebookSupports(factor, rulebookText);
+
+    if (rulebookGrounded) {
+      citedFields.add('RULEBOOK');
+      supported = true;
+    }
 
     // Field names, however the model wrote them: snake_case, or spaced words that
     // collapse onto a real key.
@@ -84,7 +110,9 @@ export function checkCitations(keyFactors: string[], data: unknown): CitationChe
     // Numeric claims must appear somewhere in the DATA block.
     const numbers = (factor.match(/-?\d+(?:\.\d+)?/g) ?? []).map(Number).filter(Number.isFinite);
     const checkable = numbers.filter((v) => Math.abs(v) >= NUMERIC_CLAIM_FLOOR || !Number.isInteger(v));
-    const missing = checkable.filter((v) => !index.numbers.has(normalizeNumber(v)));
+    const missing = rulebookGrounded
+      ? []
+      : checkable.filter((v) => !index.numbers.has(normalizeNumber(v)));
 
     if (missing.length > 0) {
       unsupportedClaims.push(`${factor} — value(s) not in DATA: ${missing.join(', ')}`);
