@@ -9,6 +9,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { COHORT, type Position } from '@/lib/config/league';
+import { SUPABASE_CONFIGURED } from '@/lib/supabase';
 
 export interface TeamRosterEntry {
   playerId: string;
@@ -78,6 +79,18 @@ export async function loadTeamProfile(
 ): Promise<TeamProfile | null> {
   const model = modelByKey(key);
   if (!model) return null;
+
+  const bare: TeamProfile = {
+    key: model.key,
+    displayName: model.displayName,
+    lab: model.lab,
+    openrouterId: model.openrouterId,
+    contextWindow: model.contextWindow,
+    priceIn: model.priceIn,
+    priceOut: model.priceOut,
+    seasons: [],
+  };
+  if (!SUPABASE_CONFIGURED) return bare;
 
   const { data: modelRow } = await db.from('models').select('id').eq('key', key).maybeSingle();
 

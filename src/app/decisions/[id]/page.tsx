@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { supabase } from '@/lib/supabase';
+import { supabase, SUPABASE_CONFIGURED } from '@/lib/supabase';
 
 export const metadata: Metadata = {
   title: 'Decision record — Artificial Turf War',
@@ -51,6 +51,7 @@ interface DecisionRow {
 
 export default async function DecisionPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  if (!SUPABASE_CONFIGURED) notFound();
 
   const { data } = await supabase
     .from('decisions')

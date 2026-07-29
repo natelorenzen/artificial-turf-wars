@@ -8,6 +8,7 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { SUPABASE_CONFIGURED } from '@/lib/supabase';
 
 export interface RulesCheckResult {
   model: string;
@@ -47,6 +48,7 @@ export async function loadLeagueFacts(
   db: SupabaseClient,
   season: number,
 ): Promise<LeagueFacts | null> {
+  if (!SUPABASE_CONFIGURED) return null;
   const { data: seasonRow } = await db
     .from('seasons')
     .select('id, rulebook_version, seed_commit_hash, draft_seed, budget_total, draft_completed_at')

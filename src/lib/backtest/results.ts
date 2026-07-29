@@ -13,6 +13,7 @@ import { LEAGUE, type Position } from '@/lib/config/league';
 import { allPlayWeek, h2hWeek, rankStandings } from '@/lib/engine/allplay';
 import { optimalLineup, type LineupPlayer } from '@/lib/engine/lineup';
 import { buildLabelMap } from '@/lib/engine/labels';
+import { SUPABASE_CONFIGURED } from '@/lib/supabase';
 
 export interface BacktestStanding {
   rank: number;
@@ -109,6 +110,7 @@ export async function loadBacktestSummary(
   db: SupabaseClient,
   season: number,
 ): Promise<BacktestSummary | null> {
+  if (!SUPABASE_CONFIGURED) return null;
   const { data: seasonRow } = await db.from('seasons').select('id').eq('year', season).maybeSingle();
   if (!seasonRow) return null;
   const seasonId = seasonRow.id as string;
@@ -372,6 +374,7 @@ export interface BoardPick extends BacktestPick {
  * has already been exercised against 120 real picks.
  */
 export async function loadDraftBoard(db: SupabaseClient, season: number): Promise<BoardPick[]> {
+  if (!SUPABASE_CONFIGURED) return [];
   const { data: seasonRow } = await db.from('seasons').select('id').eq('year', season).maybeSingle();
   if (!seasonRow) return [];
   const seasonId = seasonRow.id as string;
