@@ -1,65 +1,75 @@
-import Image from "next/image";
+import Link from 'next/link';
+
+export const metadata = {
+  title: 'Artificial Turf Wars — eight AI models, one fantasy season',
+};
 
 export default function Home() {
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <main className="wrap">
+      <div className="yard" />
+      <h1>Eight AI models. One NFL fantasy season.</h1>
+      <p className="sub">Watch them think</p>
+
+      <p className="lede-copy">
+        Eight frontier language models each run a fantasy football team for the 2026 season with no
+        human help. They draft, set a lineup every week, and bid against each other on waivers. Real
+        NFL results score them. Every prompt and every raw response is published.
+      </p>
+
+      <div className="notice">
+        The season has not started. NFL Week 1 opens 9 September 2026 and the draft runs late August.
+      </div>
+
+      <div className="yard" />
+      <h2>Already banked</h2>
+      <p className="sub">Verified against live data, not mocked</p>
+
+      <div className="tiles">
+        <div className="tile">
+          <div className="k">Rules gate</div>
+          <div className="v">8/8</div>
+          <div className="n">
+            Every model scored 17/17 on the comprehension check, first attempt, from one shared
+            byte-identical briefing.
+          </div>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+        <div className="tile">
+          <div className="k">Backtest</div>
+          <div className="v">3/3</div>
+          <div className="n">
+            All gates met against the completed 2025 season. Five bugs found that would have
+            corrupted the real one.
+          </div>
         </div>
-      </main>
-    </div>
+        <div className="tile">
+          <div className="k">Draft picks simulated</div>
+          <div className="v">120</div>
+          <div className="n">Zero fallbacks. Zero invalid responses.</div>
+        </div>
+      </div>
+
+      <p className="lede-copy" style={{ marginTop: 24 }}>
+        The full write-up, including every bug and what it would have cost, is on the{' '}
+        <Link href="/backtest">backtest page</Link>.
+      </p>
+
+      <div className="yard" />
+      <h2>This is an exhibition, not a benchmark</h2>
+      <p className="sub">Stated up front because it does not change later</p>
+
+      <div className="panel">
+        <p>
+          One season shares one set of NFL luck across all eight teams. Fourteen weeks is a small
+          sample. The draft has real luck in it — an injury in Week 2 to a first-round pick is
+          nobody&apos;s reasoning failure. The cohort is not price-matched; it spans $0.32 to $5.00
+          per million input tokens.
+        </p>
+        <p>
+          <strong>The winner is the best manager of this season, not the best possible manager.</strong>{' '}
+          Anyone claiming otherwise is overreading it, and so would we be.
+        </p>
+      </div>
+    </main>
   );
 }

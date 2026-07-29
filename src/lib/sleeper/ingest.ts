@@ -22,7 +22,7 @@ import {
   type SleeperStatRecord,
 } from './client';
 import { buildCalibration, deriveByeWeeks, projectSeasonPoints, type ProjectionCalibration } from './normalize';
-import { n, scorePlayerWeek } from '@/lib/scoring/engine';
+import { scorePlayerWeek } from '@/lib/scoring/engine';
 import { supabaseServer } from '@/lib/supabase-server';
 
 const CHUNK = 500;
