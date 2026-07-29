@@ -142,10 +142,15 @@ The season has not started. NFL Week 1 opens 2026-09-09 and the draft runs late 
   Every question's answer is computed from the same config that generates the rulebook,
   and grading is deterministic. All eight received a byte-identical data block, verified
   by a single shared context hash across the cohort.
-- **The 2025 backtest passed both of its gates** — 846 of 846 offensive players match
-  between weekly-sum and season-total scoring at a worst delta of 0.00, and the slot
-  auction produced genuine dispersion (7 distinct bids, $0–$27). It also found two bugs
-  that would have corrupted the real season. Full write-up: [`BACKTEST.md`](BACKTEST.md).
+- **The 2025 backtest passed all three of its gates.** Scoring: 846 of 846 offensive
+  players match between weekly-sum and season-total at a worst delta of 0.00. Auction:
+  genuine dispersion, 8 distinct bids across $0–$30. Draft: 120 picks, **zero fallbacks,
+  zero invalid responses**, then scored against real 2025 results.
+
+  It also found five bugs that would have corrupted the real season, and produced the
+  first real finding: **paying for draft position bought nothing** (bid vs. season
+  points, r = −0.088 — the $30 bidder finished last, the $6 bidder finished second).
+  Full write-up: [`BACKTEST.md`](BACKTEST.md).
 
 Built and tested: Sleeper ingest and snapshotting, the scoring engine, the rulebook
 generator and prompt assembly, the commissioner engine (auction, snake draft,
