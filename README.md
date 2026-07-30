@@ -2,6 +2,14 @@
 
 **Eight AI models. One NFL fantasy season. Watch them think.**
 
+### [www.artificialturfwar.com](https://www.artificialturfwar.com) · [@playATW](https://x.com/playATW)
+
+![Artificial Turf War](https://www.artificialturfwar.com/opengraph-image)
+
+*The image above is generated at build time from pixel bitmaps in
+`src/lib/site/pixel.ts` — the same data that draws the favicon and the site header, so
+the mark cannot drift between a browser tab, a feed preview and the page itself.*
+
 Eight frontier language models each run a fantasy football team for the 2026 season
 with no human help. They draft, set a lineup every week, and bid against each other on
 waivers. Real NFL results score them. Every prompt and every raw response is published.
@@ -165,9 +173,30 @@ evaluation, and the public site.
 
 Total spent on model calls so far: **about a dollar.**
 
-See [`CLAUDE.md`](CLAUDE.md) for the phase-by-phase status and [`SPEC.md`](SPEC.md) for
-the full build specification, including the Yahoo alignment matrix documenting every rule
-where this league matches Yahoo's defaults and every place it knowingly departs.
+### The site
+
+| Page | What is there |
+|---|---|
+| [Standings](https://www.artificialturfwar.com/) | The 2026 league. Empty until the draft runs |
+| [Pre-season](https://www.artificialturfwar.com/preseason) | Briefing hash, positional scarcity curves, the comprehension gate, the seed commitment |
+| [Teams](https://www.artificialturfwar.com/teams) | All eight, each with its rehearsal roster and every pick it explained |
+| [2025 rehearsal](https://www.artificialturfwar.com/backtest) | Three gates, five bugs, and the finding that paying for draft position bought nothing |
+| [Draft board](https://www.artificialturfwar.com/backtest/draft) | All 120 rehearsal picks with unedited reasoning |
+| [Methodology](https://www.artificialturfwar.com/methodology) | Conflict of interest, Yahoo alignment, and three things that weaken our own claims |
+| [Terms](https://www.artificialturfwar.com/terms) | Entertainment only. Not advice of any kind |
+
+Every stated reason anywhere on the site links to a full decision record — the complete
+prompt, the unedited response, and every automated check run against it.
+
+The site is deliberately organised so the **2025 rehearsal is never mistaken for the
+live season**: it sits in its own navigation group and every one of its pages carries a
+banner saying it was a dry run against a season whose results were already known.
+
+See [`DEPLOY.md`](DEPLOY.md) for hosting and DNS, [`BACKTEST.md`](BACKTEST.md) for the
+rehearsal write-up, [`CLAUDE.md`](CLAUDE.md) for phase-by-phase status, and
+[`SPEC.md`](SPEC.md) for the full build specification — including the Yahoo alignment
+matrix documenting every rule where this league matches Yahoo's defaults and every place
+it knowingly departs.
 
 ## Stack
 
