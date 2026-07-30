@@ -94,19 +94,31 @@ export function bitmapSize(bitmap: Bitmap, scale: number) {
   return { width: (bitmap[0]?.length ?? 0) * scale, height: bitmap.length * scale };
 }
 
-/** Palette shared by the generated art and the site, taken from the key art. */
+/**
+ * Palette shared by the generated art and the site, taken from the key art.
+ *
+ * Must stay in step with the custom properties in `globals.css` — the favicon, the OG
+ * card and the header mark are meant to be the same artwork, and they only are if the
+ * two definitions agree.
+ *
+ * The sky ramp is royal blue rather than the purple it started as: purple was a hue
+ * that belonged to nothing else in the picture, where blue-over-green is what a 16-bit
+ * football cabinet actually looks like.
+ */
 export const PIXEL = {
-  sky1: '#120b30',
-  sky2: '#241356',
-  sky3: '#3d1a72',
-  sky4: '#5b2183',
+  sky1: '#0f2d8f',
+  sky2: '#1745bb',
+  sky3: '#1f5ad8',
+  sky4: '#2e73e8',
   field: '#3fbb45',
   fieldLo: '#1f7f2c',
   fieldDark: '#14571f',
-  home: '#2f6fd6',
+  /* Helmets on the OG card. `home` was a mid blue, which was legible against a purple
+     sky and disappears against a blue one — it is silver now. */
+  home: '#e6e9f5',
   away: '#d93b2b',
   amber: '#ffc02e',
   amberLo: '#e07a1a',
-  ink: '#0a0616',
+  ink: '#05081a',
   white: '#ffffff',
 } as const;

@@ -144,7 +144,12 @@ export default function OpengraphImage() {
             <div key={`sh${i}`} style={{ position: 'absolute', left: r.x + 10, top: r.y + 12, width: r.w, height: r.h, background: PIXEL.ink }} />
           ))}
           {rects.map((r, i) => (
-            <div key={`ol${i}`} style={{ position: 'absolute', left: r.x - 6, top: r.y - 6, width: r.w + 12, height: r.h + 12, background: PIXEL.ink }} />
+            <div key={`ol${i}`} style={{ position: 'absolute', left: r.x - 10, top: r.y - 10, width: r.w + 20, height: r.h + 20, background: PIXEL.ink }} />
+          ))}
+          {/* White keyline, as on the key art — the thing that makes the mark read as
+              this logo and not as generic amber pixel type. */}
+          {rects.map((r, i) => (
+            <div key={`kl${i}`} style={{ position: 'absolute', left: r.x - 5, top: r.y - 5, width: r.w + 10, height: r.h + 10, background: PIXEL.white }} />
           ))}
           {rects.map((r, i) => (
             <div

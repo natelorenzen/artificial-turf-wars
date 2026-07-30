@@ -80,7 +80,9 @@ export function renderIcon(px: number) {
           )),
         )}
 
-        {/* The mark: amber fill on a thick ink outline, offset shadow beneath. */}
+        {/* The mark: amber fill inside a white keyline inside a thick ink outline, with
+            an offset shadow beneath — the lockup from the key art. The keyline is what
+            separates the mark from the sky behind it at favicon size. */}
         <div style={{ position: 'relative', display: 'flex', width, height, marginTop: offsetY }}>
           {rects.map((r, i) => (
             <div
@@ -100,11 +102,24 @@ export function renderIcon(px: number) {
               key={`o${i}`}
               style={{
                 position: 'absolute',
-                left: r.x - 6 * u,
-                top: r.y - 6 * u,
-                width: r.w + 12 * u,
-                height: r.h + 12 * u,
+                left: r.x - 10 * u,
+                top: r.y - 10 * u,
+                width: r.w + 20 * u,
+                height: r.h + 20 * u,
                 background: PIXEL.ink,
+              }}
+            />
+          ))}
+          {rects.map((r, i) => (
+            <div
+              key={`k${i}`}
+              style={{
+                position: 'absolute',
+                left: r.x - 5 * u,
+                top: r.y - 5 * u,
+                width: r.w + 10 * u,
+                height: r.h + 10 * u,
+                background: PIXEL.white,
               }}
             />
           ))}
