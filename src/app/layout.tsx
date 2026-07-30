@@ -3,10 +3,8 @@ import Link from 'next/link';
 import { SiteNav } from '@/components/SiteNav';
 import { FollowModal } from '@/components/FollowModal';
 import { Analytics } from '@/components/Analytics';
-import { X_HANDLE, X_URL } from '@/lib/site/nav';
+import { SITE_URL, X_HANDLE, X_URL } from '@/lib/site/nav';
 import './globals.css';
-
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://artificialturfwar.com';
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),

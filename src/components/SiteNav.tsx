@@ -6,12 +6,14 @@ import { NAV, X_HANDLE, X_URL, isRehearsalPath } from '@/lib/site/nav';
 import { PixelMark } from '@/components/PixelMark';
 
 /**
- * The HUD score-bug bar (SPEC §12 rule 3), with grouped navigation.
+ * The HUD score-bug bar (SPEC §12 rule 3).
  *
- * Groups are labelled in the bar itself rather than hidden behind a dropdown,
- * because the whole point is that a reader always knows whether they are looking at
- * the live season or the rehearsal. A hover menu would hide exactly the distinction
- * that matters.
+ * Nothing here is behind a dropdown, because the whole point is that a reader always
+ * knows whether they are looking at the live season or the rehearsal, and a hover menu
+ * would hide exactly the distinction that matters. But the distinction now rides on the
+ * links themselves (`item.tag`) rather than on headings stacked above them: one row
+ * instead of two, and the marker cannot get orphaned from its link by a wrap or a
+ * breakpoint. Groups survive as spacing, separated by a rule.
  */
 export function SiteNav() {
   const pathname = usePathname();
@@ -30,18 +32,20 @@ export function SiteNav() {
         <nav className="hud-groups" aria-label="Main">
           {NAV.map((group) => (
             <div className="hud-group" key={group.id}>
-              <span className="hud-group-label">{group.label}</span>
-              <span className="hud-group-items">
-                {group.items.map((item) => {
-                  const active =
-                    item.href === '/' ? pathname === '/' : pathname.startsWith(item.href);
-                  return (
-                    <Link key={item.href} href={item.href} aria-current={active ? 'page' : undefined}>
-                      {item.label}
-                    </Link>
-                  );
-                })}
-              </span>
+              {group.items.map((item) => {
+                const active =
+                  item.href === '/' ? pathname === '/' : pathname.startsWith(item.href);
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    aria-current={active ? 'page' : undefined}
+                  >
+                    {item.tag && <span className="nav-tag">{item.tag}</span>}
+                    {item.label}
+                  </Link>
+                );
+              })}
             </div>
           ))}
         </nav>

@@ -15,16 +15,26 @@
  */
 
 :root {
-  /* Ground: near-black biased green toward the turf, not a neutral grey. */
-  --pitch: #071a12;
-  --steel: #0d2419;
-  --panel: #12301f;
-  --line: #1f4a32;
+  /*
+   * Ground: near-black biased BLUE, toward the night sky rather than the turf.
+   *
+   * It used to be biased green, on the theory that a football site should sit on grass.
+   * The reference cabinets do the opposite and they are right: green is what the *field*
+   * is, and spending it on the page ground left nothing to distinguish the field from
+   * everything around it — the whole site read as one desaturated olive wash. Tecmo,
+   * Mutant League and WrestleFest all put saturated blue behind the action and keep
+   * green for the pitch. So: blue ground, green field, amber accent, white type.
+   */
+  --pitch: #070a18;
+  --steel: #0d1230;
+  --panel: #111838;
+  --line: #263166;
 
-  --turf: #10743c;
-  --turf-lo: #0b5b2e;
-  --chalk: #edf2e6;
-  --chalk-dim: #8fa694;
+  /* Green now means one thing: playing surface. Marquees, field strips, positive deltas. */
+  --turf: #1f9c46;
+  --turf-lo: #14713a;
+  --chalk: #eef1fb;
+  --chalk-dim: #8f9bc2;
 
   /* The single accent — scoreboard LED. Winners, ranks, live state, focus. Nothing else. */
   --amber: #ffc02e;
@@ -35,8 +45,9 @@
   --bad: #e8402a;
 
   /* ---- Arcade palette, from the ATW key art ----
-     Used for CHROME ONLY — hero, wordmark, dividers, badges. Reading surfaces keep
-     the calmer turf ground, because the reasoning is still the product.
+     Scoped to the MARK and the HERO only — the two places that also appear in the
+     favicon and the OG card, so the identity is one picture rather than a motif
+     sprayed across every surface. Everything else on the site is turf + amber.
 
      There is deliberately NO second yellow here. An earlier pass added one and it
      fought --amber across the whole site: two near-identical accents read as a
@@ -44,13 +55,21 @@
 
      No smooth gradients either. 16-bit hardware could not blend, so period art used
      hard colour bands and ordered dithering. A soft radial bloom instantly reads as
-     modern, which is why the sky below is banded and dithered rather than faded. */
-  --sky-1: #120b30;
-  --sky-2: #241356;
-  --sky-3: #3d1a72;
-  --sky-4: #5b2183;
+     modern, which is why the sky below is banded and dithered rather than faded.
+
+     Royal blue, not the purple this used to be. Purple was a third hue that appeared
+     nowhere else and belonged to no part of the game; blue over vivid green is the
+     palette of every 16-bit football cabinet AND of the ATW key art itself, which is a
+     blue helmet and a red helmet on a green field under a blue sky. Matched to the key
+     art rather than invented: the avatar is the most-seen version of this brand and the
+     site should be the same picture. */
+  --sky-1: #0f2d8f;
+  --sky-2: #1745bb;
+  --sky-3: #1f5ad8;
+  --sky-4: #2e73e8;
   --field: #3fbb45;
   --field-lo: #1f7f2c;
+  /* The two sides, straight off the key art. */
   --home: #2f6fd6;
   --away: #d93b2b;
 
@@ -59,8 +78,10 @@
   --font-read: 'Helvetica Neue', Helvetica, Arial, sans-serif;
   --font-column: Georgia, 'Iowan Old Style', 'Times New Roman', serif;
 
-  --shadow: 5px 5px 0 rgba(0, 0, 0, 0.55);
-  --bd: 3px solid var(--line);
+  /* Heavy frame + hard offset is the one texture idea the whole site runs on:
+     no blur anywhere, ever. */
+  --shadow: 6px 6px 0 rgba(0, 0, 0, 0.6);
+  --bd: 4px solid var(--line);
 }
 
 * {
@@ -74,10 +95,10 @@
  * everything including body copy. It looks right on a scoreboard and measurably hurts
  * reading, and the reasoning is the product of this project.
  *
- * So the grille is applied to the HUD and table headers — surfaces that carry short
- * uppercase labels and numbers — and the page ground stays flat. The retro frame
- * survives in the Impact display type, the amber LED accent, the hard offset shadows,
- * the yard-line rules and the turf palette. None of that costs legibility.
+ * So the grille is applied to the HUD alone — one surface, carrying short uppercase
+ * labels — and every other surface stays flat. The retro frame survives in the Impact
+ * display type, the amber LED accent, the hard offset shadows, the yard-line rules and
+ * the turf palette. None of that costs legibility.
  */
 .scanlines {
   background-image: repeating-linear-gradient(
@@ -113,7 +134,7 @@ body {
   align-items: center;
   gap: 20px;
   flex-wrap: wrap;
-  padding: 10px 20px;
+  padding: 8px 20px;
   background-color: var(--steel);
   background-image: repeating-linear-gradient(
     to bottom,
@@ -124,30 +145,39 @@ body {
   );
   border-bottom: 3px solid var(--amber);
 }
+/*
+ * The mark is the pixel ATW block; the words next to it are a caption, not a second
+ * logo. An earlier pass gave the words the full sticker treatment too — 27px Impact
+ * inside a four-sided hard outline — so the bar carried two competing marks and wrapped
+ * to two rows on a laptop. One hard offset, smaller type, and the block reads as the
+ * logo it already is.
+ */
 .hud-mark {
+  display: flex;
+  align-items: center;
+  gap: 11px;
   font-family: var(--font-display);
-  font-size: 27px;
+  font-size: 20px;
   letter-spacing: 0.05em;
   color: var(--chalk);
   text-transform: uppercase;
   text-decoration: none;
-  /* Hard outline plus a dropped shadow — the sticker treatment on the ATW mark,
-     rather than the single soft offset the mockup used. */
-  text-shadow:
-    2px 0 0 var(--sky-1),
-    -2px 0 0 var(--sky-1),
-    0 2px 0 var(--sky-1),
-    0 -2px 0 var(--sky-1),
-    3px 3px 0 #000;
 }
 .hud-mark-words {
+  display: inline-block;
   color: var(--chalk);
+  text-shadow: 2px 2px 0 #000;
 }
 .hud-mark-words span {
   color: var(--amber);
 }
 .hud-mark:hover .hud-mark-words span {
   color: #fff;
+}
+@media (max-width: 720px) {
+  .hud-mark-words {
+    display: none;
+  }
 }
 .hud-nav {
   display: flex;
@@ -205,13 +235,19 @@ body {
   }
 }
 
-/* ---------- yard-line divider ---------- */
+/* ---------- yard-line divider ----------
+   This was a run of bright --field green pixel blocks with a dropped shadow, repeated
+   three or four times a page. It was the highest-contrast thing on most screens — the
+   separators were outshouting the headings they separated. A divider's job is to be
+   noticed once and then ignored, so it keeps the pixel-block rhythm and gives up the
+   brightness: turf-dark blocks, one amber block at the left as the yard marker. */
 .yard {
-  height: 14px;
+  height: 6px;
   margin: 44px 0 22px;
-  background: repeating-linear-gradient(90deg, var(--line) 0 2px, transparent 2px 28px);
-  border-top: 2px solid var(--line);
-  border-bottom: 2px solid var(--line);
+  background-image:
+    linear-gradient(90deg, var(--amber) 0 24px, transparent 24px),
+    repeating-linear-gradient(90deg, var(--turf-lo) 0 10px, transparent 10px 20px);
+  background-repeat: no-repeat, repeat-x;
 }
 
 h1,
@@ -288,7 +324,7 @@ h3 {
   background: var(--panel);
   border: var(--bd);
   box-shadow: var(--shadow);
-  border-top: 3px solid var(--amber);
+  border-top: 6px solid var(--amber);
   padding: 14px 16px;
 }
 .tile .k {
@@ -329,24 +365,27 @@ table {
 .scroll.compact table {
   min-width: 520px;
 }
+/* No scanline grille here. The header already carries a green ground, an amber rule and
+   tracked-out mono caps; a fourth treatment on the same 30 pixels was texture nobody
+   could see doing work. The grille now appears once, on the HUD.
+   The ground stays --turf-lo. The brighter --turf was tried once the page went blue and
+   it fails contrast: chalk on it is 3.15:1, and these are 10px tracked-out caps. On the
+   darker green it is 5.39:1. The marquee does not need the extra brightness anyway —
+   what made it look like another dim panel was the olive page behind it, and the page
+   is navy now. */
 thead th {
   background-color: var(--turf-lo);
-  background-image: repeating-linear-gradient(
-    to bottom,
-    rgba(0, 0, 0, 0.22) 0px,
-    rgba(0, 0, 0, 0.22) 1px,
-    transparent 1px,
-    transparent 3px
-  );
   font-family: var(--font-data);
   font-size: 10px;
+  font-weight: 700;
   letter-spacing: 0.16em;
   text-transform: uppercase;
   color: var(--chalk);
   text-align: right;
   padding: 9px 12px;
   white-space: nowrap;
-  border-bottom: 3px solid var(--amber);
+  /* Reads as a cabinet marquee over the rows below it. */
+  border-bottom: 4px solid var(--amber);
 }
 thead th:first-child,
 thead th.l {
@@ -395,11 +434,13 @@ tbody tr:nth-child(odd) {
 
 .pill {
   display: inline-block;
-  padding: 2px 8px;
+  padding: 3px 9px;
   font-size: 11px;
+  font-weight: 700;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  border: 2px solid currentColor;
+  border: 3px solid currentColor;
+  box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.5);
 }
 .pill.up {
   color: var(--good);
@@ -418,8 +459,8 @@ tbody tr:nth-child(odd) {
   position: relative;
   border: var(--bd);
   border-left: 6px solid var(--amber);
-  background: #f3f6ef;
-  color: #12211a;
+  background: #f2f4fa;
+  color: #121834;
   box-shadow: var(--shadow);
   padding: 20px 22px;
   font-family: var(--font-read);
@@ -434,14 +475,14 @@ tbody tr:nth-child(odd) {
   font-size: 10px;
   letter-spacing: 0.16em;
   text-transform: uppercase;
-  color: #4c6155;
+  color: #4d5675;
   margin-bottom: 12px;
 }
 .tel-hd b {
   font-family: var(--font-display);
   font-size: 17px;
   letter-spacing: 0.03em;
-  color: #12211a;
+  color: #121834;
 }
 .telestrator p {
   margin: 0 0 12px;
@@ -455,7 +496,7 @@ tbody tr:nth-child(odd) {
   font-weight: 600;
 }
 .telestrator code {
-  background: #dde5d6;
+  background: #dde2f0;
   padding: 1px 5px;
   font-family: var(--font-data);
   font-size: 12px;
@@ -471,7 +512,7 @@ tbody tr:nth-child(odd) {
 .tel-ft {
   margin-top: 16px;
   padding-top: 12px;
-  border-top: 2px solid #c9d4c0;
+  border-top: 2px solid #c6cee2;
   display: flex;
   gap: 20px;
   flex-wrap: wrap;
@@ -479,10 +520,10 @@ tbody tr:nth-child(odd) {
   font-size: 11px;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: #4c6155;
+  color: #4d5675;
 }
 .tel-ft b {
-  color: #12211a;
+  color: #121834;
 }
 
 /* ---------- panels for prose sections ---------- */
@@ -719,50 +760,59 @@ a:focus-visible,
    always know whether they are looking at the live league or the rehearsal. */
 .hud-groups {
   display: flex;
-  gap: 24px;
+  gap: 18px;
   flex-wrap: wrap;
-  align-items: flex-start;
+  align-items: center;
 }
+/* Groups are separated by a rule rather than announced by a heading — the structure is
+   still legible, and it costs one pixel column instead of a whole row. */
 .hud-group {
   display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-.hud-group-label {
-  font-size: 9px;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-  color: var(--turf);
-  white-space: nowrap;
-}
-.hud-group-items {
-  display: flex;
-  gap: 12px;
+  gap: 14px;
   flex-wrap: wrap;
+  align-items: center;
   font-size: 11px;
   letter-spacing: 0.12em;
   text-transform: uppercase;
 }
-.hud-group-items a {
+.hud-group + .hud-group {
+  padding-left: 18px;
+  border-left: 2px solid var(--line);
+}
+.hud-group a {
   color: var(--chalk-dim);
   text-decoration: none;
   border-bottom: 2px solid transparent;
   padding-bottom: 1px;
   white-space: nowrap;
 }
-.hud-group-items a:hover,
-.hud-group-items a[aria-current='page'] {
+.hud-group a:hover,
+.hud-group a[aria-current='page'] {
   color: var(--amber);
   border-bottom-color: var(--amber);
+}
+/* The season marker. Quieter than the link it qualifies, but only just — this is the
+   one piece of chrome that stops a reader mistaking the rehearsal for the live league,
+   so it does not get to be decorative. It was --turf green for a moment, which at 11px
+   on the steel bar was too dark to read at a glance. */
+.nav-tag {
+  color: var(--amber-lo);
+  margin-right: 5px;
+}
+.hud-group a:hover .nav-tag,
+.hud-group a[aria-current='page'] .nav-tag {
+  color: var(--amber);
 }
 .hud-x {
   margin-left: auto;
   font-size: 11px;
+  font-weight: 700;
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--chalk-dim);
   text-decoration: none;
-  border: 2px solid var(--line);
+  border: 3px solid var(--line);
+  box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.55);
   padding: 5px 10px;
   white-space: nowrap;
 }
@@ -770,16 +820,47 @@ a:focus-visible,
   color: var(--amber);
   border-color: var(--amber);
 }
+/* On a phone the bar is the first thing on screen and it is sticky, so every row it
+   takes is a row of content the reader never gets. Tighten the type and the gaps so the
+   seven links wrap into two rows beside the mark rather than four rows under it. */
 @media (max-width: 720px) {
+  /* Seven links, a mark and a button cannot share one row on a phone, so the bar is
+     four rows tall no matter how it is tuned — and four sticky rows is a third of the
+     viewport permanently gone. It scrolls away instead. Nothing is lost: the mark is
+     the only thing here a reader needs mid-page, and it goes back to the top. */
+  .hud {
+    position: static;
+    gap: 8px;
+    padding: 8px 14px;
+  }
+  /* The X button rides up beside the mark rather than claiming a fifth row of its own. */
+  .hud-mark {
+    order: 0;
+  }
   .hud-x {
-    margin-left: 0;
+    order: 1;
+  }
+  .hud-groups {
+    order: 2;
+    width: 100%;
+    gap: 8px;
+  }
+  .hud-group {
+    gap: 10px;
+    font-size: 10px;
+    letter-spacing: 0.06em;
+  }
+  .hud-group + .hud-group {
+    padding-left: 10px;
   }
 }
 
-/* A rehearsal page must never be mistaken for the live season. */
+/* A rehearsal page must never be mistaken for the live season. Hard rules top and
+   bottom so it reads as a marquee strip rather than as page content. */
 .season-banner {
   background: rgba(255, 192, 46, 0.12);
-  border-bottom: 3px solid var(--amber);
+  border-top: 3px solid var(--amber);
+  border-bottom: 4px solid var(--amber);
   padding: 10px 20px;
   font-family: var(--font-read);
   font-size: 14px;
@@ -801,7 +882,7 @@ a:focus-visible,
   position: fixed;
   inset: 0;
   z-index: 10050;
-  background: rgba(3, 12, 8, 0.82);
+  background: rgba(4, 7, 20, 0.85);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -854,7 +935,7 @@ a:focus-visible,
   display: block;
   text-align: center;
   background: var(--amber);
-  color: #12211a;
+  color: #121834;
   font-family: var(--font-display);
   font-size: 18px;
   letter-spacing: 0.04em;
@@ -873,10 +954,12 @@ a:focus-visible,
   width: 100%;
   margin-top: 10px;
   background: none;
-  border: 2px solid var(--line);
+  border: 3px solid var(--line);
+  box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.45);
   color: var(--chalk-dim);
   font-family: var(--font-data);
   font-size: 11px;
+  font-weight: 700;
   letter-spacing: 0.16em;
   text-transform: uppercase;
   padding: 9px;
@@ -908,145 +991,115 @@ a:focus-visible,
 }
 
 /* ---------- arcade hero ----------
-   A 16-bit night stadium: hard-banded sky, ordered dithering between bands, a grid of
-   floodlight bulbs, and a striped field. Every edge is hard on purpose — the hardware
-   this references could not blend two colours, so any smooth gradient reads as modern
-   and breaks the illusion instantly. */
+   A 16-bit night stadium, reduced to the three things that carry it: a banded sky, one
+   dithered seam, and a striped field. Every edge is hard on purpose — the hardware this
+   references could not blend two colours, so any smooth gradient reads as modern and
+   breaks the illusion instantly.
+
+   It used to also carry two floodlight banks, two team-kit chips, a doubled white +
+   amber base rule and four sky bands with three dither seams. Ten painted layers behind
+   two lines of type: the headline was the least interesting thing in its own hero. The
+   floodlights and the field survive in the favicon and the OG card, where they do the
+   recognisability work at 16px; the page does not need to restate them. */
 .hero {
   position: relative;
-  margin: 0 -20px 8px;
-  padding: 40px 24px 22px;
+  margin: 0 0 8px;
+  /* Bottom padding clears the field strip below, so the sub never sits on the turf. */
+  padding: 76px 0 82px;
   overflow: hidden;
-  border-bottom: 4px solid var(--amber);
-  /* Four hard sky bands, darkest at the top, plus a dithered seam on each boundary.
-     The checkerboards are 4px ordered dither — the same trick Genesis artists used to
-     fake a gradient out of two flat colours. */
-  background-image:
-    /* dither seam 3 */
-    repeating-conic-gradient(from 0deg at 50% 50%, var(--sky-4) 0% 25%, transparent 0% 50%),
-    /* dither seam 2 */
-    repeating-conic-gradient(from 0deg at 50% 50%, var(--sky-3) 0% 25%, transparent 0% 50%),
-    /* dither seam 1 */
-    repeating-conic-gradient(from 0deg at 50% 50%, var(--sky-2) 0% 25%, transparent 0% 50%),
-    /* the bands themselves */
-    linear-gradient(
-      to bottom,
-      var(--sky-1) 0 26%,
-      var(--sky-2) 26% 50%,
-      var(--sky-3) 50% 72%,
-      var(--sky-4) 72% 100%
-    );
-  background-size:
-    8px 8px,
-    8px 8px,
-    8px 8px,
-    100% 100%;
-  background-position:
-    0 72%,
-    0 50%,
-    0 26%,
-    0 0;
-  background-repeat: repeat-x, repeat-x, repeat-x, no-repeat;
+  /* One flat sky, with a single 8px ordered-dither row where it meets the turf — the
+     trick Genesis artists used to fake a gradient out of two flat colours, spent in the
+     one place it earns its keep.
+     Banding the sky put a checkerboard seam somewhere in the type no matter where it
+     was placed: at the midpoint it ran through the headline, and low enough to clear
+     the headline it ran through the sub. Flat above, dithered at the horizon. */
+  background-color: var(--sky-1);
+  background-image: repeating-conic-gradient(
+    from 0deg at 50% 50%,
+    var(--sky-4) 0% 25%,
+    transparent 0% 50%
+  );
+  background-size: 8px 8px;
+  background-position: 0 calc(100% - 58px);
+  background-repeat: repeat-x;
 }
 
-/* Floodlight banks — hard-edged bulbs in a grid, as in the key art. No bloom. */
-.hero-lights {
-  position: absolute;
-  z-index: 2;
-  top: 12px;
-  width: 78px;
-  height: 34px;
-  background-image: radial-gradient(circle at center, #fff 0 2.5px, transparent 2.6px);
-  background-size: 13px 11px;
-  opacity: 0.95;
-}
-.hero-lights.left {
-  left: 18px;
-}
-.hero-lights.right {
-  right: 18px;
-}
-
-/* The field: mow stripes with yard lines over them. */
+/* The field, drawn properly: mow stripes, yard lines, and two rows of hash marks.
+ *
+ * This is where the reinvestment goes. Everything cut above — floodlight banks, kit
+ * chips, four sky bands, three dither seams, pixel-block dividers, a second scanline
+ * grille — was decoration standing in for the arcade feeling. In Tecmo Super Bowl and
+ * Mutant League the feeling comes from the *playfield*: a vivid, saturated field
+ * filling the frame with a thin dark score bug over it. One field drawn well beats six
+ * textures scattered across the page, and unlike the floodlights this is content — the
+ * site is about football.
+ *
+ * It needs the height to work. At 26px the yard lines were sub-pixel and flickered,
+ * which is why an earlier pass dropped them; at 58px they are hard white rules.
+ */
 .hero::after {
   content: '';
   position: absolute;
   inset: auto 0 0 0;
-  height: 52px;
+  height: 58px;
   background-image:
-    repeating-linear-gradient(90deg, #fff 0 2px, transparent 2px 40px),
-    repeating-linear-gradient(90deg, var(--field) 0 20px, var(--field-lo) 20px 40px);
-  border-top: 3px solid #fff;
+    /* hash marks, two rows of short ticks */
+    repeating-linear-gradient(90deg, #fff 0 3px, transparent 3px 34px),
+    repeating-linear-gradient(90deg, #fff 0 3px, transparent 3px 34px),
+    /* yard lines, full height */
+    repeating-linear-gradient(90deg, #fff 0 3px, transparent 3px 136px),
+    /* mow stripes — wide bands. At 26px they read as corduroy rather than as a mown
+       pitch, and the dense vertical rhythm fought the hash marks on top of them. */
+    repeating-linear-gradient(90deg, var(--field) 0 68px, var(--field-lo) 68px 136px);
+  background-size:
+    34px 7px,
+    34px 7px,
+    100% 100%,
+    100% 100%;
+  background-position:
+    17px 15px,
+    17px 36px,
+    0 0,
+    0 0;
+  background-repeat: repeat-x, repeat-x, repeat, repeat;
 }
-/* Only the TEXT needs lifting above the background layers. Using `.hero > *` here
-   matched the absolutely-positioned lights and kit chips at equal specificity and,
-   being the later rule, stripped their positioning off entirely. */
-.hero h1,
-.hero .sub {
+/* The band is full-bleed; the words inside it still line up with the content column. */
+.hero-inner {
   position: relative;
   z-index: 1;
+  max-width: 1160px;
+  margin: 0 auto;
+  padding: 0 20px;
 }
+/* Big, and given room. With the decoration stripped out there is nothing left to
+   compete with the headline, so it should behave like one — the reference sites both
+   run their display type two or three times the size of anything near it and leave the
+   space around it empty. */
 .hero h1 {
-  font-size: clamp(28px, 5.6vw, 52px);
-  line-height: 1.06;
+  font-size: clamp(34px, 7.6vw, 78px);
+  /* Loose enough that the hard offset below one line clears the ascenders of the next.
+     At 1.02 the headline wrapped to three lines on a phone and each line's shadow
+     landed inside the line under it, which read as a rendering fault. */
+  line-height: 1.1;
   padding-bottom: 4px;
   color: #fff;
-  /* Chunky sticker outline — thick, hard, offset. No blur anywhere. */
-  text-shadow:
-    2px 0 0 var(--sky-1),
-    -2px 0 0 var(--sky-1),
-    0 2px 0 var(--sky-1),
-    0 -2px 0 var(--sky-1),
-    4px 4px 0 rgba(0, 0, 0, 0.75);
-  margin-bottom: 10px;
+  /* No drop shadow. A hard offset needs a bright ground behind it to read as an offset
+     — that is why it works on the arcade cabinets, where the type sits on a lit stage
+     or a green field. On this near-black sky a 5px black shadow has almost nothing to
+     separate from, so at headline sizes it stopped reading as a shadow and started
+     reading as a ghosted second copy of the words. White on dark purple is already the
+     highest contrast on the page and needs no help. */
+  margin-bottom: 16px;
 }
 .hero .sub {
   color: var(--amber);
-  margin-bottom: 62px;
-}
-.hero-kits {
-  position: absolute;
-  z-index: 2;
-  left: 24px;
-  bottom: 62px;
-  display: flex;
-  gap: 8px;
-  z-index: 1;
-}
-.kit {
-  width: 22px;
-  height: 22px;
-  border: 3px solid #000;
-  box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.55);
-}
-.kit.home {
-  background: var(--home);
-}
-.kit.away {
-  background: var(--away);
-}
-@media (max-width: 560px) {
-  .hero-lights {
-    width: 52px;
-  }
+  margin-bottom: 0;
 }
 
-/* Section headings keep a hard offset, no blur. */
-h2 {
-  text-shadow: 3px 3px 0 #000;
-}
-
-/* Yard-line dividers, brightened to the key art's field markings. */
-.yard {
-  background: repeating-linear-gradient(90deg, var(--field-lo) 0 3px, transparent 3px 28px);
-  border-top: 2px solid var(--field-lo);
-  border-bottom: 2px solid var(--field-lo);
-}
-
-/* Scoreboard numerals: hard offset shadow, single accent. */
-.tile .v {
-  text-shadow: 3px 3px 0 #000;
-}
+/* No text shadows on the dark ground anywhere — same reason as the hero headline. The
+   hard offset is still the site's signature, it just lives on boxes (--shadow) where
+   there is a lit surface above a dark one for it to fall from. Black type-shadows on a
+   near-black page only ever thickened the letterforms. */
 
 /* Team-colour chips for anything that pairs two sides. */
 .side-home {
@@ -1056,66 +1109,7 @@ h2 {
   color: #ff9a8d;
 }
 
-/* ---------- push further into the arcade ----------
-   The chrome gets heavier and blockier: thicker rules, chunkier offsets, pixel-block
-   dividers. Reading surfaces are untouched. */
-
-.hud-mark {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-.hud-mark-words {
-  display: inline-block;
-}
-@media (max-width: 620px) {
-  .hud-mark-words {
-    display: none;
-  }
-}
-
-/* Dividers become a run of pixel blocks rather than a hairline rule. */
-.yard {
-  height: 10px;
-  margin: 40px 0 22px;
-  border: 0;
-  background-image:
-    repeating-linear-gradient(90deg, var(--field) 0 10px, transparent 10px 20px),
-    repeating-linear-gradient(90deg, var(--field-lo) 0 20px, var(--field-lo) 20px);
-  background-size: 20px 10px, 20px 10px;
-  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.45);
-}
-
-/* Panels, tiles and tables get a heavier frame and a blockier offset. */
-:root {
-  --bd: 4px solid var(--line);
-  --shadow: 6px 6px 0 rgba(0, 0, 0, 0.6);
-}
-
-.tile {
-  border-top-width: 6px;
-}
-
-/* Headers read as a cabinet marquee. */
-thead th {
-  border-bottom-width: 4px;
-  font-weight: 700;
-}
-
-/* Pills become chunky arcade badges. */
-.pill {
-  border-width: 3px;
-  padding: 3px 9px;
-  font-weight: 700;
-  box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.5);
-}
-
 /* The X button in the HUD reads as a cabinet button. */
-.hud-x {
-  border-width: 3px;
-  font-weight: 700;
-  box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.55);
-}
 .hud-x:active {
   transform: translate(2px, 2px);
   box-shadow: 1px 1px 0 rgba(0, 0, 0, 0.55);
@@ -1126,15 +1120,4 @@ thead th {
 .btn-plain:active {
   transform: translate(2px, 2px);
   box-shadow: 1px 1px 0 rgba(0, 0, 0, 0.5);
-}
-.btn-plain {
-  border-width: 3px;
-  font-weight: 700;
-  box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.45);
-}
-
-/* The season banner gets a hard top rule so it reads as a marquee strip. */
-.season-banner {
-  border-top: 3px solid var(--amber);
-  border-bottom-width: 4px;
 }
