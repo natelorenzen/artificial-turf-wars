@@ -140,10 +140,13 @@ body {
     0 -2px 0 var(--sky-1),
     3px 3px 0 #000;
 }
-.hud-mark span {
+.hud-mark-words {
+  color: var(--chalk);
+}
+.hud-mark-words span {
   color: var(--amber);
 }
-.hud-mark:hover span {
+.hud-mark:hover .hud-mark-words span {
   color: #fff;
 }
 .hud-nav {
@@ -994,7 +997,7 @@ a:focus-visible,
     -2px 0 0 var(--sky-1),
     0 2px 0 var(--sky-1),
     0 -2px 0 var(--sky-1),
-    5px 6px 0 #000;
+    4px 4px 0 rgba(0, 0, 0, 0.75);
   margin-bottom: 10px;
 }
 .hero .sub {
@@ -1051,4 +1054,87 @@ h2 {
 }
 .side-away {
   color: #ff9a8d;
+}
+
+/* ---------- push further into the arcade ----------
+   The chrome gets heavier and blockier: thicker rules, chunkier offsets, pixel-block
+   dividers. Reading surfaces are untouched. */
+
+.hud-mark {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.hud-mark-words {
+  display: inline-block;
+}
+@media (max-width: 620px) {
+  .hud-mark-words {
+    display: none;
+  }
+}
+
+/* Dividers become a run of pixel blocks rather than a hairline rule. */
+.yard {
+  height: 10px;
+  margin: 40px 0 22px;
+  border: 0;
+  background-image:
+    repeating-linear-gradient(90deg, var(--field) 0 10px, transparent 10px 20px),
+    repeating-linear-gradient(90deg, var(--field-lo) 0 20px, var(--field-lo) 20px);
+  background-size: 20px 10px, 20px 10px;
+  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.45);
+}
+
+/* Panels, tiles and tables get a heavier frame and a blockier offset. */
+:root {
+  --bd: 4px solid var(--line);
+  --shadow: 6px 6px 0 rgba(0, 0, 0, 0.6);
+}
+
+.tile {
+  border-top-width: 6px;
+}
+
+/* Headers read as a cabinet marquee. */
+thead th {
+  border-bottom-width: 4px;
+  font-weight: 700;
+}
+
+/* Pills become chunky arcade badges. */
+.pill {
+  border-width: 3px;
+  padding: 3px 9px;
+  font-weight: 700;
+  box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.5);
+}
+
+/* The X button in the HUD reads as a cabinet button. */
+.hud-x {
+  border-width: 3px;
+  font-weight: 700;
+  box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.55);
+}
+.hud-x:active {
+  transform: translate(2px, 2px);
+  box-shadow: 1px 1px 0 rgba(0, 0, 0, 0.55);
+}
+
+/* Follow-modal buttons get real arcade press feedback. */
+.btn-x:active,
+.btn-plain:active {
+  transform: translate(2px, 2px);
+  box-shadow: 1px 1px 0 rgba(0, 0, 0, 0.5);
+}
+.btn-plain {
+  border-width: 3px;
+  font-weight: 700;
+  box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.45);
+}
+
+/* The season banner gets a hard top rule so it reads as a marquee strip. */
+.season-banner {
+  border-top: 3px solid var(--amber);
+  border-bottom-width: 4px;
 }

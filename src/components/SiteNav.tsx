@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { NAV, X_HANDLE, X_URL, isRehearsalPath } from '@/lib/site/nav';
+import { PixelMark } from '@/components/PixelMark';
 
 /**
  * The HUD score-bug bar (SPEC §12 rule 3), with grouped navigation.
@@ -20,7 +21,10 @@ export function SiteNav() {
     <>
       <div className="hud">
         <Link href="/" className="hud-mark">
-          ARTIFICIAL <span>TURF WAR</span>
+          <PixelMark scale={5} />
+          <span className="hud-mark-words">
+            ARTIFICIAL <span>TURF WAR</span>
+          </span>
         </Link>
 
         <nav className="hud-groups" aria-label="Main">
