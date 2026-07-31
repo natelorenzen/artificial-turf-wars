@@ -47,3 +47,6 @@ next-env.d.ts
 tools/.cache/*
 !tools/.cache/act_2025_DEF.json
 !tools/.cache/act_2025_K.json
+
+# Chalk or Walk transcripts — evidence for a run, not source
+debate-runs/

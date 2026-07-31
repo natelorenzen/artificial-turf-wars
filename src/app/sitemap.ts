@@ -1,5 +1,6 @@
 import type { MetadataRoute } from 'next';
 import { COHORT } from '@/lib/config/league';
+import { getAllPosts } from '@/lib/blog/posts';
 import { SITE_URL } from '@/lib/site/nav';
 
 /**
@@ -23,7 +24,17 @@ export default function sitemap(): MetadataRoute.Sitemap {
 
   // The rehearsal and the reference pages are finished writing; they change only when
   // the methodology does.
-  const stable = ['/preseason', '/backtest', '/backtest/draft', '/methodology', '/terms'];
+  const stable = ['/preseason', '/backtest', '/backtest/draft', '/findings', '/methodology', '/terms'];
+
+  // Posts carry their own publication date as `lastModified` rather than the build
+  // clock — a crawler that sees every post change on every deploy learns to ignore
+  // the field. Drafts are excluded by `getAllPosts`.
+  const posts = getAllPosts().map((post) => ({
+    url: `${SITE_URL}/findings/${post.slug}`,
+    lastModified: new Date(post.date),
+    changeFrequency: 'yearly' as const,
+    priority: 0.7,
+  }));
 
   return [
     ...weekly.map((path) => ({
@@ -38,5 +49,6 @@ export default function sitemap(): MetadataRoute.Sitemap {
       changeFrequency: 'monthly' as const,
       priority: 0.5,
     })),
+    ...posts,
   ];
 }
