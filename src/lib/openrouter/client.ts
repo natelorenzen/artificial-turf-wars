@@ -9,7 +9,7 @@
  * provider's outage.
  */
 
-import type { ZodType } from 'zod';
+import type { ZodType, ZodTypeDef } from 'zod';
 import { COHORT, LEAGUE } from '@/lib/config/league';
 import { extractJson } from '@/lib/schemas/decisions';
 
@@ -130,7 +130,15 @@ export interface CallOptions<T> {
   openrouterId: string;
   systemPrompt: string;
   userPrompt: string;
-  schema: ZodType<T>;
+  /**
+   * Input is widened to `unknown` because several of our schemas COERCE — the rules
+   * check accepts `20.2` as well as `"20.2"`, and a model answering with a JSON number
+   * has answered correctly. A coercing schema's input type differs from its output
+   * type, and the default `ZodType<T>` (which assumes they are the same) would reject
+   * exactly the schemas we most want to pass. Type-only change: `T` still binds to the
+   * parsed output.
+   */
+  schema: ZodType<T, ZodTypeDef, unknown>;
   /** Extra parse retries on malformed JSON. Identical for everyone (SPEC §8.1 #5). */
   parseRetries?: number;
   /** Retries on provider outage, with exponential backoff (SPEC §5.6). */
