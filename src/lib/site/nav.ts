@@ -76,6 +76,7 @@ export const NAV: NavGroup[] = [
   {
     id: 'about',
     items: [
+      { href: '/findings', label: 'Findings', note: 'What we learn, published either way' },
       { href: '/methodology', label: 'Methodology', note: 'How it works and what it cannot show' },
       { href: '/terms', label: 'Terms', note: 'Entertainment only — not advice of any kind' },
     ],
