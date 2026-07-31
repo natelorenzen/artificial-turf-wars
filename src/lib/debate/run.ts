@@ -28,12 +28,30 @@ import {
 import { roundOneSchema, roundThreeSchema, roundTwoSchema, roundZeroSchema } from '@/lib/debate/schemas';
 import type { AnalystTranscript, DebateRun, Slate } from '@/lib/debate/types';
 
+/**
+ * Output ceiling for debate calls, well below the league's 16,000.
+ *
+ * The league needs that headroom because reasoning-tier models spend the whole budget
+ * thinking before writing a character of JSON. Debate responses are far smaller — eight
+ * short rationales or three challenges — so the ceiling can come down, and it should:
+ * OpenRouter reserves the FULL ceiling against your balance for the duration of the
+ * call, so an oversized one gets refused on a key that could easily have afforded the
+ * actual usage. Still generous enough to leave room for reasoning tokens.
+ */
+export const DEBATE_MAX_OUTPUT_TOKENS = 6_000;
+
 export interface DebateCallResult<T> {
   ok: boolean;
   parsed: T | null;
   rawResponse: string | null;
   validationError: string | null;
   costUsd: number | null;
+  /**
+   * Set when the failure will affect every subsequent call too — a budget refusal, a
+   * bad key. The runner aborts the whole slate rather than paying for three rounds and
+   * then losing the fourth, which leaves nothing to tally.
+   */
+  fatal?: boolean;
 }
 
 /**
@@ -90,6 +108,7 @@ export async function runDebate(options: RunOptions): Promise<DebateRun> {
 
   let costUsd = 0;
   let calls = 0;
+  let aborted: string | null = null;
 
   const guardedCall = async <T>(
     modelKey: string,
@@ -98,6 +117,7 @@ export async function runDebate(options: RunOptions): Promise<DebateRun> {
     schema: DebateSchema<T>,
     round: string,
   ): Promise<T | null> => {
+    if (aborted) return null;
     // Guard EVERY prompt, every round. The leak that matters most is the one in a
     // later round, where a rival's rationale could quote a lab name back at us.
     assertNoAnalystLeak(userPrompt, forbidden);
@@ -106,6 +126,10 @@ export async function runDebate(options: RunOptions): Promise<DebateRun> {
     costUsd += result.costUsd ?? 0;
     if (!result.ok) {
       onEvent(`  ${round} ${modelKey}: FAILED — ${result.validationError ?? 'unknown'}`);
+      if (result.fatal) {
+        aborted = result.validationError ?? 'fatal provider error';
+        onEvent(`\nABORTING SLATE — this failure affects every remaining call.\n  ${aborted}`);
+      }
       return null;
     }
     return result.parsed;
@@ -155,5 +179,5 @@ export async function runDebate(options: RunOptions): Promise<DebateRun> {
     t.r3 = await guardedCall(t.modelKey, model.openrouterId, prompt, roundThreeSchema, 'R3');
   }
 
-  return { slate, transcripts, costUsd: Number(costUsd.toFixed(4)), calls, live };
+  return { slate, transcripts, costUsd: Number(costUsd.toFixed(4)), calls, live, aborted };
 }

@@ -24,7 +24,7 @@ import { createClient } from '@supabase/supabase-js';
 import { COHORT } from '@/lib/config/league';
 import { callModel } from '@/lib/openrouter/client';
 import { buildSlate, type ProjectionRow } from '@/lib/debate/slate';
-import { runDebate, type DebateCallFn } from '@/lib/debate/run';
+import { DEBATE_MAX_OUTPUT_TOKENS, runDebate, type DebateCallFn } from '@/lib/debate/run';
 import { readTally, tallyDebate } from '@/lib/debate/tally';
 import type { Position } from '@/lib/config/league';
 import type { Slate, Stance } from '@/lib/debate/types';
@@ -163,13 +163,25 @@ function syntheticCall(): DebateCallFn {
 let CURRENT_SLATE: Slate | null = null;
 
 const liveCall: DebateCallFn = async ({ openrouterId, systemPrompt, userPrompt, schema }) => {
-  const result = await callModel({ openrouterId, systemPrompt, userPrompt, schema });
+  const result = await callModel({
+    openrouterId,
+    systemPrompt,
+    userPrompt,
+    schema,
+    maxOutputTokens: DEBATE_MAX_OUTPUT_TOKENS,
+  });
+  // A budget or auth refusal will hit every remaining call identically, so the runner
+  // should stop rather than pay for the rounds it has left and still have nothing to
+  // tally. Matched on the status text the client puts in the message.
+  const message = result.validationError ?? '';
+  const fatal = /OpenRouter (401|402|403)\b/.test(message);
   return {
     ok: result.ok,
     parsed: result.parsed,
     rawResponse: result.rawResponse,
     validationError: result.validationError,
     costUsd: result.usage.costUsd,
+    fatal,
   };
 };
 
@@ -201,7 +213,10 @@ async function main() {
   const cohortSize = (MODEL_KEYS ?? COHORT.map((m) => m.key)).length;
   const maxCalls = cohortSize * 4;
   if (LIVE) {
-    console.log(`\nUp to ${maxCalls} model calls across ${cohortSize} analysts. Spending real budget.\n`);
+    console.log(
+      `\nUp to ${maxCalls} model calls across ${cohortSize} analysts, ` +
+        `max ${DEBATE_MAX_OUTPUT_TOKENS} output tokens each. Spending real budget.\n`,
+    );
   }
 
   const run = await runDebate({
@@ -253,7 +268,13 @@ async function main() {
   console.log(`  unanimous players ${tally.unanimousR0} -> ${tally.unanimousR3}`);
   console.log(`  challenges        ${tally.totalChallenges} (${tally.silentAnalysts} analysts challenged nobody)`);
   console.log(`  calls / cost      ${run.calls} / $${run.costUsd.toFixed(4)}`);
-  console.log(`\n  ${readTally(tally)}\n`);
+  if (run.aborted) {
+    console.log('\n  RUN ABORTED — the tally above is computed from incomplete rounds and is');
+    console.log('  NOT a result. Do not read a herd rate off it.');
+    console.log(`  Cause: ${run.aborted}\n`);
+  } else {
+    console.log(`\n  ${readTally(tally)}\n`);
+  }
 
   if (!LIVE) {
     console.log('  Dry run: figures above come from synthetic responses and mean nothing');

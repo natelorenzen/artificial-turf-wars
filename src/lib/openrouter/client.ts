@@ -75,10 +75,36 @@ function estimateCost(openrouterId: string, tokensIn: number | null, tokensOut: 
   return Number((inCost + outCost).toFixed(6));
 }
 
+/**
+ * An HTTP error from OpenRouter, carrying the status so the retry loop can tell a
+ * transient outage from a permanent refusal.
+ */
+class OpenRouterHttpError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+  ) {
+    super(message);
+    this.name = 'OpenRouterHttpError';
+  }
+}
+
+/**
+ * Statuses where retrying cannot possibly help.
+ *
+ * 402 is the one that matters in practice. OpenRouter reserves the FULL `max_tokens`
+ * you request up front, so once the key's remaining budget is worth less than that
+ * ceiling every call is refused — even with real credit left. Retrying that four times
+ * with exponential backoff, as this client used to, spends about fifteen seconds per
+ * call to be told the same thing four times.
+ */
+const NON_RETRYABLE_STATUSES = new Set([400, 401, 402, 403, 404, 422]);
+
 async function postOnce(
   openrouterId: string,
   systemPrompt: string,
   userPrompt: string,
+  maxOutputTokens: number,
 ): Promise<{ body: OpenRouterResponse; status: number }> {
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) throw new Error('OPENROUTER_API_KEY is not set');
@@ -98,7 +124,7 @@ async function postOnce(
         model: openrouterId,
         // Identical for all eight (SPEC §8.1 #3, #12).
         temperature: LEAGUE.temperature,
-        max_tokens: LEAGUE.maxOutputTokens,
+        max_tokens: maxOutputTokens,
         // No tools, no web search, no function calling for anyone (SPEC §8.1 #4).
         tools: undefined,
         usage: { include: true },
@@ -115,10 +141,13 @@ async function postOnce(
     try {
       body = JSON.parse(text) as OpenRouterResponse;
     } catch {
-      throw new Error(`OpenRouter ${res.status}: non-JSON body ${text.slice(0, 300)}`);
+      throw new OpenRouterHttpError(`OpenRouter ${res.status}: non-JSON body ${text.slice(0, 300)}`, res.status);
     }
     if (!res.ok || body.error) {
-      throw new Error(`OpenRouter ${res.status}: ${body.error?.message ?? text.slice(0, 300)}`);
+      throw new OpenRouterHttpError(
+        `OpenRouter ${res.status}: ${body.error?.message ?? text.slice(0, 300)}`,
+        body.error?.code ?? res.status,
+      );
     }
     return { body, status: res.status };
   } finally {
@@ -143,6 +172,17 @@ export interface CallOptions<T> {
   parseRetries?: number;
   /** Retries on provider outage, with exponential backoff (SPEC §5.6). */
   providerRetries?: number;
+  /**
+   * Output ceiling. Defaults to the league's value, which must not be lowered — it was
+   * raised from 4,000 after the 2025 backtest because reasoning-tier models spent the
+   * entire budget thinking and returned EMPTY CONTENT, indistinguishable from a refusal.
+   *
+   * Non-league callers with small, bounded outputs can pass something lower. That is
+   * worth doing: OpenRouter reserves the whole ceiling against your balance for the
+   * duration of the call, so an unnecessarily large one fails on a key that could
+   * comfortably have afforded the actual usage.
+   */
+  maxOutputTokens?: number;
 }
 
 /**
@@ -158,6 +198,7 @@ export async function callModel<T>(options: CallOptions<T>): Promise<CallResult<
     schema,
     parseRetries = LEAGUE.maxRetries,
     providerRetries = 3,
+    maxOutputTokens = LEAGUE.maxOutputTokens,
   } = options;
 
   const started = Date.now();
@@ -179,11 +220,15 @@ export async function callModel<T>(options: CallOptions<T>): Promise<CallResult<
         await sleep(1000 * 2 ** providerAttempt);
       }
       try {
-        body = (await postOnce(openrouterId, systemPrompt, userPrompt)).body;
+        body = (await postOnce(openrouterId, systemPrompt, userPrompt, maxOutputTokens)).body;
         providerError = null;
         break;
       } catch (err) {
         providerError = err;
+        // A refusal is not an outage. Retrying a 402 or a 401 only spends wall-clock
+        // to be told the same thing again, and on a budget error it delays the moment
+        // the operator finds out.
+        if (err instanceof OpenRouterHttpError && NON_RETRYABLE_STATUSES.has(err.status)) break;
       }
     }
 

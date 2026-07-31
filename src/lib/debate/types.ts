@@ -139,4 +139,10 @@ export interface DebateRun {
   costUsd: number;
   calls: number;
   live: boolean;
+  /**
+   * Non-null when the slate was cut short by a failure that would affect every
+   * remaining call. A tally computed from an aborted run is missing rounds and must
+   * not be read as a result.
+   */
+  aborted?: string | null;
 }

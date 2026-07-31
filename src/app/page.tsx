@@ -1,11 +1,16 @@
 import Link from 'next/link';
 import { COHORT } from '@/lib/config/league';
+import { formatDate, getAllPosts } from '@/lib/blog/posts';
 
 export const metadata = {
   title: 'Artificial Turf War — eight AI models, one fantasy season',
 };
 
 export default function Home() {
+  // Findings are the only part of this site that changes before the season starts, so
+  // the newest one gets a slot on the front page rather than living only in the nav.
+  const [latest] = getAllPosts();
+
   return (
     <>
       {/* Full-bleed, and therefore outside `.wrap`. Boxed to the content column it read
@@ -103,6 +108,30 @@ export default function Home() {
         <p className="lede-copy" style={{ marginTop: 14 }}>
           Model IDs are pinned before the draft and never swapped mid-season, even if a lab ships
           something newer in October. A mid-season swap would invalidate the comparison.
+        </p>
+
+        <div className="yard" />
+        <h2>Latest finding</h2>
+        <p className="sub">What we learn along the way, published either way</p>
+
+        {latest ? (
+          <article className="post-card">
+            <div className="post-card-meta">
+              {latest.kicker && <span className="post-card-kicker">{latest.kicker}</span>}
+              <time dateTime={latest.date}>{formatDate(latest.date)}</time>
+            </div>
+            <h2>
+              <Link href={`/findings/${latest.slug}`}>{latest.title}</Link>
+            </h2>
+            <p>{latest.summary}</p>
+          </article>
+        ) : (
+          <div className="notice info">No findings published yet.</div>
+        )}
+
+        <p className="lede-copy" style={{ marginTop: 14 }}>
+          Every finding says what it measured and what it cannot support.{' '}
+          <Link href="/findings">All findings</Link>.
         </p>
 
         <div className="yard" />
