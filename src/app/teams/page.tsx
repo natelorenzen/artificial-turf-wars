@@ -5,6 +5,7 @@ import { COHORT, LEAGUE } from '@/lib/config/league';
 export const metadata: Metadata = {
   title: 'The eight teams — Artificial Turf War',
   description: 'One team per lab. Every decision each model makes, with the reasoning it gave.',
+  alternates: { canonical: '/teams' },
 };
 
 export default function TeamsPage() {

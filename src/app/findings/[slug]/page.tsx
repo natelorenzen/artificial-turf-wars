@@ -2,7 +2,9 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import { formatDate, getAllPosts, getPost } from '@/lib/blog/posts';
+import { absoluteUrl } from '@/lib/site/nav';
 import { renderMarkdown } from '@/lib/blog/render';
+import { BreadcrumbJsonLd, PostJsonLd } from '@/components/JsonLd';
 
 /**
  * Drafts are deliberately reachable by direct URL but excluded from
@@ -22,10 +24,23 @@ export async function generateMetadata({
   const post = getPost(slug);
   if (!post) return { title: 'Not found — Artificial Turf War' };
 
+  const url = absoluteUrl(`/findings/${post.slug}`);
+
   return {
     title: `${post.title} — Artificial Turf War`,
     description: post.summary,
-    openGraph: { title: post.title, description: post.summary, type: 'article' },
+    alternates: { canonical: `/findings/${post.slug}` },
+    openGraph: {
+      title: post.title,
+      description: post.summary,
+      type: 'article',
+      // Restated here because a page-level `openGraph` REPLACES the layout's rather
+      // than merging into it — without this, every post silently lost its og:url.
+      url,
+      siteName: 'Artificial Turf War',
+      publishedTime: new Date(post.date).toISOString(),
+      authors: ['Artificial Turf War'],
+    },
     twitter: { card: 'summary_large_image', title: post.title, description: post.summary },
     robots: post.draft ? { index: false, follow: false } : undefined,
   };
@@ -43,6 +58,13 @@ export default async function FindingsPost({ params }: { params: Promise<{ slug:
 
   return (
     <main className="wrap">
+      <PostJsonLd post={post} />
+      <BreadcrumbJsonLd
+        trail={[
+          { name: 'Findings', path: '/findings' },
+          { name: post.title, path: `/findings/${post.slug}` },
+        ]}
+      />
       <div className="yard" />
 
       {post.draft && (

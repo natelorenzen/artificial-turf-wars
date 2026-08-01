@@ -3,10 +3,25 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { supabase, SUPABASE_CONFIGURED } from '@/lib/supabase';
 
-export const metadata: Metadata = {
-  title: 'Decision record — Artificial Turf War',
-  description: 'The full prompt, the unedited response, and every check run against it.',
-};
+/**
+ * Per-record canonical.
+ *
+ * These pages number in the thousands by season's end and are the deepest, thinnest
+ * content on the site — exactly the shape a crawler treats as near-duplicate. A
+ * canonical pointing at the record's own id is what keeps them distinguishable.
+ */
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+  const { id } = await params;
+  return {
+    title: 'Decision record — Artificial Turf War',
+    description: 'The full prompt, the unedited response, and every check run against it.',
+    alternates: { canonical: `/decisions/${id}` },
+  };
+}
 
 /** Nothing is hidden here, so nothing is cached — a decision never changes. */
 export const revalidate = 86400;

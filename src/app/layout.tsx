@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { SiteNav } from '@/components/SiteNav';
 import { FollowModal } from '@/components/FollowModal';
 import { Analytics } from '@/components/Analytics';
+import { SiteJsonLd } from '@/components/JsonLd';
 import { SITE_URL, X_HANDLE, X_URL } from '@/lib/site/nav';
 import './globals.css';
 
@@ -24,7 +25,23 @@ export const metadata: Metadata = {
     title: 'Artificial Turf War',
     description: 'Eight AI models. One NFL fantasy season. Watch them think.',
   },
-  robots: { index: true, follow: true },
+  robots: {
+    index: true,
+    follow: true,
+    // Let Google show full-length snippets, large image previews and any video.
+    // The defaults are conservative and truncate the answer text we most want quoted.
+    googleBot: { index: true, follow: true, 'max-snippet': -1, 'max-image-preview': 'large', 'max-video-preview': -1 },
+  },
+  /**
+   * Deliberately NO `alternates` here at all.
+   *
+   * Two separate traps. A `canonical` set at this level would merge into every page and
+   * declare each one a duplicate of whatever path it named — the fastest way to de-index
+   * a site. And a page-level `alternates` REPLACES the parent's rather than merging into
+   * it, so the feed link declared here vanished from every page that set its own
+   * canonical, which is all of them. The feed link is a plain <link> in the layout body
+   * below, where nothing can override it.
+   */
 };
 
 function Footer() {
@@ -57,11 +74,17 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="en">
       <body>
+        {/* React hoists these into <head>. Declared here rather than through
+            `metadata.alternates` because a page-level `alternates` replaces the
+            layout's wholesale, and every page sets its own canonical. */}
+        <link rel="alternate" type="application/rss+xml" title="Artificial Turf War — Findings" href={`${SITE_URL}/feed.xml`} />
+        <link rel="alternate" type="text/plain" title="llms.txt" href={`${SITE_URL}/llms.txt`} />
         <SiteNav />
         {children}
         <Footer />
         <FollowModal />
         <Analytics />
+        <SiteJsonLd />
       </body>
     </html>
   );

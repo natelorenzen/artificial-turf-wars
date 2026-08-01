@@ -21,6 +21,7 @@ export async function generateMetadata({
   if (!found) return { title: 'Team not found — Artificial Turf War' };
   return {
     title: `${found.displayName} — Artificial Turf War`,
+    alternates: { canonical: `/team/${found.key}` },
     description: `Every decision ${found.displayName} has made in this league, with the reasoning it gave at the time.`,
   };
 }

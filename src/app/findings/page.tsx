@@ -6,6 +6,7 @@ export const metadata: Metadata = {
   title: 'Findings — Artificial Turf War',
   description:
     'What we learn from running eight frontier models against each other. Published whichever way the result comes out.',
+  alternates: { canonical: '/findings' },
 };
 
 export default function FindingsIndex() {

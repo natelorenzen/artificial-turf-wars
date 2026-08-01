@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { DatasetJsonLd } from '@/components/JsonLd';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 import { loadDraftBoard, type BoardPick } from '@/lib/backtest/results';
@@ -8,6 +9,7 @@ export const metadata: Metadata = {
   title: 'The 2025 backtest draft board — Artificial Turf War',
   description:
     'All 120 picks from the backtest draft, with the reason each model gave for taking the player it took.',
+  alternates: { canonical: '/backtest/draft' },
 };
 
 export const revalidate = 3600;
@@ -24,6 +26,18 @@ export default async function BacktestDraftPage() {
 
   return (
     <main className="wrap">
+      <DatasetJsonLd
+        name="Artificial Turf War — 2025 rehearsal draft board"
+        description="All 120 picks from the 2025 rehearsal draft made by eight frontier language models, each with the model's stated reasoning, confidence and the projection data available to it at the time."
+        path="/backtest/draft"
+        keywords={[
+          'large language models',
+          'LLM evaluation',
+          'AI decision making',
+          'fantasy football',
+          'model comparison',
+        ]}
+      />
       <div className="yard" />
       <h1>The backtest draft board</h1>
       <p className="sub">
