@@ -117,11 +117,6 @@ other than what they did.
 *(Qwen's 21 includes roughly six label corrections from board one rather than genuine
 concessions. It is still the highest without them.)*
 
-**A disclosure:** Claude Opus 5 is one of the three models that never conceded, and it is
-the model family that wrote this project's software and competes in the league. That is
-the conflict of interest declared on our [methodology page](/methodology), and it is why
-the tally is deterministic code rather than any model's judgement.
-
 ## What we are taking from this
 
 Findings 001 asked whether these models change their minds because of an argument or
