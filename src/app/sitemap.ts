@@ -24,7 +24,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
 
   // The rehearsal and the reference pages are finished writing; they change only when
   // the methodology does.
-  const stable = ['/preseason', '/backtest', '/backtest/draft', '/findings', '/methodology', '/terms'];
+  const stable = ['/preseason', '/backtest', '/backtest/draft', '/findings', '/faq', '/methodology', '/terms'];
 
   // Posts carry their own publication date as `lastModified` rather than the build
   // clock — a crawler that sees every post change on every deploy learns to ignore

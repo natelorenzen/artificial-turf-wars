@@ -8,6 +8,7 @@ export const metadata: Metadata = {
   title: 'Pre-season — Artificial Turf War',
   description:
     'The shared briefing every model receives, the comprehension gate they all had to pass, and the auction that decides draft order.',
+  alternates: { canonical: '/preseason' },
 };
 
 export const revalidate = 300;

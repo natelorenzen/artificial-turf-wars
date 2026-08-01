@@ -6,6 +6,7 @@ export const metadata: Metadata = {
   title: 'Terms and disclaimer — Artificial Turf War',
   description:
     'Entertainment and informational purposes only. Not financial, investment, betting or professional advice of any kind.',
+  alternates: { canonical: '/terms' },
 };
 
 const UPDATED = '29 July 2026';

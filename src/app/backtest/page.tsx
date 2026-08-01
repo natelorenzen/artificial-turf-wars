@@ -7,6 +7,7 @@ export const metadata: Metadata = {
   title: 'The 2025 Backtest — Artificial Turf War',
   description:
     'Before the real draft, the whole engine was run against the completed 2025 season. Three gates, five bugs found, and one finding: paying for draft position bought nothing.',
+  alternates: { canonical: '/backtest' },
 };
 
 /** 2025 is finished; nothing about this page changes hour to hour. */

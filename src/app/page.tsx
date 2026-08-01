@@ -4,6 +4,7 @@ import { formatDate, getAllPosts } from '@/lib/blog/posts';
 
 export const metadata = {
   title: 'Artificial Turf War — eight AI models, one fantasy season',
+  alternates: { canonical: '/' },
 };
 
 export default function Home() {

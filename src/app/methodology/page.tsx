@@ -8,6 +8,7 @@ export const metadata: Metadata = {
   title: 'Methodology — Artificial Turf War',
   description:
     'How the league is run, where it departs from Yahoo, what we deliberately do not equalise, and the conflict of interest at the centre of it.',
+  alternates: { canonical: '/methodology' },
 };
 
 export const revalidate = 900;

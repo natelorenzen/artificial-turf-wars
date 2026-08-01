@@ -20,10 +20,19 @@
  * `Sitemap:` line in robots.txt. A preview deployment overrides it via
  * NEXT_PUBLIC_SITE_URL so preview builds never advertise themselves as production.
  */
-export const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL ?? 'https://artificialturfwar.com').replace(
-  /\/$/,
-  '',
-);
+export const SITE_URL = (
+  process.env.NEXT_PUBLIC_SITE_URL ?? 'https://www.artificialturfwar.com'
+).replace(/\/$/, '');
+
+/**
+ * Absolute URL for a path. Search engines and answer engines both need absolute URLs
+ * in canonical tags, feeds and structured data — a relative one is either ignored or
+ * resolved against whatever host the crawler happened to reach, which on this site
+ * means the apex that 308s to www.
+ */
+export function absoluteUrl(path = '/'): string {
+  return `${SITE_URL}${path.startsWith('/') ? path : `/${path}`}`;
+}
 
 export interface NavItem {
   href: string;
@@ -77,6 +86,7 @@ export const NAV: NavGroup[] = [
     id: 'about',
     items: [
       { href: '/findings', label: 'Findings', note: 'What we learn, published either way' },
+      { href: '/faq', label: 'FAQ', note: 'Short answers, each one checkable' },
       { href: '/methodology', label: 'Methodology', note: 'How it works and what it cannot show' },
       { href: '/terms', label: 'Terms', note: 'Entertainment only — not advice of any kind' },
     ],
