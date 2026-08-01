@@ -94,6 +94,18 @@ describe('getAllPosts', () => {
     expect([...dates].sort((a, b) => b.localeCompare(a))).toEqual(dates);
   });
 
+  it('resolves every followUp to a real post', () => {
+    // A dangling followUp would render a pointer to nothing, or — worse — silently
+    // render no pointer at all on a post that has been superseded.
+    const slugs = new Set(getAllPosts({ includeDrafts: true }).map((p) => p.slug));
+    for (const post of getAllPosts({ includeDrafts: true })) {
+      if (!post.followUp) continue;
+      expect(slugs.has(post.followUp), `${post.slug} → ${post.followUp}`).toBe(true);
+      expect(post.followUp, `${post.slug} points at itself`).not.toBe(post.slug);
+      expect(post.followUpNote?.length ?? 0, `${post.slug} followUpNote`).toBeGreaterThan(0);
+    }
+  });
+
   it('gives every post the fields the index and the sitemap rely on', () => {
     for (const post of getAllPosts()) {
       expect(post.slug, `${post.slug} slug`).toMatch(/^[a-z0-9-]+$/);

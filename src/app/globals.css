@@ -1362,3 +1362,47 @@ a:focus-visible,
     font-size: 16px;
   }
 }
+
+/* ---------- newer-findings pointer ----------
+   Sits between the headline and the body of a post that has been overtaken. It is
+   deliberately loud: a reader who arrives from an old link should learn there is a
+   newer result before they read the old one, not after. */
+.post-followup {
+  margin: 22px 30px 0;
+  padding: 14px 18px;
+  background: #fff4d6;
+  border: 3px solid var(--amber);
+  border-left-width: 6px;
+}
+.post-followup-label {
+  display: block;
+  font-family: var(--font-data);
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: #8a5c00;
+  margin-bottom: 6px;
+}
+.post-followup p {
+  font-family: var(--font-read);
+  font-size: 16px;
+  line-height: 1.5;
+  color: #3d2c00;
+  margin: 0;
+  max-width: 62ch;
+}
+.post-followup a {
+  color: #7a3d00;
+  font-weight: 700;
+}
+.post-followup-fine {
+  margin-top: 8px !important;
+  font-size: 13px !important;
+  color: #6b5320 !important;
+}
+@media (max-width: 640px) {
+  .post-followup {
+    margin-left: 18px;
+    margin-right: 18px;
+  }
+}

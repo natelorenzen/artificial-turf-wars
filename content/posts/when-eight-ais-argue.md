@@ -4,6 +4,8 @@ summary: "Our first debate produced a dramatic result: every mind-change moved t
 date: 2026-07-31
 kicker: Findings 001
 evidence: "scripts/chalk-or-walk.ts — run it yourself with --live. Both transcripts are stored."
+followUp: four-debates-disagreement-loses
+followUpNote: "We have since run two more debates. The result below did not hold up, and two others did."
 ---
 
 We put eight leading AI models in a room and made them argue about football.

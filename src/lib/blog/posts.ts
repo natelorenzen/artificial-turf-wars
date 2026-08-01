@@ -39,6 +39,17 @@ export interface PostMeta {
    * Findings posts should always carry one.
    */
   evidence?: string;
+  /**
+   * Slug of a later post that carries newer results on the same question.
+   *
+   * Findings accumulate, and the honest way to handle that is to leave a published post
+   * as the dated snapshot it was and point forward — not to silently rewrite it under a
+   * reader who may already have shared it. A post that has been overtaken says so at the
+   * top and links on.
+   */
+  followUp?: string;
+  /** One line explaining what changed, shown in the pointer. */
+  followUpNote?: string;
 }
 
 export interface Post extends PostMeta {
@@ -99,6 +110,8 @@ function toPost(slug: string, raw: string): Post {
     kicker: typeof meta.kicker === 'string' ? meta.kicker : undefined,
     draft: meta.draft === true,
     evidence: typeof meta.evidence === 'string' ? meta.evidence : undefined,
+    followUp: typeof meta.followUp === 'string' ? meta.followUp : undefined,
+    followUpNote: typeof meta.followUpNote === 'string' ? meta.followUpNote : undefined,
     body,
   };
 }

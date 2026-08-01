@@ -37,6 +37,9 @@ export default async function FindingsPost({ params }: { params: Promise<{ slug:
   if (!post) notFound();
 
   const { html, headings } = renderMarkdown(post.body);
+  // Resolved rather than hand-written into the markdown, so the pointer carries the
+  // later post's real title and cannot drift if that title changes.
+  const followUp = post.followUp ? getPost(post.followUp) : null;
 
   return (
     <main className="wrap">
@@ -57,6 +60,20 @@ export default async function FindingsPost({ params }: { params: Promise<{ slug:
           <h1>{post.title}</h1>
           <p className="post-summary">{post.summary}</p>
         </header>
+
+        {followUp && (
+          <aside className="post-followup">
+            <span className="post-followup-label">Newer findings</span>
+            <p>
+              {post.followUpNote}{' '}
+              <Link href={`/findings/${followUp.slug}`}>{followUp.title}</Link>
+            </p>
+            <p className="post-followup-fine">
+              This post is left as it was published on {formatDate(post.date)}. We do not
+              rewrite findings after the fact — we publish the newer ones and link them.
+            </p>
+          </aside>
+        )}
 
         {headings.length > 2 && (
           <nav className="post-contents" aria-label="Contents">
