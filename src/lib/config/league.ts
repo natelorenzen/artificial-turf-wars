@@ -175,6 +175,26 @@ export const SCORING_NOTES = {
     'Points allowed is banded from the raw pts_allow integer, not from Sleeper indicator fields.',
 } as const;
 
+/**
+ * COHORT FREEZE (SPEC §8.1 #8, extended).
+ *
+ * The rule was always "pinned before the draft, never swapped mid-season". That leaves
+ * the pre-season open, and the pre-season is exactly when labs ship. On 3 August 2026,
+ * Alibaba released `qwen/qwen3.8-max` — newer and a tier above our pinned
+ * `qwen/qwen3.7-plus` — which raised the question this constant answers.
+ *
+ * "Whatever was newest on the day someone happened to look" is not a rule, it is a
+ * reaction, and it is the first thing a sceptical reader would pull at. So the cohort is
+ * frozen on a stated date, published on /methodology, and after it no model ID changes
+ * for any reason short of a provider withdrawing one.
+ *
+ * We did NOT take qwen3.8-max. It shipped with no track record three weeks before the
+ * draft, all eight incumbents had already passed the comprehension gate together, and
+ * swapping one would have invalidated the "8/8 at 17/17 from one shared briefing" claim
+ * until that model was re-gated. Currency was not worth spending that for.
+ */
+export const COHORT_FROZEN_AT = '2026-08-24';
+
 /** The eight competitors (SPEC §2). Pinned before the draft; never swapped mid-season. */
 export interface CohortModel {
   key: string;
@@ -192,9 +212,12 @@ export const COHORT: readonly CohortModel[] = [
   { key: 'grok-4-5', displayName: 'Grok 4.5', openrouterId: 'x-ai/grok-4.5', lab: 'xAI', contextWindow: 500_000, priceIn: 2.0, priceOut: 6.0 },
   { key: 'gemini-3-1-pro', displayName: 'Gemini 3.1 Pro', openrouterId: 'google/gemini-3.1-pro-preview', lab: 'Google', contextWindow: 1_050_000, priceIn: 2.0, priceOut: 12.0 },
   { key: 'muse-spark-1-1', displayName: 'Muse Spark 1.1', openrouterId: 'meta/muse-spark-1.1', lab: 'Meta', contextWindow: 1_050_000, priceIn: 1.25, priceOut: 4.25 },
-  { key: 'deepseek-v4-pro', displayName: 'DeepSeek V4 Pro', openrouterId: 'deepseek/deepseek-v4-pro', lab: 'DeepSeek', contextWindow: 1_050_000, priceIn: 0.44, priceOut: 0.87 },
+  { key: 'deepseek-v4-pro', displayName: 'DeepSeek V4 Pro', openrouterId: 'deepseek/deepseek-v4-pro', lab: 'DeepSeek', contextWindow: 1_050_000, priceIn: 0.43, priceOut: 0.87 },
   { key: 'kimi-k3', displayName: 'Kimi K3', openrouterId: 'moonshotai/kimi-k3', lab: 'Moonshot', contextWindow: 1_050_000, priceIn: 3.0, priceOut: 15.0 },
-  { key: 'qwen3-7-plus', displayName: 'Qwen3.7 Plus', openrouterId: 'qwen/qwen3.7-plus', lab: 'Alibaba', contextWindow: 1_000_000, priceIn: 0.32, priceOut: null },
+  // priceOut was null here, which the cohort table rendered as "—" — implying Qwen
+  // charged nothing for output. It charges $1.28/M. Corrected against the OpenRouter
+  // catalogue, 3 August 2026.
+  { key: 'qwen3-7-plus', displayName: 'Qwen3.7 Plus', openrouterId: 'qwen/qwen3.7-plus', lab: 'Alibaba', contextWindow: 1_000_000, priceIn: 0.32, priceOut: 1.28 },
 ] as const;
 
 /**
