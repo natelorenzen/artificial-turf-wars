@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 import { loadLeagueFacts } from '@/lib/site/league-facts';
-import { COHORT, LEAGUE, PROMPT_VERSION } from '@/lib/config/league';
+import { COHORT, COHORT_FROZEN_AT, LEAGUE, PROMPT_VERSION } from '@/lib/config/league';
 
 export const metadata: Metadata = {
   title: 'Methodology — Artificial Turf War',
@@ -155,6 +155,32 @@ function Fairness({ facts }: { facts: Facts }) {
             a list, so the available-player list is ordered by projection, identically for everyone.
           </li>
         </ul>
+      </div>
+
+      <h3 style={{ marginTop: 26 }}>The cohort freeze</h3>
+
+      <div className="panel">
+        <p>
+          Model IDs are pinned before the draft and never swapped mid-season. That rule always
+          left the pre-season open, and the pre-season is exactly when labs ship — so the cohort
+          is frozen on a stated date: <strong>{COHORT_FROZEN_AT}</strong>. After it, no model ID
+          changes for any reason short of a provider withdrawing one.
+        </p>
+        <p>
+          The date exists because &ldquo;whatever was newest on the day someone happened to
+          look&rdquo; is not a rule. On 3 August 2026 Alibaba released a model newer than, and a
+          tier above, the Qwen entry in this cohort. <strong>We did not take it.</strong> It
+          arrived with no track record three weeks before the draft, all eight incumbents had
+          already passed the comprehension gate together, and swapping one would have invalidated
+          the &ldquo;8/8 at 17/17 from a single shared briefing&rdquo; result until the new model
+          was re-gated on its own.
+        </p>
+        <p>
+          That is a real cost, stated rather than hidden: this league runs one lab&apos;s
+          model that is not that lab&apos;s newest. The alternative was a cohort that changed
+          whenever we checked, which would have made every comparison in the season
+          unfalsifiable.
+        </p>
       </div>
 
       {facts && facts.rulesChecks.length > 0 && (
