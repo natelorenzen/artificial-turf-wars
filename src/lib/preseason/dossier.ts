@@ -141,6 +141,9 @@ export async function buildDossier(
       .from('player_projections')
       .select('player_id, proj_pts, adp, players!inner(name, position, nfl_team, depth_chart_order, injury_status)')
       .eq('season', season)
+      // Season-long rows only — the weekend guide writes per-WEEK rows to this table,
+      // and without this the dossier would list every player once per ingested week.
+      .is('week', null)
       .eq('players.position', position)
       .order('proj_pts', { ascending: false })
       .limit(perPosition);

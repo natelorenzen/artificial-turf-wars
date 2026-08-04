@@ -129,6 +129,8 @@ export interface SleeperStatRecord {
   season: string;
   team: string | null;
   opponent: string | null;
+  /** Present on the WEEKLY projections and stats feeds, absent on the season-long one. */
+  game_id?: string | null;
   category: string;
   stats: Record<string, number> | null;
   player: {
@@ -151,6 +153,15 @@ function projectionUrl(season: number, position: SleeperPosition, week?: number)
 /** Season-long projections. NOTE: `adp` is null here — see `fetchAdp`. */
 export function fetchSeasonProjections(season: number, position: SleeperPosition) {
   return sleeperFetch<SleeperStatRecord[]>(projectionUrl(season, position));
+}
+
+/**
+ * One week's projections. Unlike the season-long feed these records carry `opponent`
+ * and `game_id`, which is what lets the weekend guide group players into games
+ * without a separate team-to-fixture join.
+ */
+export function fetchWeekProjections(season: number, week: number, position: SleeperPosition) {
+  return sleeperFetch<SleeperStatRecord[]>(projectionUrl(season, position, week));
 }
 
 /**

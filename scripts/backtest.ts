@@ -195,6 +195,8 @@ async function stageAuction() {
     .from('player_projections')
     .select('player_id, proj_pts, adp, players!inner(name, position)')
     .eq('season', SEASON)
+    // Season-long rows only — per-WEEK projections now share this table.
+    .is('week', null)
     .not('adp', 'is', null)
     .order('adp', { ascending: true })
     .limit(60);
@@ -405,6 +407,9 @@ async function loadDraftState(supabase: SupabaseClient): Promise<DraftState> {
       .from('player_projections')
       .select('player_id, proj_pts, adp, players!inner(name, position)')
       .eq('season', SEASON)
+      // Season-long rows only. Without this, an ingested week would put every player
+      // into the draft pool once per week and silently corrupt the rehearsal.
+      .is('week', null)
       .order('proj_pts', { ascending: false })
       .range(from, from + 999);
     if (!data || data.length === 0) break;

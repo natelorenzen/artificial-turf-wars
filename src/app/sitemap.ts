@@ -20,7 +20,10 @@ import { SITE_URL } from '@/lib/site/nav';
 export default function sitemap(): MetadataRoute.Sitemap {
   const now = new Date();
 
-  const weekly = ['/', '/teams', ...COHORT.map((m) => `/team/${m.key}`)];
+  // `/weekend/[week]` is deliberately absent for the same reason as `/decisions/[id]`:
+  // enumerating it needs a database read, and this site must build without one. Each
+  // guide is one link from the index, which is what indexing actually needs.
+  const weekly = ['/', '/weekend', '/teams', ...COHORT.map((m) => `/team/${m.key}`)];
 
   // The rehearsal and the reference pages are finished writing; they change only when
   // the methodology does.

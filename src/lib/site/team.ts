@@ -200,6 +200,9 @@ async function loadSeason(
       .from('player_projections')
       .select('player_id, proj_pts')
       .eq('season', season)
+      // Season-long rows only; per-week rows in this table would otherwise overwrite
+      // each player's season projection with whichever week sorted last.
+      .is('week', null)
       .in('player_id', playerIds);
     for (const row of projRows ?? []) projections.set(row.player_id as string, Number(row.proj_pts));
 

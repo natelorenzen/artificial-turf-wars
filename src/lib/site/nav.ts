@@ -61,6 +61,7 @@ export const NAV: NavGroup[] = [
     id: 'season',
     items: [
       { href: '/', label: 'Standings', note: 'The live league, week by week' },
+      { href: '/weekend', label: 'Weekend', note: 'How to survive this weekend, every Thursday' },
       { href: '/preseason', label: 'Pre-season', note: 'Briefing, comprehension gate, auction' },
       { href: '/teams', label: 'Teams', note: 'All eight models and every decision they make' },
     ],

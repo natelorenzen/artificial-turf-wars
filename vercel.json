@@ -7,6 +7,7 @@
     { "path": "/api/cron/waiver-bids", "schedule": "0 16 * * 2" },
     { "path": "/api/cron/waiver-resolve", "schedule": "0 16 * * 3" },
     { "path": "/api/cron/score-final", "schedule": "0 15 * * 4" },
-    { "path": "/api/cron/lineups", "schedule": "0 16 * * 4" }
+    { "path": "/api/cron/lineups", "schedule": "0 16 * * 4" },
+    { "path": "/api/cron/weekend-guide", "schedule": "0 18 * * 4" }
   ]
 }

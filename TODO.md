@@ -36,10 +36,19 @@ What is missing is a separate, guarded `scripts/draft.ts` for 2026.
 Guards it needs: refuse to run without `ALLOW_IRREVERSIBLE`, refuse if the season
 already has picks, print a plan and require explicit confirmation before writing.
 
-- [ ] Build `scripts/draft.ts` — auction → seed → draft, season 2026, guarded
-- [ ] Dry-run against 2026 data with no writes
+- [x] Build `scripts/draft.ts` — auction → draft, season 2026, guarded *(4 Aug)*
+- [x] Dry-run against 2026 data with no writes *(4 Aug)*
 - [ ] Run the real auction (8 model calls, ~$0.20)
 - [ ] Run the real draft (120 model calls, ~$5–10)
+
+Four locks stand between an invocation and a write: `--commit`, `ALLOW_IRREVERSIBLE=1`,
+`--i-understand=2026`, and the stage's own precondition (the auction refuses once slots
+exist; the draft refuses once 120 picks exist). `DRAFT_SEED` is additionally verified
+against the published `seed_commit_hash` — a mismatch aborts rather than warns.
+
+The draft dry run assigns **provisional seed-ordered slots in memory** when the auction
+has not run, so the pick DATA block, the context ceiling and the label-leak check are all
+exercised against real 2026 data *before* the irreversible step, not after it.
 
 ### 2. Six missing cron routes
 
@@ -58,11 +67,22 @@ tested* right now with no budget:
 | `waiver-bids` | 8 | ❌ | blocked by item 3 below |
 | `wrap` | 1 | ❌ | beat writer, non-competing model |
 
-- [ ] `score-provisional` + `score-final`
-- [ ] `waiver-resolve`
+- [x] `score-provisional` + `score-final` *(4 Aug)*
+- [x] `waiver-resolve` *(4 Aug)*
 - [ ] `lineups`
 - [ ] `waiver-bids`
 - [ ] `wrap`
+
+The three deterministic routes share one code path (`src/lib/scoring/week.ts`) rather
+than two copies that could drift into a provisional table and a final table disagreeing
+for reasons nobody can explain. The standings accumulation is extracted as a pure
+function and tested (7 tests) — including that a corrected week 3 propagates into every
+later cumulative total, which an incremental standings table would get wrong.
+
+Both scoring jobs derive their own week from the ingested schedule
+(`resolveScoringWeek`), because cron paths cannot carry a query string and date
+arithmetic breaks on exactly the weeks that matter — international games, Thanksgiving,
+and the 1 November DST shift.
 
 ### 3. `waiver_bids` idempotency constraint
 
@@ -72,8 +92,18 @@ Vercel cron delivery is best effort and can fire twice. `lineups` is protected b
 `unique (team_id, week)`; `waiver_bids` is not, so a duplicate delivery would spend FAAB
 twice and there is no way to un-spend it.
 
-- [ ] Migration adding a unique key
+- [x] Migration adding a unique key — `0003_waiver_idempotency.sql` *(4 Aug)* **not yet applied**
 - [ ] Wire it into the route so a repeat delivery is a no-op, not a second charge
+      *(blocked: the route does not exist yet — helper is built and tested,
+      `src/lib/cron/job-run.ts`, 10 tests)*
+
+**The unique key alone does not deliver the property this item wants**, which is why the
+migration has two layers. One decision produces N claims and `claims: []` (standing pat)
+is valid and writes zero rows — so "no rows for this team this week" cannot distinguish
+*never ran* from *ran and stood pat*, and a re-delivered call may name **different**
+players that collide with nothing. Layer 1 is `unique (team_id, week, add_player_id)` for
+integrity; layer 2 is a `job_runs` ledger claimed **before** the first model call, which
+is the part that actually stops a second charge.
 
 ### 4. End-to-end weekly rehearsal
 
@@ -106,9 +136,14 @@ last cheap chance to find an engine bug.
 
 ## 🟢 Content and polish
 
-- [ ] **Findings 004: the five bugs the rehearsal caught.** Already researched; the
-      strongest unused writing on the project and it costs nothing to produce. The
-      backtest page states the headline without the story underneath it.
+- [x] **Findings 004: unanimous and unconvinced** *(4 Aug)* — eight models previewed the
+      6 Aug CAR @ ARI preseason game from memory with no DATA block. Unanimous pick,
+      confidences 0.50–0.53, and not one invented a roster. $0.0997.
+      `content/posts/unanimous-and-unconvinced.md`, evidence in `content/data/`.
+- [ ] **Findings 005: the five bugs the rehearsal caught.** *(was 004 — renumbered, the
+      preview post shipped first.)* Already researched; the strongest unused writing on
+      the project and it costs nothing to produce. The backtest page states the headline
+      without the story underneath it.
 - [ ] **Case-insensitive redirects.** `/faq` works, `/FAQ` 404s — Next routes are
       case-sensitive. Same for `/Findings`, `/Terms` etc.
 - [ ] **Submit the sitemap in Search Console.** Submit the path `sitemap.xml`, against a

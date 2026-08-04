@@ -53,6 +53,7 @@ async function main() {
     .from('player_projections')
     .select('proj_pts')
     .eq('season', season)
+    .is('week', null)
     .order('proj_pts', { ascending: false })
     .limit(120);
   const draftableFloor = Number(board?.[board.length - 1]?.proj_pts ?? 0);
