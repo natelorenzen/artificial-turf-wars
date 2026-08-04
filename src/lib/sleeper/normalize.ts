@@ -99,6 +99,40 @@ export function projectSeasonPoints(
 }
 
 /**
+ * One WEEK's projected points, for the Thursday weekend guide.
+ *
+ * Not a wrapper around `projectSeasonPoints` with a divide: that function multiplies
+ * the estimated points-allowed by `gamesPerSeason`, so reusing it for a single week
+ * would hand every defence roughly seventeen games of scoring. The K short-FG
+ * reconstruction is unchanged — it is a ratio, so it applies at any granularity.
+ */
+export function projectWeekPoints(
+  position: Position,
+  rec: SleeperStatRecord,
+  calibration: ProjectionCalibration = DEFAULT_CALIBRATION,
+): { points: number; method: string } {
+  const stats = normalizeProjectionStats(position, rec.stats ?? {}, calibration);
+  const base = scorePlayerWeek(position, stats, { includePointsAllowed: false }).points;
+
+  if (position === 'DEF') {
+    const team = rec.team ?? rec.player?.team ?? rec.player_id;
+    const perGame =
+      calibration.defPointsAllowedPerGame[team] ?? calibration.defPointsAllowedPerGameDefault;
+    // Exactly one game's worth — the whole reason this function exists.
+    return {
+      points: round2(base + perGame),
+      method: `def_pts_allowed_per_game_from_${calibration.sourceSeason || 'default'}`,
+    };
+  }
+
+  if (position === 'K') {
+    return { points: base, method: `k_short_fg_ratio_${calibration.shortFgPerLongFg.toFixed(3)}` };
+  }
+
+  return { points: base, method: 'direct' };
+}
+
+/**
  * Build the calibration from a completed season's DEF and K season-total records.
  *
  * This is the ONE place `pts_allow_*` indicator fields may be read: aggregating a

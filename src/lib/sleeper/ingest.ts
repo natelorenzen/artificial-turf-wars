@@ -16,12 +16,19 @@ import {
   fetchSeasonProjections,
   fetchSeasonStats,
   fetchWeeklyStats,
+  fetchWeekProjections,
   playerDisplayName,
   type SleeperFetchResult,
   type SleeperPosition,
   type SleeperStatRecord,
 } from './client';
-import { buildCalibration, deriveByeWeeks, projectSeasonPoints, type ProjectionCalibration } from './normalize';
+import {
+  buildCalibration,
+  deriveByeWeeks,
+  projectSeasonPoints,
+  projectWeekPoints,
+  type ProjectionCalibration,
+} from './normalize';
 import { scorePlayerWeek } from '@/lib/scoring/engine';
 import { supabaseServer } from '@/lib/supabase-server';
 
@@ -246,6 +253,74 @@ export async function ingestProjections(
 
   await upsertChunked(db, 'player_projections', rows, 'player_id,season,week');
   return { projections: rows.length, withAdp, skipped, calibration };
+}
+
+/**
+ * One week's projections, stored against `week = N` rather than `week = null`.
+ *
+ * The season-long ingest is what the draft reads; this is what the Thursday weekend
+ * guide reads, and they must not overwrite each other — hence the distinct `week`,
+ * which the `(player_id, season, week)` unique key already keys on.
+ *
+ * `opponent` and `game_id` come back on this feed and are stored in `raw_projection`,
+ * because grouping players into fixtures is the entire point of ingesting it.
+ */
+export async function ingestWeekProjections(
+  season: number,
+  week: number,
+  opts: { calibration?: ProjectionCalibration; db?: SupabaseClient } = {},
+) {
+  const db = opts.db ?? supabaseServer();
+  const calibration = opts.calibration ?? (await fetchCalibration(season - 1));
+  const knownPlayers = await fetchAllPlayerIds(db);
+
+  const rows: Record<string, unknown>[] = [];
+  const skipped: Record<string, number> = {};
+  let withOpponent = 0;
+
+  for (const position of FANTASY_POSITIONS) {
+    const result = await fetchWeekProjections(season, week, position);
+    const snapshotId = await recordSnapshot(db, result, {
+      source: 'projections',
+      season,
+      week,
+      position,
+      rowCount: result.data.length,
+    });
+
+    for (const rec of result.data) {
+      if (!knownPlayers.has(rec.player_id)) {
+        skipped[position] = (skipped[position] ?? 0) + 1;
+        continue;
+      }
+      // A player with no projected stats this week is on bye or inactive. Storing a
+      // zero row would be indistinguishable from a real projection of zero.
+      if (!rec.stats || Object.keys(rec.stats).length === 0) continue;
+
+      const { points } = projectWeekPoints(position, rec, calibration);
+      if (rec.opponent) withOpponent++;
+
+      rows.push({
+        player_id: rec.player_id,
+        season,
+        week,
+        proj_pts: points,
+        raw_projection: {
+          ...(rec.stats ?? {}),
+          _team: rec.team ?? null,
+          _opponent: rec.opponent ?? null,
+          _game_id: rec.game_id ?? null,
+        },
+        // ADP is a preseason concept and belongs only to the season-long row.
+        adp: null,
+        pos_adp: null,
+        snapshot_id: snapshotId,
+      });
+    }
+  }
+
+  await upsertChunked(db, 'player_projections', rows, 'player_id,season,week');
+  return { projections: rows.length, withOpponent, skipped, week };
 }
 
 // ---------------------------------------------------------------------------

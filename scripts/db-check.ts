@@ -17,6 +17,7 @@ const TABLES = [
   'player_stats', 'stat_corrections', 'nfl_games', 'team_byes', 'draft_picks',
   'rosters', 'lineups', 'lineup_scores', 'waiver_bids', 'h2h_schedule', 'standings',
   'move_evaluations', 'win_prob', 'allplay_proj', 'pos_strength', 'recaps',
+  'job_runs', // 0003
 ];
 
 async function main() {
@@ -36,14 +37,18 @@ async function main() {
 
   for (const table of TABLES) {
     const { error, count } = await admin.from(table).select('*', { count: 'exact', head: true });
-    if (error) missing.push(table);
-    else rows[table] = count ?? 0;
+    // A missing table does NOT come back as an error here. PostgREST answers a
+    // head-only count for an unknown relation with no error and a null count, so
+    // testing `error` alone reported an entirely unapplied schema as fully present
+    // — the exact failure this script exists to catch. A real empty table counts 0.
+    if (error || count === null) missing.push(table);
+    else rows[table] = count;
   }
 
   console.log(`Schema: ${TABLES.length - missing.length}/${TABLES.length} tables present`);
   if (missing.length > 0) {
     console.log(`\n  MISSING: ${missing.join(', ')}`);
-    console.log('\n  Apply supabase/migrations/0001_init.sql in the Supabase SQL editor.');
+    console.log('\n  Apply the migrations in supabase/migrations/, in order, in the Supabase SQL editor.');
     process.exitCode = 1;
     return;
   }
@@ -64,6 +69,7 @@ async function main() {
         .from('player_projections')
         .select('proj_pts, adp, players!inner(name, position)')
         .eq('season', season)
+        .is('week', null)
         .eq('players.position', position)
         .order('proj_pts', { ascending: false })
         .limit(3);
