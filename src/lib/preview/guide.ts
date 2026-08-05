@@ -76,9 +76,19 @@ export interface CohortEntry {
 /**
  * Every model's take on one game.
  *
- * Sequential, like every other model loop in this project — a fan-out would make the
- * per-call cost and failure attribution much harder to read in the logs, and there is
- * no deadline pressure on a Thursday job with hours of slack.
+ * PARALLEL across models, unlike the draft loop, and the difference is not stylistic.
+ * The §5.2 "sequential, with a delay" rule is about SLEEPER, whose feed we must not
+ * hammer; these are eight different OpenRouter models on eight different upstream
+ * providers. Draft picks are sequential because each pick genuinely depends on the
+ * previous one — a take does not depend on any other take.
+ *
+ * It is also what makes the job viable at all. Thirty-three sequential calls run five
+ * to eight minutes and a Vercel function is killed at 300s, so the sequential version
+ * could never finish in production. Verified the hard way: the first live invocation
+ * was killed mid-run having written nothing.
+ *
+ * `Promise.allSettled`, not `all`: one provider outage must cost one take, not the
+ * whole game.
  */
 export async function takesForGame(
   context: GameContext,
@@ -106,38 +116,57 @@ export async function takesForGame(
     JSON.stringify(GAME_TAKE_EXAMPLE, null, 2),
   ].join('\n');
 
-  const results: TakeResult[] = [];
+  const settled = await Promise.allSettled(
+    cohort.map(async (model): Promise<TakeResult> => {
+      const call = await callModel({
+        openrouterId: model.openrouterId,
+        systemPrompt: TAKE_SYSTEM,
+        userPrompt,
+        schema: gameTakeSchema,
+        maxOutputTokens: LEAGUE.maxOutputTokens,
+      });
 
-  for (const model of cohort) {
-    const call = await callModel({
-      openrouterId: model.openrouterId,
-      systemPrompt: TAKE_SYSTEM,
-      userPrompt,
-      schema: gameTakeSchema,
-      maxOutputTokens: LEAGUE.maxOutputTokens,
-    });
+      const citations = call.parsed
+        ? checkCitations([call.parsed.expert_point, call.parsed.novice_point], data, '')
+        : { citedFields: [], unsupportedClaims: [] };
 
-    const citations = call.parsed
-      ? checkCitations([call.parsed.expert_point, call.parsed.novice_point], data, '')
-      : { citedFields: [], unsupportedClaims: [] };
+      return {
+        modelKey: model.key,
+        modelId: model.modelId,
+        displayName: model.displayName,
+        openrouterId: model.openrouterId,
+        gameKey: context.fixture.gameKey,
+        take: call.parsed,
+        raw: call.rawResponse,
+        valid: call.ok,
+        contextHash,
+        citedFields: citations.citedFields,
+        unsupportedClaims: citations.unsupportedClaims,
+        costUsd: call.usage.costUsd ?? 0,
+      };
+    }),
+  );
 
-    results.push({
-      modelKey: model.key,
-      modelId: model.modelId,
-      displayName: model.displayName,
-      openrouterId: model.openrouterId,
-      gameKey: context.fixture.gameKey,
-      take: call.parsed,
-      raw: call.rawResponse,
-      valid: call.ok,
-      contextHash,
-      citedFields: citations.citedFields,
-      unsupportedClaims: citations.unsupportedClaims,
-      costUsd: call.usage.costUsd ?? 0,
-    });
-  }
-
-  return results;
+  return settled.map((outcome, index) =>
+    outcome.status === 'fulfilled'
+      ? outcome.value
+      : {
+          // A rejection here is a thrown error rather than a model's bad output —
+          // recorded as an invalid take so the failure is visible, not dropped.
+          modelKey: cohort[index].key,
+          modelId: cohort[index].modelId,
+          displayName: cohort[index].displayName,
+          openrouterId: cohort[index].openrouterId,
+          gameKey: context.fixture.gameKey,
+          take: null,
+          raw: String(outcome.reason).slice(0, 2000),
+          valid: false,
+          contextHash,
+          citedFields: [],
+          unsupportedClaims: [],
+          costUsd: 0,
+        },
+  );
 }
 
 // ---------------------------------------------------------------------------
