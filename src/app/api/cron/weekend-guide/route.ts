@@ -9,6 +9,7 @@ import {
   takesForGame,
   toWriterInput,
   writeGuide,
+  guideToMarkdown,
   type CohortEntry,
   type TakeResult,
 } from '@/lib/preview/guide';
@@ -224,7 +225,8 @@ export async function GET(request: Request) {
           week,
           headline: written.guide.headline,
           standfirst: written.guide.standfirst,
-          column_md: written.guide.column_md,
+          column_md: guideToMarkdown(written.guide),
+          sections: written.guide.games,
           game_keys: chosen.map((c) => c.fixture.gameKey),
           facts_packet: written.factsPacket as unknown as Record<string, unknown>,
           facts_packet_hash: written.factsPacketHash,

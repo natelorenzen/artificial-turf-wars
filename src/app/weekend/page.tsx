@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
 import { getPublishedGuides } from '@/lib/preview/read';
+import { gameTitle } from '@/lib/preview/teams';
 
 export const metadata: Metadata = {
   title: 'How to survive the weekend — Artificial Turf War',
@@ -38,7 +39,7 @@ export default async function WeekendIndex() {
             <article className="post-card" key={guide.week}>
               <div className="post-card-meta">
                 <span className="post-card-kicker">Week {guide.week}</span>
-                <span>{guide.gameKeys.join(' · ')}</span>
+                <span>{guide.gameKeys.map(gameTitle).join(' · ')}</span>
               </div>
               <h2>
                 <Link href={`/weekend/${guide.week}`}>{guide.headline}</Link>

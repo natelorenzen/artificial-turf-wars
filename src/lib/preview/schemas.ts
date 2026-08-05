@@ -42,13 +42,30 @@ export const GAME_TAKE_EXAMPLE = {
 /**
  * The assembled article, written by the non-competing beat writer.
  *
- * `column_md` is markdown because it renders into a page; the writer is told the
- * exact heading level to use so it cannot fight the page's own hierarchy.
+ * Structured per game rather than one blob of markdown. The first version returned a
+ * single `column_md` and the layman line — the whole point of the novice half — ended
+ * up buried mid-paragraph, where nobody can grab it. A required field per game is
+ * enforceable by schema; "please start each section with a one-liner" is a formatting
+ * instruction a model may quietly ignore.
  */
 export const weekendGuideSchema = z.object({
   headline: z.string().min(1),
   standfirst: z.string().min(1),
-  column_md: z.string().min(1),
+  games: z
+    .array(
+      z.object({
+        game_key: z.string().min(1),
+        /**
+         * ONE sentence, repeatable out loud, no numbers required. This is the thing a
+         * reader says to someone else — if it needs a stat to make sense, it belongs
+         * in `body_md` instead.
+         */
+        takeaway: z.string().min(1),
+        /** The fuller section, including where the models disagree. */
+        body_md: z.string().min(1),
+      }),
+    )
+    .min(1),
 });
 
 export type WeekendGuide = z.infer<typeof weekendGuideSchema>;
@@ -56,5 +73,11 @@ export type WeekendGuide = z.infer<typeof weekendGuideSchema>;
 export const WEEKEND_GUIDE_EXAMPLE = {
   headline: 'One line, under 90 characters.',
   standfirst: 'Two sentences telling a reader what they will get out of this.',
-  column_md: '## Game heading\n\nProse. One section per game, in the order given.',
+  games: [
+    {
+      game_key: 'AWAY@HOME',
+      takeaway: 'One sentence someone could say out loud at a bar and sound informed. No stats needed.',
+      body_md: 'The fuller section. Cite the numbers here, and name where the models disagree.',
+    },
+  ],
 };

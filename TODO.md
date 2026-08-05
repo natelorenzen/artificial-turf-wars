@@ -1,18 +1,48 @@
 # What's left before the season runs
 
-**Written 1 August 2026.** Draft is late August (~4 weeks out). NFL Week 1 kicks off
-**9 September 2026** (~5.5 weeks out).
+**Written 1 August 2026, updated 5 August.** Draft is late August (~3 weeks out). NFL
+Week 1 kicks off **9 September 2026** (~5 weeks out).
 
-State as verified against the database and the repo on 1 August, not from memory:
+State as verified against the database and the repo on 5 August, not from memory:
 
 - 2026 season: **8 teams seeded, rules check passed 8/8, and nothing else.** 0 auction
-  bids, 0 draft picks, 0 rosters, 0 lineups.
+  bids, 0 draft picks, 0 rosters, 0 lineups. **The draft has not been run.**
 - 2025 rehearsal: complete. 120 picks, 128 decisions, $4.99 spent, three gates met.
-- Site: live, three findings posts, FAQ, feed, llms.txt, structured data, sitemap.
-- `vercel.json` declares **7 cron schedules**; exactly **1 route exists**.
+- Site: live, four findings posts, the weekend guide, FAQ, feed, llms.txt, sitemap.
+- `vercel.json` declares **8 cron schedules**; **5 routes exist** (was 1).
 
-`CLAUDE.md`'s build-status table is out of date and contradicts several of the above —
-fixing it is on the list below.
+---
+
+## What shipped on 4–5 August
+
+Five PRs (#10–#14). Roughly $1.10 of model spend.
+
+- **Findings 004** — eight models previewed a preseason game from memory alone and all
+  coin-flipped it, 0.50–0.53, without inventing a roster. Live.
+- **`scripts/draft.ts`** — the guarded 2026 draft runner. Four locks plus seed-commitment
+  verification. Dry-run against live data; **not fired**.
+- **Four cron routes** — `score-provisional`, `score-final`, `waiver-resolve`,
+  `weekend-guide`.
+- **`job_runs` idempotency ledger** — claimed before the first model call, so a duplicate
+  cron delivery cannot spend twice. Migrations `0003`, `0004`, `0005`.
+- **The Thursday weekend guide** — 32 model takes across four games, assembled by the
+  non-competing beat writer, published at `/weekend`.
+
+### Bugs found and fixed along the way, worth remembering
+
+- **`CCRON_SECRET`** — a one-character typo in Vercel meant `process.env.CRON_SECRET` was
+  undefined in production. **Every cron job had been 500ing before doing any work since
+  the first deploy**, including the daily ingest, silently. Fixed and verified 401.
+- **Seven queries would have corrupted the draft pool.** They read `player_projections`
+  filtered only by season, with no week filter — including the dossier sent to every
+  model before the draft. Once weekly rows existed, every player would have appeared once
+  per ingested week. All seven now filter `week is null`.
+- **The weekend guide could never have finished in production.** 33 sequential model calls
+  against a 300s function ceiling. Now parallel across models (170s), resumable, and
+  persisted per game.
+- **`db-check.ts` could not detect a missing table** — PostgREST answers a head-count on a
+  nonexistent relation with no error and `count: null`, so a completely unapplied schema
+  reported as "28/28 tables present".
 
 ---
 
@@ -50,28 +80,28 @@ The draft dry run assigns **provisional seed-ordered slots in memory** when the 
 has not run, so the pick DATA block, the context ceiling and the label-leak check are all
 exercised against real 2026 data *before* the irreversible step, not after it.
 
-### 2. Six missing cron routes
+### 2. Three remaining cron routes
 
-`vercel.json` schedules seven jobs. Only `/api/cron/ingest` exists. **The other six 404
-every time they fire.**
+Five of eight now exist. **The other three 404 every time they fire.**
 
-Split by whether they spend money — the deterministic three can be built *and fully
-tested* right now with no budget:
-
-| Route | Model calls | Testable free? | Notes |
+| Route | Model calls | State | Notes |
 |---|---|---|---|
-| `score-provisional` | none | ✅ | shares most logic with `score-final` |
-| `score-final` | none | ✅ | writes the stat-correction diff (SPEC §5.5) |
-| `waiver-resolve` | none | ✅ | deterministic FAAB resolution |
+| `score-provisional` | none | ✅ *(4 Aug)* | shares one code path with `score-final` |
+| `score-final` | none | ✅ *(4 Aug)* | writes the stat-correction diff (SPEC §5.5) |
+| `waiver-resolve` | none | ✅ *(4 Aug)* | deterministic FAAB resolution |
+| `weekend-guide` | 33 | ✅ *(5 Aug)* | resumable; ran end to end on production |
 | `lineups` | 8 | ❌ | **highest consequence — a missed lineup scores 0** |
-| `waiver-bids` | 8 | ❌ | blocked by item 3 below |
+| `waiver-bids` | 8 | ❌ | unblocked now: `job_runs` shipped |
 | `wrap` | 1 | ❌ | beat writer, non-competing model |
 
-- [x] `score-provisional` + `score-final` *(4 Aug)*
-- [x] `waiver-resolve` *(4 Aug)*
-- [ ] `lineups`
-- [ ] `waiver-bids`
-- [ ] `wrap`
+> **`lineups` and `waiver-bids` must claim a `job_runs` row before their first model
+> call, and must NOT pass `resumable`.** A re-called model can name different players,
+> which collide with nothing and spend the budget twice. Only `weekend-guide` is
+> resumable, because its unit of spend is individually idempotent.
+
+> **Watch the 300s ceiling.** `weekend-guide` was shipped with 33 sequential calls and
+> could never have completed in production. Any job making more than a handful of model
+> calls needs them parallel, persisted incrementally, or both.
 
 The three deterministic routes share one code path (`src/lib/scoring/week.ts`) rather
 than two copies that could drift into a provisional table and a final table disagreeing
@@ -92,10 +122,9 @@ Vercel cron delivery is best effort and can fire twice. `lineups` is protected b
 `unique (team_id, week)`; `waiver_bids` is not, so a duplicate delivery would spend FAAB
 twice and there is no way to un-spend it.
 
-- [x] Migration adding a unique key — `0003_waiver_idempotency.sql` *(4 Aug)* **not yet applied**
-- [ ] Wire it into the route so a repeat delivery is a no-op, not a second charge
-      *(blocked: the route does not exist yet — helper is built and tested,
-      `src/lib/cron/job-run.ts`, 10 tests)*
+- [x] Migration adding a unique key — `0003_waiver_idempotency.sql` *(4 Aug, applied)*
+- [x] Helper built, tested and proven in production — `src/lib/cron/job-run.ts`, 13 tests
+- [ ] Wire it into `waiver-bids` when that route is built *(no longer blocked)*
 
 **The unique key alone does not deliver the property this item wants**, which is why the
 migration has two layers. One decision produces N claims and `claims: []` (standing pat)
@@ -120,11 +149,22 @@ last cheap chance to find an engine bug.
 
 ## 🟡 Before Week 1 (9 September)
 
+- [ ] **Apply migration `0005_guide_sections.sql`** — the weekend guide's per-game
+      takeaways do not persist without it. The site degrades rather than breaking
+      (guides fall back to the old single-blob rendering), so this is not urgent, but
+      the "Say this" line does not appear until it lands.
+- [ ] **Guard `weekend-guide` against running weeks early.** `nextUnplayedWeek` returns
+      Week 1 all through August, so in the preseason it writes an article headlined
+      "this weekend" about games five weeks out, on projections that will have moved by
+      then. Refuse unless kickoff is within a few days.
 - [ ] **Homepage still reads "the season has not started"** — needs standings and results
 - [ ] **Weekly results pages** — also the real organic SEO opportunity, since they are
       recurring genuinely-new indexable pages
-- [ ] **Verify `CRON_SECRET` in Vercel** and confirm the routes reject unauthenticated
-      calls in production, not just in tests
+- [x] **Verify `CRON_SECRET` in Vercel** *(5 Aug)* — it was set as `CCRON_SECRET`, a
+      typo, so every cron had been failing 500 in production since first deploy. New
+      secret set on Production, typo removed, redeployed, verified 401 unauthenticated
+      and a successful authenticated run. **Preview environment has no `CRON_SECRET`** —
+      the CLI (51.3.0) could not add one; harmless, since cron only fires on production.
 - [ ] **Verify the kickoff guard** against the real 2026 schedule, especially the
       **1 November DST shift mid-Week 9** that moves every fixed-UTC cron an hour
       against kickoff
@@ -150,20 +190,28 @@ last cheap chance to find an engine bug.
       **www or Domain property** — a bare-apex property reports zero URLs because the
       apex 308s and every URL in the file is a www URL.
 - [ ] **Update `CLAUDE.md`'s build status table.** It claims Phase 4 is "not started" and
-      the OpenRouter adapter is "code complete, never called". Both are wrong now.
+      the OpenRouter adapter is "code complete, never called". Both are wrong now — and
+      it now also predates the weekend guide, `job_runs` and four new routes.
+- [ ] **Add the Sleeper preseason gotcha to `CLAUDE.md`.** `/schedule/nfl/pre/{season}`
+      is missing the opening week and its week numbers are shifted by one: Sleeper's
+      `pre` week N is the real week N+1. Verified 5 Aug. Harmless today because nothing
+      reads preseason data; a trap the first time something does.
 - [ ] **`npm audit` advisories** — pre-existing. `--force` would move `next` off the
       pinned 16.2.1, so decide deliberately rather than as a side effect.
 
 ---
 
-## Suggested order for the week of 3 August
+## Suggested order for the week of 10 August
 
 | Day | Work |
 |---|---|
-| **Mon–Tue** | Draft runner. Build it, dry-run it, **do not fire it yet.** |
-| **Wed** | The three deterministic cron routes — no spend, fully testable, a third of the route work. |
-| **Thu** | `waiver_bids` migration, then the `lineups` route. |
-| **Fri** | End-to-end weekly rehearsal. Findings 004 if there is room. |
+| **Mon** | `lineups` route — highest consequence left, and a missed lineup scores 0. Claim `job_runs`, no `resumable`. |
+| **Tue** | `waiver-bids` route. Unblocked now that `job_runs` exists. |
+| **Wed** | `wrap` route, then the end-to-end weekly rehearsal on 2025 data. |
+| **Thu** | Fix what the rehearsal finds. Findings 005 if there is room. |
+| **Fri** | **Run the real auction and draft**, once the weekly cycle has been rehearsed. |
 
-That leaves the real draft, `waiver-bids` and `wrap` for the following week — comfortably
-ahead of a late-August draft.
+> **Sequencing that still holds: do not run the real draft until the weekly cycle has
+> been rehearsed end to end.** Every bug found on 4–5 August was found by running the
+> thing, not by reading it — the `CCRON_SECRET` typo, the 300s ceiling, and the seven
+> unfiltered projection queries were all invisible until something actually executed.

@@ -23,6 +23,7 @@ import {
   gameTakeSchema,
   weekendGuideSchema,
   type GameTake,
+  type WeekendGuide,
 } from './schemas';
 import { gameDataBlock, type GameContext } from './games';
 
@@ -189,9 +190,22 @@ RULES:
 2. Where the models disagree, say so and name the disagreement. That is the most
    interesting thing you have and it should not be smoothed away.
 3. Refer to the models by their display names as given.
-4. One "## " heading per game, in the order supplied. Nothing above the first
-   heading except the opening paragraphs.
-5. No final-score predictions. The underlying data does not support them.
+4. No final-score predictions. The underlying data does not support them.
+5. Return one entry per game, in the order supplied, using the exact game_key.
+
+THE TAKEAWAY FIELD:
+The takeaway field is the single most important thing you write. It is one sentence a
+reader can say out loud to another person and sound like they know what is
+going on. Write it for someone who has never watched either team.
+
+- One sentence. No statistics, no projections, no player-name pile-ups.
+- It must stand completely alone, with none of the surrounding article.
+- Prefer the human situation over the arithmetic: who matters, what is at
+  stake, what would be surprising.
+- Never open with "The models" or mention this league. The reader is repeating
+  this to a friend, not citing a source.
+
+Put the numbers, the model names and the disagreements in body_md instead.
 
 Return only a single JSON object matching the schema. No preamble, no code fences.`;
 
@@ -208,12 +222,25 @@ export interface WriterInput {
 }
 
 export interface GuideResult {
-  guide: { headline: string; standfirst: string; column_md: string } | null;
+  guide: WeekendGuide | null;
   raw: string | null;
   valid: boolean;
   factsPacket: WriterInput;
   factsPacketHash: string;
   costUsd: number;
+}
+
+/**
+ * Flatten the structured sections into markdown for `weekend_guides.column_md`.
+ *
+ * Derived rather than asked for, so the prose and the takeaways can never disagree
+ * about what the article says. The takeaway leads its section as a blockquote — it is
+ * the line a reader is meant to leave with.
+ */
+export function guideToMarkdown(guide: WeekendGuide): string {
+  return guide.games
+    .map((game) => `## ${game.game_key}\n\n> ${game.takeaway}\n\n${game.body_md}`)
+    .join('\n\n');
 }
 
 export async function writeGuide(input: WriterInput): Promise<GuideResult> {
