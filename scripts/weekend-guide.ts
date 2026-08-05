@@ -29,6 +29,7 @@ import {
   takesForGame,
   toWriterInput,
   writeGuide,
+  guideToMarkdown,
   type CohortEntry,
   type TakeResult,
 } from '@/lib/preview/guide';
@@ -172,7 +173,7 @@ async function main() {
   const outPath = `weekend-guide-${SEASON}-week-${week}.md`;
   writeFileSync(
     outPath,
-    `# ${written.guide.headline}\n\n*${written.guide.standfirst}*\n\n${written.guide.column_md}\n`,
+    `# ${written.guide.headline}\n\n*${written.guide.standfirst}*\n\n${guideToMarkdown(written.guide)}\n`,
     'utf8',
   );
 
@@ -184,7 +185,8 @@ async function main() {
         week,
         headline: written.guide.headline,
         standfirst: written.guide.standfirst,
-        column_md: written.guide.column_md,
+        column_md: guideToMarkdown(written.guide),
+        sections: written.guide.games,
         game_keys: chosen.map((c) => c.fixture.gameKey),
         facts_packet: written.factsPacket as unknown as Record<string, unknown>,
         facts_packet_hash: written.factsPacketHash,

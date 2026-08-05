@@ -1203,6 +1203,32 @@ a:focus-visible,
   margin: 0;
 }
 
+/* ---------- weekend guide takeaway ----------
+   The one line a reader with no football knowledge can repeat out loud. Given real
+   visual weight because it is the entire novice half of the format — buried in the
+   paragraph below, it may as well not have been written. */
+.guide-takeaway {
+  font-family: var(--font-read);
+  font-size: 19px;
+  line-height: 1.5;
+  font-weight: 600;
+  color: #121834;
+  background: #fdf3dd;
+  border-left: 4px solid var(--amber);
+  padding: 14px 18px;
+  margin: 0 0 18px;
+  max-width: 62ch;
+}
+.guide-takeaway-label {
+  display: block;
+  font-family: var(--font-data);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #9a5b06;
+  margin-bottom: 6px;
+}
+
 /* Contents rail. Only rendered when a post has enough sections to need one. */
 .post-contents {
   margin: 24px 30px 0;

@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import { renderMarkdown } from '@/lib/blog/render';
 import { getGuide, getGuideTakes } from '@/lib/preview/read';
+import { gameTitle } from '@/lib/preview/teams';
 import { absoluteUrl } from '@/lib/site/nav';
 
 /** Published weekly by a cron job, so nothing here can be baked at build time. */
@@ -43,8 +44,11 @@ export default async function WeekendGuidePage({
   const guide = await getGuide(weekNumber);
   if (!guide) notFound();
 
-  const { html } = renderMarkdown(guide.columnMd);
   const takes = await getGuideTakes(weekNumber);
+
+  // Guides written before migration 0005 have no structured sections; they still
+  // render, from the one markdown blob they were written as.
+  const legacyHtml = guide.sections.length === 0 ? renderMarkdown(guide.columnMd).html : null;
 
   // Group the receipts by game, in the order the article discusses them.
   const byGame = new Map<string, typeof takes>();
@@ -58,13 +62,41 @@ export default async function WeekendGuidePage({
     <main className="wrap">
       <div className="yard" />
       <article className="post">
-        <div className="post-meta">
-          <span className="post-card-kicker">Week {guide.week}</span>
-        </div>
-        <h1>{guide.headline}</h1>
-        <p className="sub">{guide.standfirst}</p>
+        {/*
+          `post-head` is not decoration: it carries the dark-on-light colour the
+          article panel needs. Without it the h1 keeps the dark theme's near-white
+          and renders invisible against the panel.
+        */}
+        <header className="post-head">
+          <div className="post-card-meta">
+            <span className="post-card-kicker">Week {guide.week}</span>
+          </div>
+          <h1>{guide.headline}</h1>
+          <p className="post-summary">{guide.standfirst}</p>
+        </header>
 
-        <div className="post-body" dangerouslySetInnerHTML={{ __html: html }} />
+        {legacyHtml ? (
+          <div className="post-body" dangerouslySetInnerHTML={{ __html: legacyHtml }} />
+        ) : (
+          <div className="post-body">
+            {guide.sections.map((section) => (
+              <section key={section.gameKey}>
+                <h2 id={section.gameKey.toLowerCase().replace(/[^a-z0-9]/g, '')}>
+                  {gameTitle(section.gameKey)}
+                </h2>
+                {/*
+                  The line the whole novice half exists for. Given its own block so a
+                  reader can take it without reading the paragraph underneath.
+                */}
+                <p className="guide-takeaway">
+                  <span className="guide-takeaway-label">Say this</span>
+                  {section.takeaway}
+                </p>
+                <div dangerouslySetInnerHTML={{ __html: renderMarkdown(section.bodyMd).html }} />
+              </section>
+            ))}
+          </div>
+        )}
       </article>
 
       {/*
@@ -82,7 +114,7 @@ export default async function WeekendGuidePage({
 
           {[...byGame.entries()].map(([gameKey, gameTakes]) => (
             <div key={gameKey}>
-              <h3>{gameKey}</h3>
+              <h3>{gameTitle(gameKey)}</h3>
               <div className="scroll compact">
                 <table>
                   <thead>
