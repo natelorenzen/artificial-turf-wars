@@ -138,6 +138,10 @@ export async function GET(request: Request) {
 
       let cost = 0;
       let gamesDone = 0;
+      // Counted separately from `gamesDone`, which also counts games skipped because
+      // an earlier invocation already stored them. Conflating the two reported 33
+      // calls for a resumed run that made exactly one.
+      let takeCalls = 0;
 
       for (const context of chosen) {
         if ((storedPerGame.get(context.fixture.gameKey) ?? 0) >= cohort.length) {
@@ -192,6 +196,7 @@ export async function GET(request: Request) {
           { onConflict: 'season_id,week,game_key,model_id' },
         );
         if (takeError) throw new Error(`game_takes: ${takeError.message}`);
+        takeCalls += takes.length;
         gamesDone++;
       }
 
@@ -200,8 +205,8 @@ export async function GET(request: Request) {
       const all = await loadTakes(db, seasonId, week, chosen.map((c) => c.fixture.gameKey));
       const written = await writeGuide(toWriterInput(week, chosen, all));
       cost += written.costUsd;
-      // Calls MADE this invocation, not takes stored — a resumed run makes far fewer.
-      const callsMade = gamesDone * cohort.length + 1;
+      // Calls MADE this invocation, not takes stored — a fully resumed run makes one.
+      const callsMade = takeCalls + 1;
 
       if (!written.guide) {
         await failJobRun(db, {
