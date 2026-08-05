@@ -151,6 +151,21 @@ describe('claiming a job run', () => {
     expect(claim.reason).toMatch(/resuming/);
   });
 
+  it('resumes a FAILED run too, so stored takes are not stranded behind one bad call', async () => {
+    const { db } = fakeDb([
+      {
+        id: 'run-0', job: 'weekend-guide', season_id: 'season-1', week: 5,
+        status: 'failed', started_at: '2026-10-08T18:00:00Z', model_calls: 33, cost_usd: 0.36,
+      },
+    ]);
+    // The guide's expensive work is 32 takes; its fragile step is the single assembly
+    // call at the end. Blocking here would strand every paid take behind a cheap call
+    // that only needs trying again.
+    const claim = await claimJobRun(db, { job: 'weekend-guide', seasonId: 'season-1', week: 5, resumable: true });
+    expect(claim.claimed).toBe(true);
+    expect(claim.runId).toBe('run-0');
+  });
+
   it('never resumes a run that already completed', async () => {
     const { db } = fakeDb([
       {

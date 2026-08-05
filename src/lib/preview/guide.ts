@@ -236,6 +236,12 @@ export async function writeGuide(input: WriterInput): Promise<GuideResult> {
     userPrompt,
     schema: weekendGuideSchema,
     maxOutputTokens: LEAGUE.maxOutputTokens,
+    // The beat writer is INTERMITTENTLY unparseable: the same facts packet produced a
+    // clean article on one attempt and malformed JSON on the next. It is also the
+    // single point of failure for a run whose expensive work — thirty-two takes — is
+    // already stored and paid for, and it is by far the cheapest call in the job.
+    // Retrying it harder than the league default is the right trade.
+    parseRetries: 5,
   });
 
   return {

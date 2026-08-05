@@ -94,8 +94,16 @@ export async function claimJobRun(db: SupabaseClient, input: ClaimInput): Promis
 }
 
 /**
- * Hand back the existing run when it is still `running` and the caller declared the
- * job resumable. A `completed` run is never resumed — that would redo finished work.
+ * Hand back the existing run when the caller declared the job resumable and the run
+ * did not finish.
+ *
+ * Both `running` (killed by the function ceiling) and `failed` (an unusable model
+ * response at the last step) resume. `failed` matters more than it looks: the weekend
+ * guide's expensive work is thirty-two takes, and its fragile step is the single
+ * assembly call at the end. Refusing to resume a failed run would strand every paid
+ * take behind a cheap call that just needs trying again.
+ *
+ * A `completed` run is never resumed — that would redo finished work.
  */
 async function resumeExisting(
   db: SupabaseClient,
@@ -106,11 +114,11 @@ async function resumeExisting(
   const query = db.from('job_runs').select('id, status, started_at').eq('job', job).eq('season_id', seasonId);
   const { data } = await (week === null ? query.is('week', null) : query.eq('week', week)).single();
 
-  if (!data || data.status !== 'running') return null;
+  if (!data || (data.status !== 'running' && data.status !== 'failed')) return null;
   return {
     claimed: true,
     runId: data.id as string,
-    reason: `resuming the run started at ${data.started_at}; work already stored is skipped`,
+    reason: `resuming the ${data.status} run started at ${data.started_at}; work already stored is skipped`,
   };
 }
 

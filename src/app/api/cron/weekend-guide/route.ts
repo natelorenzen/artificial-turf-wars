@@ -200,11 +200,13 @@ export async function GET(request: Request) {
       const all = await loadTakes(db, seasonId, week, chosen.map((c) => c.fixture.gameKey));
       const written = await writeGuide(toWriterInput(week, chosen, all));
       cost += written.costUsd;
+      // Calls MADE this invocation, not takes stored — a resumed run makes far fewer.
+      const callsMade = gamesDone * cohort.length + 1;
 
       if (!written.guide) {
         await failJobRun(db, {
           runId: claim.runId!,
-          modelCalls: all.length + 1,
+          modelCalls: callsMade,
           costUsd: cost,
           detail: 'beat writer returned no usable article',
         });
@@ -221,7 +223,7 @@ export async function GET(request: Request) {
           game_keys: chosen.map((c) => c.fixture.gameKey),
           facts_packet: written.factsPacket as unknown as Record<string, unknown>,
           facts_packet_hash: written.factsPacketHash,
-          model_calls: all.length + 1,
+          model_calls: callsMade,
           cost_usd: cost,
           published: false,
         },
@@ -231,7 +233,7 @@ export async function GET(request: Request) {
 
       await completeJobRun(db, {
         runId: claim.runId!,
-        modelCalls: all.length + 1,
+        modelCalls: callsMade,
         costUsd: cost,
         detail: gate.ok ? gate.reason : `SELECTION ARBITRARY — ${gate.reason}`,
       });
