@@ -138,6 +138,41 @@ describe('claiming a job run', () => {
     expect(claim.reason).toMatch(/Duplicate delivery ignored/);
   });
 
+  it('lets a resumable job re-enter a run that died mid-flight', async () => {
+    const { db } = fakeDb([
+      { id: 'run-0', job: 'weekend-guide', season_id: 'season-1', week: 5, status: 'running', started_at: '2026-10-08T18:00:00Z' },
+    ]);
+    // Safe here and only here: a take is keyed on (season, week, game, model), so the
+    // second pass skips what already landed. Without this, a job killed by the 300s
+    // function ceiling could never finish.
+    const claim = await claimJobRun(db, { job: 'weekend-guide', seasonId: 'season-1', week: 5, resumable: true });
+    expect(claim.claimed).toBe(true);
+    expect(claim.runId).toBe('run-0');
+    expect(claim.reason).toMatch(/resuming/);
+  });
+
+  it('never resumes a run that already completed', async () => {
+    const { db } = fakeDb([
+      {
+        id: 'run-0', job: 'weekend-guide', season_id: 'season-1', week: 5,
+        status: 'completed', finished_at: '2026-10-08T18:03:00Z', model_calls: 33, cost_usd: 0.47,
+      },
+    ]);
+    const claim = await claimJobRun(db, { job: 'weekend-guide', seasonId: 'season-1', week: 5, resumable: true });
+    expect(claim.claimed).toBe(false);
+    expect(claim.reason).toMatch(/already ran/);
+  });
+
+  it('keeps blocking a stuck run for jobs that did NOT declare themselves resumable', async () => {
+    const { db } = fakeDb([
+      { id: 'run-0', job: 'waiver-bids', season_id: 'season-1', week: 5, status: 'running', started_at: '2026-10-06T16:00:00Z' },
+    ]);
+    // waiver-bids must never resume: a re-called model can name different players,
+    // which collide with nothing and spend the budget twice.
+    const claim = await claimJobRun(db, input);
+    expect(claim.claimed).toBe(false);
+  });
+
   it('throws rather than proceeding when the database fails for any other reason', async () => {
     const db = {
       from: () => ({

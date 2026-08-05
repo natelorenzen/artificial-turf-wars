@@ -46,6 +46,20 @@ export interface ClaimInput {
   seasonId: string;
   /** Null for jobs that run once per season rather than once per week. */
   week?: number | null;
+  /**
+   * Allow re-entering a run still marked `running`.
+   *
+   * Only safe when the job's UNIT OF SPEND is individually idempotent. The weekend
+   * guide qualifies: each take is keyed `(season_id, week, game_key, model_id)`, so a
+   * second pass skips whatever already landed and pays only for what is missing. That
+   * makes resuming strictly better than blocking, because the alternative is a job
+   * killed by the 300s function ceiling that can then never finish.
+   *
+   * `waiver-bids` does NOT qualify and must never set this. Re-calling a model there
+   * can yield different players, which collide with nothing and spend the budget a
+   * second time. For those, a stuck row must keep blocking until a human looks.
+   */
+  resumable?: boolean;
 }
 
 /**
@@ -66,6 +80,10 @@ export async function claimJobRun(db: SupabaseClient, input: ClaimInput): Promis
   }
 
   if (error.code === UNIQUE_VIOLATION) {
+    if (input.resumable) {
+      const resumed = await resumeExisting(db, input.job, input.seasonId, week);
+      if (resumed) return resumed;
+    }
     const existing = await describeExisting(db, input.job, input.seasonId, week);
     return { claimed: false, runId: null, reason: existing };
   }
@@ -73,6 +91,27 @@ export async function claimJobRun(db: SupabaseClient, input: ClaimInput): Promis
   // Any other failure is not a duplicate — it is a broken database, and refusing to
   // spend money on an unknown state is the only safe reading of it.
   throw new Error(`job_runs claim (${input.job}): ${error.message}`);
+}
+
+/**
+ * Hand back the existing run when it is still `running` and the caller declared the
+ * job resumable. A `completed` run is never resumed — that would redo finished work.
+ */
+async function resumeExisting(
+  db: SupabaseClient,
+  job: JobName,
+  seasonId: string,
+  week: number | null,
+): Promise<JobClaim | null> {
+  const query = db.from('job_runs').select('id, status, started_at').eq('job', job).eq('season_id', seasonId);
+  const { data } = await (week === null ? query.is('week', null) : query.eq('week', week)).single();
+
+  if (!data || data.status !== 'running') return null;
+  return {
+    claimed: true,
+    runId: data.id as string,
+    reason: `resuming the run started at ${data.started_at}; work already stored is skipped`,
+  };
 }
 
 async function describeExisting(

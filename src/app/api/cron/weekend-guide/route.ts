@@ -2,7 +2,6 @@ import { assertCronAuth, cronErrorResponse } from '@/lib/cron/guard';
 import { supabaseServer } from '@/lib/supabase-server';
 import { COHORT, LEAGUE } from '@/lib/config/league';
 import { claimJobRun, completeJobRun, failJobRun } from '@/lib/cron/job-run';
-import { ingestWeekProjections } from '@/lib/sleeper/ingest';
 import { buildWeekContexts, selectionDiscriminates } from '@/lib/preview/games';
 import { seasonIdFor } from '@/lib/scoring/week';
 import {
@@ -18,6 +17,57 @@ export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
 
 const FORBIDDEN_NAMES = [...COHORT.map((m) => m.displayName), ...COHORT.map((m) => m.lab)];
+
+/**
+ * Stop starting new work past this point, leaving room to store what is done and to
+ * write the article. Vercel kills the function at `maxDuration` with no chance to
+ * flush, so the budget has to be enforced on our side of that line.
+ */
+const TIME_BUDGET_MS = 200_000;
+
+const outOfTime = (startedAt: number) => Date.now() - startedAt > TIME_BUDGET_MS;
+
+/** Every stored take for these games, shaped for the writer. */
+async function loadTakes(
+  db: ReturnType<typeof supabaseServer>,
+  seasonId: string,
+  week: number,
+  gameKeys: string[],
+): Promise<TakeResult[]> {
+  const { data, error } = await db
+    .from('game_takes')
+    .select('game_key, model_id, novice_point, expert_point, player_to_watch, swing_factor, confidence, valid, models(display_name)')
+    .eq('season_id', seasonId)
+    .eq('week', week)
+    .in('game_key', gameKeys);
+  if (error) throw new Error(`game_takes read: ${error.message}`);
+
+  return (data ?? [])
+    .filter((row) => row.valid)
+    .map((row) => {
+      const model = row.models as unknown as { display_name: string } | null;
+      return {
+        modelKey: '',
+        modelId: row.model_id as string | null,
+        displayName: model?.display_name ?? 'unknown',
+        openrouterId: '',
+        gameKey: row.game_key as string,
+        take: {
+          novice_point: (row.novice_point as string) ?? '',
+          expert_point: (row.expert_point as string) ?? '',
+          player_to_watch: (row.player_to_watch as string) ?? '',
+          swing_factor: (row.swing_factor as string) ?? '',
+          confidence: row.confidence === null ? 0 : Number(row.confidence),
+        },
+        raw: null,
+        valid: true,
+        contextHash: '',
+        citedFields: [],
+        unsupportedClaims: [],
+        costUsd: 0,
+      };
+    });
+}
 
 /**
  * Thursday — "how to survive this weekend".
@@ -36,6 +86,7 @@ export async function GET(request: Request) {
 
     const db = supabaseServer();
     const season = Number(process.env.SEASON_YEAR ?? LEAGUE.season);
+    const startedAt = Date.now();
     const seasonId = await seasonIdFor(db, season);
 
     // The guide previews the week that has NOT been played yet.
@@ -44,15 +95,17 @@ export async function GET(request: Request) {
       return Response.json({ ok: true, skipped: 'no upcoming week', season });
     }
 
-    const claim = await claimJobRun(db, { job: 'weekend-guide', seasonId, week });
+    // Resumable: every take is keyed (season, week, game_key, model_id), so a second
+    // pass skips what already landed. See the note on ClaimInput.resumable.
+    const claim = await claimJobRun(db, { job: 'weekend-guide', seasonId, week, resumable: true });
     if (!claim.claimed) {
       return Response.json({ ok: true, skipped: claim.reason, season, week });
     }
 
     try {
-      // Refresh this week's projections first — the guide is only as current as they are.
-      await ingestWeekProjections(season, week, { db });
-
+      // NOTE: weekly projections are ingested by the DAILY ingest job, not here. Six
+      // sequential Sleeper fetches inside this route would eat a large share of the
+      // 300s ceiling that the model calls need.
       const contexts = await buildWeekContexts(db, season, week, seasonId);
       if (contexts.length === 0) {
         await completeJobRun(db, { runId: claim.runId!, detail: 'no fixtures with projections' });
@@ -71,35 +124,80 @@ export async function GET(request: Request) {
         modelId: idOf.get(m.key) ?? null,
       }));
 
-      const all: TakeResult[] = [];
-      let cost = 0;
-      for (const context of chosen) {
-        const takes = await takesForGame(context, week, cohort, FORBIDDEN_NAMES);
-        for (const t of takes) cost += t.costUsd;
-        all.push(...takes);
+      // Which games already have a full set of takes from an earlier invocation?
+      const { data: existing } = await db
+        .from('game_takes')
+        .select('game_key, model_id')
+        .eq('season_id', seasonId)
+        .eq('week', week);
+      const storedPerGame = new Map<string, number>();
+      for (const row of existing ?? []) {
+        const key = row.game_key as string;
+        storedPerGame.set(key, (storedPerGame.get(key) ?? 0) + 1);
       }
 
-      await db.from('game_takes').upsert(
-        all.map((t) => ({
-          season_id: seasonId,
-          week,
-          game_key: t.gameKey,
-          model_id: t.modelId,
-          novice_point: t.take?.novice_point ?? null,
-          expert_point: t.take?.expert_point ?? null,
-          player_to_watch: t.take?.player_to_watch ?? null,
-          swing_factor: t.take?.swing_factor ?? null,
-          confidence: t.take?.confidence ?? null,
-          cited_fields: t.citedFields,
-          unsupported_claims: t.unsupportedClaims,
-          raw_response: t.raw,
-          valid: t.valid,
-          context_hash: t.contextHash,
-          cost_usd: t.costUsd,
-        })),
-        { onConflict: 'season_id,week,game_key,model_id' },
-      );
+      let cost = 0;
+      let gamesDone = 0;
 
+      for (const context of chosen) {
+        if ((storedPerGame.get(context.fixture.gameKey) ?? 0) >= cohort.length) {
+          gamesDone++;
+          continue;
+        }
+
+        // Stop before the ceiling rather than being killed mid-write. A killed
+        // invocation loses whatever it had not yet stored; a clean exit keeps it and
+        // lets the next run continue.
+        if (outOfTime(startedAt)) {
+          await completeJobRun(db, {
+            runId: claim.runId!,
+            costUsd: cost,
+            detail: `partial: ${gamesDone}/${chosen.length} games stored, stopped before the function ceiling`,
+          });
+          return Response.json({
+            ok: true,
+            partial: true,
+            season,
+            week,
+            gamesDone,
+            of: chosen.length,
+            note: 'ran out of time; re-invoke to continue',
+            costUsd: Number(cost.toFixed(4)),
+          });
+        }
+
+        const takes = await takesForGame(context, week, cohort, FORBIDDEN_NAMES);
+        for (const t of takes) cost += t.costUsd;
+
+        // Persist per GAME, not once at the end — the unit of loss on a timeout
+        // should be one game, not the whole run.
+        const { error: takeError } = await db.from('game_takes').upsert(
+          takes.map((t) => ({
+            season_id: seasonId,
+            week,
+            game_key: t.gameKey,
+            model_id: t.modelId,
+            novice_point: t.take?.novice_point ?? null,
+            expert_point: t.take?.expert_point ?? null,
+            player_to_watch: t.take?.player_to_watch ?? null,
+            swing_factor: t.take?.swing_factor ?? null,
+            confidence: t.take?.confidence ?? null,
+            cited_fields: t.citedFields,
+            unsupported_claims: t.unsupportedClaims,
+            raw_response: t.raw,
+            valid: t.valid,
+            context_hash: t.contextHash,
+            cost_usd: t.costUsd,
+          })),
+          { onConflict: 'season_id,week,game_key,model_id' },
+        );
+        if (takeError) throw new Error(`game_takes: ${takeError.message}`);
+        gamesDone++;
+      }
+
+      // Read every take back, so an assembly that follows a resumed run sees the
+      // takes stored by earlier invocations too.
+      const all = await loadTakes(db, seasonId, week, chosen.map((c) => c.fixture.gameKey));
       const written = await writeGuide(toWriterInput(week, chosen, all));
       cost += written.costUsd;
 
