@@ -19,7 +19,7 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { COHORT, LEAGUE } from '@/lib/config/league';
+import { COHORT, FLEX_ELIGIBLE, LEAGUE } from '@/lib/config/league';
 import { assertNoLabelLeak } from '@/lib/engine/labels';
 import {
   EMPTY_LINEUP,
@@ -48,7 +48,12 @@ const LINEUP_TASK =
   'Set your starting lineup for this week. Name one player_id for every slot: qb, two rb, ' +
   'two wr, te, flex (RB/WR/TE), k, def. Every id must come from your_roster and must appear ' +
   'in startable_player_ids — a player on bye or ruled out cannot score. No player may fill ' +
-  'two slots.';
+  'two slots.\n\n' +
+  'If you have NO startable player eligible for a slot, set it to null. That is a legal ' +
+  'answer and it scores 0 for that slot, shown publicly as an empty slot. Do not invent an ' +
+  'id and do not put an ineligible player there. But null is only accepted when nothing ' +
+  'eligible is left — leaving a slot empty while a startable player sits on your bench is ' +
+  'rejected, and the deterministic fallback lineup replaces your whole answer.';
 
 const LINEUP_OUTPUT_EXAMPLE = {
   qb: 'player_id',
@@ -57,7 +62,7 @@ const LINEUP_OUTPUT_EXAMPLE = {
   te: 'player_id',
   flex: 'player_id',
   k: 'player_id',
-  def: 'player_id',
+  def: 'player_id or null if nothing eligible remains',
   headline: 'One sentence naming the call you actually made.',
   key_factors: ['cites a DATA field and value', '...'],
   closest_call: 'The starter you nearly benched, and what would have made you.',
@@ -176,6 +181,58 @@ export function toLineup(response: LineupResponse): Lineup {
   };
 }
 
+/** Which roster positions may legally fill each slot. */
+const SLOT_ELIGIBILITY: Record<string, LineupPlayer['position'][]> = {
+  qb: ['QB'],
+  rb: ['RB'],
+  wr: ['WR'],
+  te: ['TE'],
+  flex: [...FLEX_ELIGIBLE],
+  k: ['K'],
+  def: ['DEF'],
+};
+
+/**
+ * An empty slot is legal only when it was unavoidable.
+ *
+ * Both halves matter. A model with no startable defence must be allowed to say so —
+ * that is a real situation the rules anticipate, and 2025 week 6 produced it for three
+ * of eight teams with Houston and Minnesota on bye. But a model that leaves FLEX empty
+ * with four eligible players on the bench has thrown points away, and recording that as
+ * a legal lineup would hide the single most gradeable mistake in the whole game.
+ *
+ * So the test is availability, not intent: is there a startable player eligible for this
+ * slot who is not already starting somewhere else?
+ */
+export function avoidableEmptySlots(lineup: Lineup, roster: LineupPlayer[]): string[] {
+  const used = new Set(lineupPlayerIds(lineup).filter((id): id is string => Boolean(id)));
+  const spare = roster.filter((p) => isStartable(p) && !used.has(p.playerId));
+
+  const empties: [string, boolean][] = [
+    ['qb', lineup.qb === null],
+    ['te', lineup.te === null],
+    ['flex', lineup.flex === null],
+    ['k', lineup.k === null],
+    ['def', lineup.def === null],
+    ...lineup.rb.map((id, i): [string, boolean] => [`rb[${i}]`, id === null]),
+    ...lineup.wr.map((id, i): [string, boolean] => [`wr[${i}]`, id === null]),
+  ];
+
+  const problems: string[] = [];
+  for (const [slot, isEmpty] of empties) {
+    if (!isEmpty) continue;
+    const key = slot.replace(/\[\d+\]$/, '');
+    const eligible = spare.filter((p) => SLOT_ELIGIBILITY[key].includes(p.position));
+    if (eligible.length > 0) {
+      problems.push(
+        `${slot} left empty with ${eligible.length} eligible player(s) available ` +
+          `(${eligible.slice(0, 3).map((p) => p.playerId).join(', ')})`,
+      );
+    }
+  }
+  return problems;
+}
+
 /**
  * Legality, on top of the zod shape check.
  *
@@ -187,6 +244,11 @@ export function toLineup(response: LineupResponse): Lineup {
 export function lineupProblem(lineup: Lineup, roster: LineupPlayer[]): string | null {
   const structural = validateLineup(lineup, roster);
   if (structural) return structural;
+
+  // Empty slots the roster could have filled. Checked before the startability of the
+  // named players, because "you benched nobody into your FLEX" is the more basic error.
+  const avoidable = avoidableEmptySlots(lineup, roster);
+  if (avoidable.length > 0) return avoidable.join('; ');
 
   const startable = new Set(startableIds(roster));
   const named = lineupPlayerIds(lineup).filter((id): id is string => Boolean(id));

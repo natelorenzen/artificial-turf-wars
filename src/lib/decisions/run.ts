@@ -11,7 +11,7 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { ZodType } from 'zod';
+import type { ZodType, ZodTypeDef } from 'zod';
 import { LEAGUE, PROMPT_VERSION, RULEBOOK_VERSION } from '@/lib/config/league';
 import { callModel, type CallResult } from '@/lib/openrouter/client';
 import { assemblePrompt, assertContextCeiling } from '@/lib/prompt/assemble';
@@ -37,7 +37,9 @@ export interface RunDecisionInput<T> extends DecisionContext {
   data: unknown;
   task: string;
   outputExample: unknown;
-  schema: ZodType<T>;
+  // Same shape `callModel` takes. The lineup schema preprocesses empty-slot spellings,
+  // which makes its INPUT type `unknown` while its output stays strict.
+  schema: ZodType<T, ZodTypeDef, unknown>;
 }
 
 export interface DecisionRecord<T> {

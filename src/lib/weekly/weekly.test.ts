@@ -12,6 +12,7 @@ import {
   toLineup,
 } from './lineups';
 import { buildWaiverContext, teamWaiverState } from './waivers';
+import { lineupSchema } from '@/lib/schemas/decisions';
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -322,5 +323,94 @@ describe('the waiver DATA block', () => {
     const state = teamWaiverState(ctx, ctx.teams[0]);
     expect(state.roster).toHaveLength(15);
     expect(state.faabRemaining).toBe(60);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Regression: 2025 week 6, 6 August 2026.
+//
+// Houston and Minnesota on bye left three of eight teams unable to field nine. Two
+// models noticed and said so — one with JSON null, one with the string "null" — and
+// both were recorded as failures and handed a fallback for being right.
+// ---------------------------------------------------------------------------
+
+describe('regression — an empty slot is a legal answer', () => {
+  const full = lineupRoster(roster());
+
+  /** A roster whose only DEF is on bye: nothing eligible is left for that slot. */
+  const noDefence = lineupRoster(
+    roster().map((p) => (p.position === 'DEF' ? { ...p, is_on_bye: true } : p)),
+  );
+
+  const base = {
+    qb: 'QB1',
+    rb: ['RB1', 'RB2'],
+    wr: ['WR1', 'WR2'],
+    te: 'TE1',
+    flex: 'RB3',
+    k: 'K1',
+    def: 'DEF1',
+  };
+
+  it('parses a JSON null slot — GPT-5.6 Sol sent this for te and k', () => {
+    const parsed = lineupSchema.safeParse({
+      ...base,
+      te: null,
+      k: null,
+      headline: 'h',
+      key_factors: ['a'],
+      closest_call: 'c',
+      what_would_change_it: 'w',
+      confidence: 0.5,
+    });
+    expect(parsed.success).toBe(true);
+    expect(parsed.success && parsed.data.te).toBeNull();
+  });
+
+  it('parses the STRING "null" as empty — Qwen3.7 Plus sent this for def', () => {
+    // It passed the old schema as a player id and then failed roster validation with
+    // "null is not on this roster", which reported a correct read of a bye as a failure.
+    const parsed = lineupSchema.safeParse({
+      ...base,
+      def: 'null',
+      headline: 'h',
+      key_factors: ['a'],
+      closest_call: 'c',
+      what_would_change_it: 'w',
+      confidence: 0.5,
+    });
+    expect(parsed.success).toBe(true);
+    expect(parsed.success && parsed.data.def).toBeNull();
+  });
+
+  it('accepts an empty slot the roster genuinely cannot fill', () => {
+    expect(lineupProblem({ ...base, def: null }, noDefence)).toBeNull();
+  });
+
+  it('rejects an empty slot while an eligible player sits on the bench', () => {
+    // The other half. Leaving FLEX empty with four eligible players is the most
+    // gradeable mistake in the game and must not pass as a legal lineup.
+    expect(lineupProblem({ ...base, flex: null }, full)).toMatch(
+      /flex left empty with \d+ eligible player/,
+    );
+  });
+
+  it('does not count a player already starting elsewhere as available', () => {
+    // Only one kicker, and he is in the K slot. An empty second slot he cannot also
+    // fill is unavoidable, not a choice.
+    expect(lineupProblem({ ...base, rb: ['RB1', null] }, lineupRoster([
+      entry({ player_id: 'QB1', position: 'QB' }),
+      entry({ player_id: 'RB1', position: 'RB' }),
+      entry({ player_id: 'WR1', position: 'WR' }),
+      entry({ player_id: 'WR2', position: 'WR' }),
+      entry({ player_id: 'TE1', position: 'TE' }),
+      entry({ player_id: 'RB3', position: 'RB' }),
+      entry({ player_id: 'K1', position: 'K' }),
+      entry({ player_id: 'DEF1', position: 'DEF' }),
+    ]))).toBeNull();
+  });
+
+  it('still rejects a wholly empty lineup when the roster is full', () => {
+    expect(lineupProblem({ qb: null, rb: [null, null], wr: [null, null], te: null, flex: null, k: null, def: null }, full)).not.toBeNull();
   });
 });

@@ -292,6 +292,17 @@ function allowedNumbers(facts: WrapFacts): Set<string> {
     if (value >= 0 && value <= 1) allowed.add(numberKey(value * 100));
   }
 
+  //   3. **Rounding.** A writer that says two models "topped 0.85 efficiency" when the
+  //      packet holds 0.8532 and 0.9202 has said something true, less precisely. The
+  //      real week-6 article did exactly that and it was the only flag left standing.
+  //      Every value is therefore also allowed at coarser precision. This cannot launder
+  //      an invented figure — a number nothing rounds to is still caught — it only stops
+  //      the check demanding four decimal places in English prose.
+  for (const key of [...allowed]) {
+    const value = Number(key);
+    for (const places of [0, 1, 2, 3]) allowed.add(numberKey(Number(value.toFixed(places))));
+  }
+
   return allowed;
 }
 

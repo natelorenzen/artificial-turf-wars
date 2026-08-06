@@ -223,6 +223,60 @@ shift makes forward-looking jobs safer, not tighter.** Kickoffs move an hour lat
 while the crons stay fixed, so weeks 9–14 have *more* slack than weeks 2–8 (8.3h vs 7.3h
 for lineups). The DST hazard is real for jobs that must FOLLOW an event, not precede one.
 
+### The second rehearsal — 2025 week 6, $0.99
+
+Run to confirm the five fixes. It confirmed them and found two more things.
+
+**The wrap checks now behave.** `resultCheck` silent, number check down to one flag from
+ten. Re-running both checks over the stored articles afterwards: **week 6 passes clean at
+zero notes, week 5 keeps both of its genuine findings.** That second half is the point —
+the leniencies added for week 6 did not launder week 5's inverted result or its invented
+`1.19`.
+
+**Bug 6 — the number check's third false-positive class: rounding.** The one surviving
+flag was `0.85`, from *"Grok 4.5 and Claude Opus 5 both topped 0.85 efficiency"*. Grok is
+0.8532 and Opus 0.9202; both do top 0.85. The writer stated something true, less
+precisely. Every packet value is now also allowed at coarser precision. A figure nothing
+rounds to is still caught.
+
+**Bug 7 — a model was marked failed for correctly reporting an empty slot.** Houston and
+Minnesota on bye left three of eight teams unable to field nine, and the deterministic
+fallback left those slots empty too. Two models noticed:
+
+- **Qwen3.7 Plus** sent the string `"null"` for `def` — *"leaving the DEF slot empty due
+  to the Vikings being on bye"*. It failed roster validation with "null is not on this
+  roster".
+- **GPT-5.6 Sol** sent JSON `null` for `te` and `k`, having lost both waiver bids to fix
+  exactly those slots. Zod rejected it.
+
+`lineupSchema` required a non-empty string for all nine slots, while the engine has
+supported empty ones from the start — `Lineup` fields are `string | null`, `scoreLineup`
+emits `empty: true`, and §4.4 *requires* an unfilled slot to be shown as empty rather than
+as a quiet zero. There was no way for a model to report the thing the rules anticipate.
+
+Slots are nullable now, both spellings normalise, and `avoidableEmptySlots` keeps the
+other half honest: an empty slot is legal only when no startable eligible player is left
+un-started. "I had nobody" passes; "I left FLEX empty with four on the bench" is still
+rejected, because that is the most gradeable mistake in the game.
+
+> Three of the seven bugs found across both rehearsals — Grok's duplicate drop, Qwen's
+> empty DEF, GPT's null slots — are the same bug wearing different clothes: **a model
+> penalised for a situation our schema or prompt gave it no way to express.** Every one
+> would have been published as a reasoning failure. Worth checking for deliberately
+> before the draft rather than discovering three more in September.
+
+#### What the week-6 run showed that week 5 did not
+
+- **Adversarial play.** Kimi K3: *"a capped $13 on Rachaad White as a flex upgrade that
+  doubles as a block on Team D."* It won the player; Claude Opus 5 bid $9 and lost him.
+  First time opponent awareness produced denial rather than just better self-assessment.
+- **Punting.** Qwen3.7 Plus stood pat *"to preserve FAAB for future winnable weeks, as I
+  am a heavy underdog against Team G this week."*
+- **The rolling-list tiebreak fired on real bids** for the first time — GPT-5.6 Sol lost
+  a $1 claim to Muse Spark on waiver priority. That path had only unit tests.
+- **The luck detector produced real copy**: Kimi K3 beat 5 of 7 rivals on all-play and
+  still lost; GPT-5.6 Sol won with a score that would have lost to 6 of 7.
+
 #### Also fixed, found on the way in
 
 `/backtest` counted every roster row with no filter, so the first waiver run against 2025
