@@ -29,7 +29,7 @@ import {
   type SplitHashes,
 } from '@/lib/prompt/assemble';
 import { mean, type RosterEntry } from '@/lib/prompt/context';
-import { runDecision } from '@/lib/decisions/run';
+import { recordEngineRejection, runDecision } from '@/lib/decisions/run';
 import { waiverSchema, type WaiverResponse } from '@/lib/schemas/decisions';
 import {
   loadPlayerForm,
@@ -343,6 +343,10 @@ export async function decideWaivers(
   if (problem) {
     // All or nothing, per §4.5: partially applying a claim set changes the plan the
     // model actually submitted into one it never considered.
+    //
+    // Recorded on the decision, because a rejected claim set and a deliberate stand-pat
+    // both write zero rows to `waiver_bids` and are indistinguishable there forever.
+    await recordEngineRejection(db, record.decisionId, problem);
     return { ...base, claims: [], reasons: [], valid: false, fallbackApplied: true, problem };
   }
 

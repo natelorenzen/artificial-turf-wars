@@ -37,7 +37,7 @@ import {
   type SplitHashes,
 } from '@/lib/prompt/assemble';
 import type { RosterEntry } from '@/lib/prompt/context';
-import { runDecision } from '@/lib/decisions/run';
+import { recordEngineRejection, runDecision } from '@/lib/decisions/run';
 import { lineupSchema, type LineupResponse } from '@/lib/schemas/decisions';
 import { weeklyBase, weeklyOverlay, type WeeklyContext, type WeeklyTeam } from './context';
 
@@ -336,6 +336,9 @@ export async function decideLineup(
   const lineup = toLineup(record.parsed);
   const problem = lineupProblem(lineup, built.roster);
   if (problem) {
+    // The response parsed but is not a legal lineup. Say so on the audit row, or the
+    // site publishes this team as having chosen the fallback it was given.
+    await recordEngineRejection(db, record.decisionId, problem);
     return {
       ...base,
       lineup: deterministicLineup(built.roster),

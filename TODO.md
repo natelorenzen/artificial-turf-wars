@@ -277,6 +277,35 @@ rejected, because that is the most gradeable mistake in the game.
 - **The luck detector produced real copy**: Kimi K3 beat 5 of 7 rivals on all-play and
   still lost; GPT-5.6 Sol won with a score that would have lost to 6 of 7.
 
+### The schema sweep — bug 8, and the one place it did not bite
+
+Done deliberately after both rehearsals, because three of the seven bugs so far were the
+same shape and finding the rest was free.
+
+**Bug 8 — the audit trail under-reported fallbacks, in the models' favour.**
+`runDecision` sets `fallback_applied` from schema validity alone, so every rejection at
+the ENGINE layer — `validateWaiverClaims`, `lineupProblem`, an unavailable draft pick —
+never reached the decision row. And `fallback_applied` is exactly the flag the site
+renders as the public `fallback` tag on team pages and the backtest board.
+
+Two rehearsal decisions were stored `valid: true, fallback_applied: false` with their
+answers discarded: **Grok 4.5's rejected waiver claims and Qwen3.7 Plus's rejected week-6
+lineup.** Both were publicly shown as having decided cleanly. Only GPT-5.6 Sol's showed
+correctly, and only because its rejection happened at the zod layer.
+
+`recordEngineRejection` now annotates the row from all three call sites. `valid` is left
+alone on purpose — it means the model returned well-formed, schema-conforming JSON, which
+stays true. "Answered properly and was still unusable" is a more interesting failure than
+"returned garbage", and collapsing them throws away the distinction the validation policy
+rests on. Both historical rows were corrected in place.
+
+**Where it did NOT bite, checked rather than assumed.** The draft path has the same
+structure, and `/backtest/draft` publishes a fallback count from it. Audited all 120 picks
+of the 2025 rehearsal against the `pick` each model actually named: **every one matches,
+zero hidden fallbacks. The published number is honest.** But it was true by luck rather
+than by guard, which is not a property worth carrying into a one-shot 120-call draft, so
+`runPick` now records its rejections too.
+
 #### Also fixed, found on the way in
 
 `/backtest` counted every roster row with no filter, so the first waiver run against 2025

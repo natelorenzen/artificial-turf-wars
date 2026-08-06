@@ -167,6 +167,43 @@ export async function runDecision<T>(
   };
 }
 
+/**
+ * Record that a schema-valid response was rejected by the ENGINE and replaced.
+ *
+ * `runDecision` can only set `fallback_applied` from what it knows at the time, which is
+ * whether the response parsed. Legality is decided afterwards and elsewhere —
+ * `validateWaiverClaims` for a claim set, `lineupProblem` for a lineup — and until this
+ * existed, none of it reached the audit row.
+ *
+ * The 2025 rehearsal showed exactly what that costs. Grok 4.5's waiver claims were
+ * rejected in full and it made no moves; Qwen3.7 Plus's lineup was thrown away and
+ * replaced by the deterministic one. Both were stored `valid: true,
+ * fallback_applied: false`, and `fallback_applied` is the flag the site renders as the
+ * public "fallback" tag. Two models were shown as having decided cleanly when their
+ * answers had been discarded.
+ *
+ * `valid` is deliberately left alone. It means the model returned well-formed,
+ * schema-conforming JSON, and that stays true. "Answered properly and was still
+ * unusable" is a different and more interesting failure than "returned garbage", and
+ * collapsing them would throw away the distinction the whole validation policy rests on.
+ */
+export async function recordEngineRejection(
+  db: SupabaseClient | null,
+  decisionId: string | null,
+  reason: string,
+): Promise<void> {
+  if (!db || !decisionId) return;
+
+  const { error } = await db
+    .from('decisions')
+    .update({ fallback_applied: true, validation_error: `engine rejected: ${reason}` })
+    .eq('id', decisionId);
+
+  // Never throw. The caller has already applied the fallback and the season continues;
+  // losing the annotation must not turn a handled rejection into a failed job.
+  if (error) console.error(`decision ${decisionId} rejection note: ${error.message}`);
+}
+
 function safeSoftViolations(parsed: unknown): string[] {
   const p = parsed as Record<string, unknown>;
   if (!Array.isArray(p?.key_factors) || typeof p?.headline !== 'string') return [];
