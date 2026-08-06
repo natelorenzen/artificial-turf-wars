@@ -29,6 +29,7 @@ import {
   projectWeekPoints,
   type ProjectionCalibration,
 } from './normalize';
+import { earliestKickoffIso } from './kickoff';
 import { scorePlayerWeek } from '@/lib/scoring/engine';
 import { supabaseServer } from '@/lib/supabase-server';
 
@@ -119,7 +120,11 @@ export async function ingestSchedule(season: number, db = supabaseServer()) {
       season_type: 'regular',
       home: g.home!,
       away: g.away!,
-      kickoff_at: g.date ? new Date(g.date).toISOString() : null,
+      // MODELLED, not reported. Sleeper's schedule feed has no kickoff time — see
+      // `kickoff.ts`. The previous `new Date(g.date)` read the bare date as UTC
+      // midnight, i.e. 8pm ET the evening BEFORE the games, which put every
+      // before-kickoff guard 17 to 24 hours early.
+      kickoff_at: earliestKickoffIso(g.date),
     })),
     'season,season_type,week,home,away',
   );

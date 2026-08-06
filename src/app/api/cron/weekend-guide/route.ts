@@ -1,4 +1,5 @@
 import { assertCronAuth, cronErrorResponse } from '@/lib/cron/guard';
+import { defersToLaterFiring, resolveUpcomingWeek, WEEKEND_GUIDE_FIRINGS } from '@/lib/cron/upcoming';
 import { supabaseServer } from '@/lib/supabase-server';
 import { COHORT, LEAGUE } from '@/lib/config/league';
 import { claimJobRun, completeJobRun, failJobRun } from '@/lib/cron/job-run';
@@ -90,10 +91,28 @@ export async function GET(request: Request) {
     const startedAt = Date.now();
     const seasonId = await seasonIdFor(db, season);
 
-    // The guide previews the week that has NOT been played yet.
-    const week = await nextUnplayedWeek(db, season);
-    if (week === null) {
-      return Response.json({ ok: true, skipped: 'no upcoming week', season });
+    // The week that has NOT been played yet — and only if it is genuinely this
+    // weekend. "The next unplayed week" answers "week 1" every day from the day the
+    // schedule is ingested, so without the lead-time guard this job would spend
+    // thirty-three model calls every Thursday of August on an article headlined "this
+    // weekend" about games five weeks out, priced on projections that will have moved.
+    const upcoming = await resolveUpcomingWeek(db, season);
+    if (!upcoming.ok) {
+      return Response.json({ ok: true, skipped: upcoming.reason, season });
+    }
+    const week = upcoming.week;
+
+    // Two cron entries, same as `lineups`: most weeks open on Thursday night and the
+    // Thursday run is the right one, but weeks 1 and 12 of 2026 open on a WEDNESDAY, and
+    // for those the Thursday entry lands the following week.
+    const later = defersToLaterFiring(new Date(), upcoming.firstKickoff, WEEKEND_GUIDE_FIRINGS);
+    if (later) {
+      return Response.json({
+        ok: true,
+        skipped: `a later firing still clears kickoff — leaving week ${week} to it`,
+        season,
+        week,
+      });
     }
 
     // Resumable: every take is keyed (season, week, game_key, model_id), so a second
@@ -267,29 +286,4 @@ export async function GET(request: Request) {
   } catch (err) {
     return cronErrorResponse(err);
   }
-}
-
-/**
- * The next week with a kickoff still ahead of us — the one to preview.
- *
- * Reads the ingested schedule rather than counting from a season-start date, for the
- * same reason the scoring jobs do: international games, Thanksgiving and the
- * 1 November DST shift all break the arithmetic version.
- */
-async function nextUnplayedWeek(
-  db: ReturnType<typeof supabaseServer>,
-  season: number,
-  now = new Date(),
-): Promise<number | null> {
-  const { data, error } = await db
-    .from('nfl_games')
-    .select('week')
-    .eq('season', season)
-    .eq('season_type', 'regular')
-    .lte('week', LEAGUE.regularSeasonWeeks)
-    .gt('kickoff_at', now.toISOString())
-    .order('week', { ascending: true })
-    .limit(1);
-  if (error) throw new Error(`nfl_games: ${error.message}`);
-  return (data?.[0]?.week as number | undefined) ?? null;
 }

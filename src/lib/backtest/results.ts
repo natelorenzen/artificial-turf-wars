@@ -126,12 +126,20 @@ export async function loadBacktestSummary(
   const teamIds = teams.map((t) => t.id);
 
   // --- rosters -------------------------------------------------------------
+  // DRAFTED players only. This page reports what the draft produced, so a waiver add
+  // does not belong in it — and without the filter it would be counted anyway, because
+  // a dropped player keeps its row with `active = false` rather than disappearing.
+  //
+  // Filtering was a no-op the day it was added (all 120 rows were `draft`), which is
+  // exactly why it was worth adding: the numbers here are published, and the first
+  // thing that ever runs waivers against this season would have moved them silently.
   const rosterRows = await pageAll<{ team_id: string; player_id: string; players: { position: Position } }>(
     (from, to) =>
       db
         .from('rosters')
         .select('team_id, player_id, players!inner(position)')
         .in('team_id', teamIds)
+        .eq('acquired_via', 'draft')
         .range(from, to) as never,
     'rosters',
   );
