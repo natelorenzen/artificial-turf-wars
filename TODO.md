@@ -413,7 +413,7 @@ last cheap chance to find an engine bug.
       Every query in the weekly path returns what the code expects, the base block is
       identical for all eight, every overlay replays, no lab name leaks, and the biggest
       prompt is ~6k tokens against a 400k ceiling. Nothing called, nothing written.
-- [ ] **Backfill the rehearsal season's schedule and weekly projections** — the blocker
+- [x] **Backfill the rehearsal season's schedule and weekly projections** *(6 Aug)* — the blocker
       found by that dry run. 2025 has no `nfl_games`, no `team_byes` and no weekly
       projections, so the rehearsal currently sees zero byes, null projections for all
       120 rostered players, and an empty free-agent pool. A model asked to set a lineup
@@ -428,8 +428,9 @@ last cheap chance to find an engine bug.
       $1.04. Three bugs found and fixed; see the rehearsal section above. Note the order
       is waivers → resolution → lineups, **not** lineups first: the Tuesday and Wednesday
       jobs transact into the week the Thursday job then sets a lineup for.
-- [ ] **Re-run week 5 with the three fixes in**, or run week 6 clean, to confirm the
-      number check now passes an article it should pass. ~$1.
+- [x] **Ran week 6 clean** *(6 Aug, $0.99)* — the fixes held and two more bugs fell out.
+      Re-checking both stored articles afterwards: week 6 passes at zero notes, week 5
+      keeps both of its genuine findings.
 
 > **Sequencing call worth respecting: do not run the real draft until the weekly cycle
 > has been rehearsed end to end.** If the lineup or scoring path has a bug, you want to
@@ -441,18 +442,22 @@ last cheap chance to find an engine bug.
 
 - [x] ~~**Apply migration `0005_guide_sections.sql`**~~ *(already applied — the 5 Aug
       entry was wrong, verified 6 Aug: `weekend_guides.sections` is present)*
-- [ ] **Apply migration `0006_recap_publishing.sql`** — `recaps.published`, defaulting
-      false, plus `model_calls` and `cost_usd`. **The `wrap` route will 500 without it**,
-      unlike 0005 which only degraded. Verified outstanding on 6 August.
+- [x] **Apply migration `0006_recap_publishing.sql`** *(6 Aug, applied)* — verified via
+      `weekly-dry-run.ts --status`, and the wrap route's exact upsert exercised against
+      the real schema.
+- [ ] **Apply migration `0007_social_posts.sql`** — the outbound post queue. Nothing
+      reads it yet, so this degrades rather than breaking.
 - [x] **Guard `weekend-guide` against running weeks early** *(6 Aug)* — and `lineups`
       with it, which has the same trap. `src/lib/cron/upcoming.ts` refuses any
       forward-looking job whose week does not kick off within 7 days, reported as a
       SKIP rather than an error: February-to-September is seven months of having
       nothing to do, and a weekly 4xx trains whoever watches the cron log to ignore it —
       which is how `CCRON_SECRET` went unnoticed for weeks.
-- [ ] **Homepage still reads "the season has not started"** — needs standings and results
-- [ ] **Weekly results pages** — also the real organic SEO opportunity, since they are
-      recurring genuinely-new indexable pages
+- [x] **Homepage standings** *(6 Aug)* — head-to-head ranks, all-play beside it, shown
+      once a week has been scored. Verified in a browser against the 2025 rehearsal.
+- [x] **Weekly results pages** *(6 Aug)* — `/results` and `/results/[week]`, reading
+      through `buildWrapFacts` so a page cannot disagree with the column about the same
+      week. The recurring indexable pages the SEO case rested on.
 - [x] **Verify `CRON_SECRET` in Vercel** *(5 Aug)* — it was set as `CCRON_SECRET`, a
       typo, so every cron had been failing 500 in production since first deploy. New
       secret set on Production, typo removed, redeployed, verified 401 unauthenticated
@@ -464,9 +469,11 @@ last cheap chance to find an engine bug.
       2026 do not open on a Thursday. See bugs 4 and 5 above.
       `scripts/weekly-dry-run.ts --crons` is now the standing check; re-run it whenever a
       season's schedule is first ingested.
-- [ ] **Estimate season model spend and top up OpenRouter.** Measure one real draft call
-      first rather than extrapolating from the debate runs — league prompts carry far
-      more context (the dossier cap alone is 150k tokens)
+- [x] **Season model spend measured** *(6 Aug)*, from 152 real calls rather than
+      extrapolated: waiver $0.089/call, auction $0.058, lineup $0.041, draft pick $0.038,
+      wrap ~$0.009. **~$1.54/week × 14 = ~$22, plus ~$5 draft, ~$1 playoffs — call it $30.
+      Top up OpenRouter to $45** for retries and re-runs. Zero invalid responses in 152.
+- [ ] **Top up OpenRouter to $45** — the number above is measured, the top-up is not done.
 
 ---
 
@@ -476,10 +483,17 @@ last cheap chance to find an engine bug.
       6 Aug CAR @ ARI preseason game from memory with no DATA block. Unanimous pick,
       confidences 0.50–0.53, and not one invented a roster. $0.0997.
       `content/posts/unanimous-and-unconvinced.md`, evidence in `content/data/`.
-- [ ] **Findings 005: the five bugs the rehearsal caught.** *(was 004 — renumbered, the
-      preview post shipped first.)* Already researched; the strongest unused writing on
-      the project and it costs nothing to produce. The backtest page states the headline
-      without the story underneath it.
+- [ ] **Findings 005: the eight bugs two rehearsals caught.** *(was "five" — the count
+      moved on 6 August.)* The strongest unused writing on the project and it costs
+      nothing: every artefact is already in the database. The thesis is better than the
+      tally — **three of the eight were models punished for limits in our own schema or
+      prompt** (Grok's duplicate drop, Qwen's empty DEF, GPT's null slots), and a fourth
+      was our audit trail quietly flattering them. A post about grading LLMs that admits
+      most of the failures were the harness's is a genuinely uncommon thing to publish.
+- [ ] **The OG share card (SPEC §12)** — `/results/[week]/opengraph-image`. Nothing to do
+      with X specifically: it is what makes a link render as something rather than a bare
+      URL in Slack, iMessage, Discord and Google. `/findings/[slug]` already has one to
+      copy the approach from.
 - [ ] **Case-insensitive redirects.** `/faq` works, `/FAQ` 404s — Next routes are
       case-sensitive. Same for `/Findings`, `/Terms` etc.
 - [ ] **Submit the sitemap in Search Console.** Submit the path `sitemap.xml`, against a
