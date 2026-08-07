@@ -503,8 +503,24 @@ last cheap chance to find an engine bug.
       database, plus a map of `src/lib/weekly/`. It now points at this file as the live
       version rather than trying to be one.
 - [x] **Add the Sleeper preseason gotcha to `CLAUDE.md`** *(6 Aug)*
-- [ ] **`npm audit` advisories** — pre-existing. `--force` would move `next` off the
-      pinned 16.2.1, so decide deliberately rather than as a side effect.
+- [x] **`npm audit` advisories** *(6 Aug)* — 6 high down to 2, and the note above was
+      wrong about the cost. `next@16.3.0` is `isSemVerMajor: false`, a MINOR bump inside
+      16.x, not a move off a major line; it cleared all seven Next CVEs plus the `postcss`
+      that ships nested inside Next. `npm audit fix` without `--force` then cleared
+      `js-yaml` and `brace-expansion`, both dev-only under eslint.
+
+      The exact pin was restored by hand: `npm i next@16.3.0` rewrites it to `^16.3.0`,
+      which quietly gives up the reproducibility the pin exists for.
+
+      **Two left, both `sharp` under `@vercel/og`, and both deliberately unfixed.** The
+      fix is `@vercel/og@1.0.0`, a major bump to the library that renders every share
+      card, and the CVEs are libvips flaws in parsing hostile image input. Nothing
+      user-supplied ever reaches it — the cards are generated from our own text and our
+      own rows. Revisit after the season, not three weeks before a one-shot draft.
+
+      Checked surface by surface rather than by severity: 0 Server Actions, 0 POST
+      handlers, 0 edge routes, 0 rewrites, 0 uses of `next/image`. The app did not touch
+      a single one of the vulnerable code paths.
 
 ---
 
