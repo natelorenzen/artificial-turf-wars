@@ -490,12 +490,13 @@ last cheap chance to find an engine bug.
       prompt** (Grok's duplicate drop, Qwen's empty DEF, GPT's null slots), and a fourth
       was our audit trail quietly flattering them. A post about grading LLMs that admits
       most of the failures were the harness's is a genuinely uncommon thing to publish.
-- [ ] **The OG share card (SPEC §12)** — `/results/[week]/opengraph-image`. Nothing to do
-      with X specifically: it is what makes a link render as something rather than a bare
-      URL in Slack, iMessage, Discord and Google. `/findings/[slug]` already has one to
-      copy the approach from.
-- [ ] **Case-insensitive redirects.** `/faq` works, `/FAQ` 404s — Next routes are
-      case-sensitive. Same for `/Findings`, `/Terms` etc.
+- [x] **The OG share card (SPEC §12)** *(6 Aug)* — `/results/[week]/opengraph-image`,
+      leading with four scorelines rather than the beat writer's headline. A column has
+      been wrong before; a fixture list cannot be. Rendered and looked at, which is how
+      the fourth fixture was found sitting on top of the domain line.
+- [x] **Case-insensitive redirects** *(6 Aug)* — `src/proxy.ts`, Next 16's name for what
+      used to be `middleware.ts`. 308 to the lowercase form, which is what the sitemap
+      and every canonical tag already advertise. Assets and `_next` excluded.
 - [ ] **Submit the sitemap in Search Console.** Submit the path `sitemap.xml`, against a
       **www or Domain property** — a bare-apex property reports zero URLs because the
       apex 308s and every URL in the file is a www URL.

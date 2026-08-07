@@ -83,6 +83,13 @@ export async function loadWeekResults(
   const id = await seasonId(season);
   if (!id) return null;
 
+  // Asked first, and not as an optimisation. `buildWrapFacts` builds anonymous labels
+  // from draft slots, and before the draft every slot is null — so it THROWS rather
+  // than returning nothing, and every `/results/[week]` URL served a 500 instead of a
+  // 404 for the whole preseason. Found by curling the OG image on a season with no
+  // draft in it; invisible against the rehearsal, which has one.
+  if (!(await scoredWeeks(season)).includes(week)) return null;
+
   const facts = await buildWrapFacts(supabase, { seasonId: id, season, week });
   if (facts.teams.length === 0) return null;
 

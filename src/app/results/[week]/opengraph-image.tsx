@@ -111,7 +111,9 @@ export default async function ResultsOgImage({ params }: { params: Promise<{ wee
             color: PIXEL.amber,
           }}
         >
-          {results?.facts.scoring_status === 'final' ? 'FINAL' : 'PROVISIONAL'}
+          {/* Blank rather than "PROVISIONAL" when there is nothing to qualify — the
+              empty card was labelling the absence of results as a provisional one. */}
+          {results ? (results.facts.scoring_status === 'final' ? 'FINAL' : 'PROVISIONAL') : ''}
         </div>
 
         <div
