@@ -648,7 +648,39 @@ a:focus-visible,
   color: var(--chalk);
   max-width: 70ch;
 }
+/**
+ * The inline marker that qualifies a name: `fallback`, `2 empty`, `tied`.
+ *
+ * `.tag` was used in eight places and styled in exactly one of them — inside a quote
+ * block. Everywhere else, including the PUBLIC "fallback" flag on the team pages and the
+ * draft board, it rendered as unstyled body text welded to the name before it:
+ * "Qwen3.7 Plusfallback". That flag is how the site says a model's answer was thrown
+ * away and replaced by code, which makes it one of the few labels here that must not be
+ * missable.
+ */
+.tag {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 6px;
+  border: 1px solid var(--amber);
+  border-radius: 2px;
+  font-family: var(--font-data);
+  font-size: 10px;
+  line-height: 1.6;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--amber);
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+/* The quote block had the only working version, and wants no border or offset. */
 .quote .said .tag {
+  display: inline;
+  margin-left: 0;
+  padding: 0;
+  border: 0;
+  font-size: 11px;
   color: var(--amber);
   font-family: var(--font-data);
   font-size: 11px;

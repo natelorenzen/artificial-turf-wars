@@ -110,14 +110,47 @@ export const draftPickSchema = reasoningSchema.extend({
 // Lineup (SPEC §4.4)
 // ---------------------------------------------------------------------------
 
+/**
+ * Ways a model says "I have nobody eligible for this slot".
+ *
+ * The 2025 week-6 rehearsal produced both spellings in one run: GPT-5.6 Sol sent JSON
+ * `null` for `te` and `k`, and Qwen3.7 Plus sent the STRING "null" for `def` while
+ * explaining, correctly, that its only defence was on bye. Both were recorded as
+ * failures and given a deterministic fallback for being right.
+ *
+ * Normalising these is not repair in the sense §4.1a forbids. The decision is
+ * unchanged — the model said the slot is empty and the slot is empty. What differs is
+ * only how it spelled it, and grading a model on JSON spelling measures our schema.
+ */
+const EMPTY_SLOT_TOKENS = new Set(['null', 'none', 'empty', 'n/a', '-', '']);
+
+/**
+ * One starting slot. Nullable, because an empty slot is a legal outcome the rules
+ * anticipate: SPEC §4.4 requires an unfilled slot to score 0 and be SHOWN as empty
+ * rather than as a quiet zero, so the mistake stays visible as a mistake.
+ *
+ * A roster genuinely cannot always fill nine. In 2025 week 6, with Houston and
+ * Minnesota on bye, three of eight teams had no legal option somewhere — and the
+ * deterministic fallback left those slots empty too. A schema that forbade what the
+ * engine produces would fail every model that noticed.
+ *
+ * Whether the empty slot was AVOIDABLE is a separate question, and a real one. That is
+ * checked against the roster in `lineupProblem`, not here.
+ */
+const lineupSlot = z.preprocess(
+  (value) =>
+    typeof value === 'string' && EMPTY_SLOT_TOKENS.has(value.trim().toLowerCase()) ? null : value,
+  z.string().min(1).nullable(),
+);
+
 export const lineupSchema = reasoningSchema.extend({
-  qb: z.string().min(1),
-  rb: z.array(z.string().min(1)).length(LEAGUE.slots.RB),
-  wr: z.array(z.string().min(1)).length(LEAGUE.slots.WR),
-  te: z.string().min(1),
-  flex: z.string().min(1),
-  k: z.string().min(1),
-  def: z.string().min(1),
+  qb: lineupSlot,
+  rb: z.array(lineupSlot).length(LEAGUE.slots.RB),
+  wr: z.array(lineupSlot).length(LEAGUE.slots.WR),
+  te: lineupSlot,
+  flex: lineupSlot,
+  k: lineupSlot,
+  def: lineupSlot,
 });
 
 // ---------------------------------------------------------------------------

@@ -12,7 +12,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { LEAGUE, type Position } from '@/lib/config/league';
-import { runDecision } from '@/lib/decisions/run';
+import { recordEngineRejection, runDecision } from '@/lib/decisions/run';
 import { draftPickSchema } from '@/lib/schemas/decisions';
 import { buildDraftBoard, draftBoardNeeds, type DraftBoardPick } from '@/lib/prompt/context';
 import {
@@ -168,6 +168,23 @@ export async function runPick(
   if (!player) {
     player = fallbackPick(availableFor(state), context.roster, round);
     fallbackApplied = true;
+
+    // A pick can be schema-valid and still unusable — a name instead of an id, or a
+    // player already off the board. `runDecision` has already written the audit row
+    // saying the response parsed, and `/backtest/draft` renders `fallback_applied` from
+    // that row, so without this the board would show a deterministic pick as the
+    // model's own choice.
+    //
+    // Audited across the 2025 rehearsal on 6 August 2026: all 120 picks matched what
+    // the model named, so nothing was ever mis-reported. That made it true by luck
+    // rather than by guard, which is not a property to take into a one-shot draft.
+    await recordEngineRejection(
+      db,
+      record.decisionId,
+      record.parsed
+        ? `"${record.parsed.pick}" is not an available player id`
+        : 'no usable response',
+    );
   }
 
   return {

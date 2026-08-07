@@ -83,6 +83,21 @@ client in server-side routes.
   `api.sleeper.com` for projections and stats. The projections host is undocumented.
 - **ADP is not on the season-long projections endpoint** (`adp: null`). Real ADP is
   on the *week-1* endpoint as `adp_dd_ppr`. `1000.0` means "unranked" — filter it.
+- **The schedule feed has NO KICKOFF TIME.** Every record is
+  `{"status":"pre_game","date":"2026-09-13","home":"CAR","week":1,"game_id":…,"away":"CHI"}`
+  — a date and nothing else, on both hosts, and no other endpoint carries one (checked
+  `/v1/state/nfl` and the projections feed, 6 Aug 2026). `new Date("2026-09-13")` reads
+  that as UTC **midnight**, i.e. 8pm ET the evening *before* the games, which put every
+  before-kickoff guard 17–24 hours early and made the lineup job look like it had a week
+  of slack when it had none. `src/lib/sleeper/kickoff.ts` models the **earliest** kickoff
+  the league schedules on that weekday (Sunday 09:30 ET for the London games, Thursday
+  20:15, Thanksgiving 12:30, Christmas 13:00) and the ingest stores that. It is modelled,
+  not reported — never present it as a game's actual start time.
+- **Not every week opens on Thursday.** In 2026, weeks 1 and 12 open on a **Wednesday**
+  evening, so a Thursday-only cron lands a week early for them. `lineups` and
+  `weekend-guide` each have a Wednesday *and* a Thursday entry and stand down on the
+  earlier one whenever the later still clears kickoff (`defersToLaterFiring`). Check any
+  new season with `scripts/weekly-dry-run.ts --crons`.
 - **No bye-week field exists.** Derive byes from
   `api.sleeper.app/schedule/nfl/regular/{season}`: any of the 32 teams absent from a
   week is on bye. Validated for 2026 — all 32 teams, exactly one bye each.
@@ -90,6 +105,11 @@ client in server-side routes.
   `fgm_50_59` and `fgm_50p` together — `fgm_50p` already includes 50–59.
 - **`st_td` vs `def_st_td`.** A special-teams TD is owned by the DEF/ST unit only.
   Scoring both would pay 12 points for one return. There is a test asserting 6.
+- **The preseason schedule endpoint is shifted by one and missing its first week.**
+  `/schedule/nfl/pre/{season}` omits the opening week entirely, and its `week` numbers
+  are off: Sleeper's `pre` week N is the real preseason week N+1. Verified 5 Aug 2026.
+  Harmless today because nothing reads preseason data — a trap the first time anything
+  does. `regular` is not affected.
 
 ---
 
@@ -169,23 +189,42 @@ will need an idempotency key before that job ships.
 
 ## Build status against SPEC §9
 
+Current as of **6 August 2026**. `TODO.md` is the live version of this table; when the
+two disagree, believe `TODO.md`.
+
 | Phase | State |
 |---|---|
-| 0 — scaffold, schema, cron config | **done** — migration `0001_init.sql` not yet applied to a live project |
-| 1 — Sleeper ingest + snapshots | **done** — verified against the live feed (`npx tsx scripts/ingest.ts --dry-run`) |
+| 0 — scaffold, schema, cron config | **done** — migrations `0001`–`0005` applied; `0006` outstanding |
+| 1 — Sleeper ingest + snapshots | **done** — 2026 holds 273 games, 32 byes, week-1 projections |
 | Scoring engine | **done** — 14 tests incl. the return-TD and absent-key traps |
 | Rulebook / prompt assembly | **done** — `rulebook-v2`, split base/overlay hashing |
-| 2/3 — OpenRouter adapter | **code complete, never called** — needs `OPENROUTER_API_KEY` |
+| 2/3 — OpenRouter adapter | **done and proven in production** — the weekend guide ran 33 calls end to end |
 | League engine | **done** — auction, snake draft, H2H ranking, all-play, FAAB, lineup/optimal |
 | v3 — labels, opponent context, playoff pool | **done** — 19 tests |
-| 5 — rules comprehension check | **done** — 17 questions, deterministic grading |
-| Cron guard | **done** — auth, kickoff/DST refusal, irreversible-job lock |
-| 4 — 2025 backtest | **not started** — gates the draft |
-| 6 — auction + draft run | **not started** — needs Phase 4 first |
-| 7–12 — weekly jobs, site, wrap, share card | **not started** |
+| 5 — rules comprehension check | **done** — 17 questions, 8/8 passed for 2026 |
+| Cron guard | **done** — auth, kickoff/DST refusal, lead-time refusal, irreversible lock, `job_runs` ledger |
+| 4 — 2025 backtest | **draft rehearsed** — 120 picks, $4.99, three gates met. **No weekly cycle has run against it** |
+| 6 — auction + draft run | **not started** — the one irreversible step, gated on the weekly rehearsal |
+| 7 — weekly jobs | **all 8 cron routes exist** *(6 Aug)*; the three newest have never fired on a real week |
+| 8–12 — site, standings, share card | **partial** — site live with findings, weekend guide, methodology; no standings or weekly results pages yet |
 
 The remaining spec open items are unchanged except: the §4.1b comprehension question
 set is now written (`src/lib/preseason/rules-check.ts`).
+
+### Weekly job layout
+
+```
+src/lib/weekly/
+  context.ts   # one loader for both model-calling weekly jobs — rosters, opponent,
+               #   standings, memory. Split into `weeklyBase` (identical for all
+               #   eight) and `weeklyOverlay` (per team, replays from base + teamId)
+  lineups.ts   # seeds deterministic lineups BEFORE calling anyone, then 8 in parallel
+  waivers.ts   # free-agent pool, all-or-nothing claim validation, sealed bids
+  wrap.ts      # deterministic facts packet, beat writer, deterministic number check
+src/lib/cron/
+  upcoming.ts  # the lead-time guard: refuse a week that does not kick off within 7 days
+  job-run.ts   # claim before you spend
+```
 
 ## Deviations taken during the build
 

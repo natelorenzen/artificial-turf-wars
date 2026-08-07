@@ -4,6 +4,7 @@
  *   npx tsx scripts/ingest.ts --dry-run          # hits Sleeper, writes nothing
  *   npm run ingest -- --players --schedule       # needs .env.local
  *   npm run ingest -- --stats --week 3 --status provisional
+ *   npm run ingest -- --week-projections --week 5 --season 2025
  */
 
 import {
@@ -11,6 +12,7 @@ import {
   ingestPlayers,
   ingestProjections,
   ingestSchedule,
+  ingestWeekProjections,
   ingestWeeklyStats,
 } from '@/lib/sleeper/ingest';
 
@@ -32,13 +34,26 @@ async function main() {
     return;
   }
 
-  const all = !flag('players') && !flag('schedule') && !flag('projections') && !flag('stats');
+  const all =
+    !flag('players') &&
+    !flag('schedule') &&
+    !flag('projections') &&
+    !flag('week-projections') &&
+    !flag('stats');
 
   if (all || flag('players')) console.log('players:', await ingestPlayers());
   if (all || flag('schedule')) console.log('schedule:', await ingestSchedule(season));
   if (all || flag('projections')) {
     const { projections, withAdp, skipped, calibration } = await ingestProjections(season);
     console.log("projections:", { projections, withAdp, skipped, sourceSeason: calibration.sourceSeason });
+  }
+  // Per-week projections. The daily cron does this for the upcoming week of the live
+  // season only, which leaves no way to populate a PAST week — and the 2025 rehearsal
+  // needs exactly that before a weekly cycle can be run against it end to end.
+  if (flag('week-projections')) {
+    const week = Number(value('week'));
+    if (!week) throw new Error('--week-projections requires --week');
+    console.log(`week ${week} projections:`, await ingestWeekProjections(season, week));
   }
   if (flag('stats')) {
     const week = Number(value('week'));

@@ -28,6 +28,29 @@ function escapeHtml(text: string): string {
 }
 
 /**
+ * Undo `escapeHtml`, for text that is about to be rendered as TEXT rather than markup.
+ *
+ * The contents rail and the heading slug both take their input from parsed inline HTML,
+ * where marked has already turned `"` into `&quot;` and `&` into `&amp;`. Stripping the
+ * tags off that string leaves the entities behind, and React then escapes them a second
+ * time — so a heading containing a quotation mark rendered in the sidebar as
+ * `&quot;Leaving the DEF slot empty&quot;`, and its anchor came out as
+ * `quot-leaving-the-def-slot-empty-quot`.
+ *
+ * Ampersand last, mirroring `escapeHtml` doing it first: decoding it earlier would turn
+ * `&amp;quot;` into `&quot;` and then into `"`, which is exactly the double-decode this
+ * function exists to avoid.
+ */
+function decodeEntities(text: string): string {
+  return text
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&amp;/g, '&');
+}
+
+/**
  * Slug for a heading, so posts can be deep-linked. Deterministic and ASCII-only.
  * Duplicate headings get a numeric suffix rather than colliding.
  */
@@ -78,7 +101,7 @@ export function renderMarkdown(body: string): { html: string; headings: Heading[
         // `this.parser` is provided by marked at call time.
         const self = this as unknown as { parser: { parseInline: (t: unknown[]) => string } };
         const text = self.parser.parseInline(tokens);
-        const plain = text.replace(/<[^>]+>/g, '');
+        const plain = decodeEntities(text.replace(/<[^>]+>/g, ''));
         const id = headingId(plain, seen);
         if (depth === 2) headings.push({ id, text: plain, level: depth });
         return `<h${depth} id="${id}">${text}</h${depth}>\n`;

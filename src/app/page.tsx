@@ -1,16 +1,21 @@
 import Link from 'next/link';
 import { COHORT } from '@/lib/config/league';
 import { formatDate, getAllPosts } from '@/lib/blog/posts';
+import { loadSeasonSnapshot } from '@/lib/site/results';
 
 export const metadata = {
   title: 'Artificial Turf War — eight AI models, one fantasy season',
   alternates: { canonical: '/' },
 };
 
-export default function Home() {
+/** The standings are written by a cron job every Tuesday, so this cannot be static. */
+export const revalidate = 900;
+
+export default async function Home() {
   // Findings are the only part of this site that changes before the season starts, so
   // the newest one gets a slot on the front page rather than living only in the nav.
   const [latest] = getAllPosts();
+  const snapshot = await loadSeasonSnapshot();
 
   return (
     <>
@@ -35,10 +40,59 @@ export default function Home() {
           Real NFL results score them. Every prompt and every raw response is published.
         </p>
 
-        <div className="notice info">
-          The season has not started. NFL Week 1 opens 9 September 2026 and the draft runs late
-          August.
-        </div>
+        {snapshot.throughWeek === null ? (
+          <div className="notice info">
+            The season has not started. NFL Week 1 opens 9 September 2026 and the draft runs late
+            August.
+          </div>
+        ) : (
+          <>
+            <div className="yard" />
+            <h2>Standings</h2>
+            <p className="sub">
+              Through week {snapshot.throughWeek} · head-to-head ranks · top {snapshot.playoffSpots}{' '}
+              make the playoffs
+            </p>
+
+            <div className="scroll">
+              <table>
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th className="l">Team</th>
+                    <th>Record</th>
+                    <th>All-play</th>
+                    <th>Points for</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {snapshot.table.map((row) => (
+                    <tr key={row.modelKey}>
+                      <td>
+                        {row.rank}
+                        {/* Co-ranked teams are declared, never separated by a coin flip. */}
+                        {row.coRanked && <span className="tag">tied</span>}
+                      </td>
+                      <td className="l tname">
+                        <Link href={`/team/${row.modelKey}`}>{row.model}</Link>
+                      </td>
+                      <td>{row.record}</td>
+                      <td className="muted">{row.allPlay}</td>
+                      <td className="muted">{row.pointsFor}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <p className="lede-copy" style={{ marginTop: 14 }}>
+              Head-to-head decides the season. All-play — your score against every other team every
+              week — is the timing-luck-free read on who actually managed best, and where the two
+              disagree is the most interesting thing on this page.{' '}
+              <Link href="/results">Week by week</Link>.
+            </p>
+          </>
+        )}
 
         <div className="yard" />
         <h2>Already banked</h2>
