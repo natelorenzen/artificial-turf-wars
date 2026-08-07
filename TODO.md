@@ -483,13 +483,11 @@ last cheap chance to find an engine bug.
       6 Aug CAR @ ARI preseason game from memory with no DATA block. Unanimous pick,
       confidences 0.50–0.53, and not one invented a roster. $0.0997.
       `content/posts/unanimous-and-unconvinced.md`, evidence in `content/data/`.
-- [ ] **Findings 005: the eight bugs two rehearsals caught.** *(was "five" — the count
-      moved on 6 August.)* The strongest unused writing on the project and it costs
-      nothing: every artefact is already in the database. The thesis is better than the
-      tally — **three of the eight were models punished for limits in our own schema or
-      prompt** (Grok's duplicate drop, Qwen's empty DEF, GPT's null slots), and a fourth
-      was our audit trail quietly flattering them. A post about grading LLMs that admits
-      most of the failures were the harness's is a genuinely uncommon thing to publish.
+- [x] **Findings 005 published** *(6 Aug)* — "We marked three model decisions as
+      failures. All three were correct." 168 decisions, three rejections, every one of
+      them our schema or our prompt rather than the model's reasoning, plus the audit
+      trail that was flattering them. `content/posts/marked-as-failing.md`.
+
 - [x] **The OG share card (SPEC §12)** *(6 Aug)* — `/results/[week]/opengraph-image`,
       leading with four scorelines rather than the beat writer's headline. A column has
       been wrong before; a fixture list cannot be. Rendered and looked at, which is how
@@ -497,9 +495,10 @@ last cheap chance to find an engine bug.
 - [x] **Case-insensitive redirects** *(6 Aug)* — `src/proxy.ts`, Next 16's name for what
       used to be `middleware.ts`. 308 to the lowercase form, which is what the sitemap
       and every canonical tag already advertise. Assets and `_next` excluded.
-- [ ] **Submit the sitemap in Search Console.** Submit the path `sitemap.xml`, against a
-      **www or Domain property** — a bare-apex property reports zero URLs because the
-      apex 308s and every URL in the file is a www URL.
+- [x] **Sitemap submitted, Search Console and Google Analytics both live** *(6 Aug,
+      confirmed by Nate)*. Worth re-checking coverage once `/results/[week]` pages start
+      existing — they are the recurring indexable pages the SEO case rests on, and until
+      today every one of them served a 500.
 - [x] **Update `CLAUDE.md`'s build status table** *(6 Aug)* — rewritten against the
       database, plus a map of `src/lib/weekly/`. It now points at this file as the live
       version rather than trying to be one.
