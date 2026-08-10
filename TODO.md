@@ -438,6 +438,47 @@ last cheap chance to find an engine bug.
 
 ---
 
+## 🔵 The playoffs are not wired up at all
+
+Found 7 August, by asking what the jobs would do in December rather than waiting to
+find out. **The engine primitives exist and nothing calls them.**
+
+Week 15 and 16 fixtures are in `nfl_games` — verified, week 15 opens
+`2026-12-18T01:15Z`. But every job is capped at `LEAGUE.regularSeasonWeeks` (14), so
+simulating the Thursday of playoff week 15 gives:
+
+```
+lineups / weekend-guide   SKIP — no regular-season week has a kickoff still ahead of it
+scoring jobs              resolveScoringWeek = 14   (and stays 14 forever)
+```
+
+Which means, as it stands, in December:
+
+- **no playoff lineups are ever set** — the four surviving teams would score whatever
+  their week-14 lineup happened to be, or nothing at all;
+- **no playoff week is ever scored**, so the season's result is the week-14 standings;
+- **the §14.5 playoff FAAB pool never runs.** `src/lib/engine/playoff-pool.ts` is
+  written and tested; no route or script invokes it;
+- `playoffSeeds` and `semifinalMatchups` in `allplay.ts` are likewise tested and
+  uncalled;
+- the daily ingest stops fetching weekly projections after week 14, so there would be
+  nothing to set a playoff lineup *from* even if something asked.
+
+**Deliberately not built now.** It is four months out, it is a whole phase rather than a
+bug — roster release, seeding, semifinal and final matchups, a FAAB run, two weeks of
+lineups and scoring — and the shape of it is easier to get right after watching fourteen
+real weeks than before watching any. The regular season is unaffected and complete.
+
+- [ ] **Wire up weeks 15–16** — routes, or a guarded script in the `weekly-rehearsal.ts`
+      mould. Rehearse it against 2025 first, exactly as the weekly cycle was.
+- [ ] **Decide whether `/results/[week]` and the standings distinguish playoff weeks**,
+      or whether week 15 just appears as another row. Currently it would 404.
+
+> Worth doing before **late November**, not before the draft. Putting it here so it is a
+> decision with a date on it rather than a surprise in the middle of a final.
+
+---
+
 ## 🟡 Before Week 1 (9 September)
 
 - [x] ~~**Apply migration `0005_guide_sections.sql`**~~ *(already applied — the 5 Aug
