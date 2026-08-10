@@ -438,6 +438,46 @@ last cheap chance to find an engine bug.
 
 ---
 
+## 🔴 The draft board was duplicated seven times over — FIXED, one step outstanding
+
+Found 10 August, an hour into looking at something else entirely. **This would have
+destroyed the draft.**
+
+`player_projections` has `unique (player_id, season, week)`. That does not constrain the
+SEASON-LONG rows, because their `week` is NULL and in SQL every NULL is distinct from
+every other NULL. The daily ingest upserts with that exact conflict target, so it never
+matched an existing season-long row and inserted a fresh copy of every player every day.
+
+Jonathan Taylor had seven identical rows, one per ingest since `CRON_SECRET` was fixed on
+5 August. 22,637 season-long rows for 2026 where there should have been 3,237.
+
+**What it would have done.** `loadPool` takes the top 1000 rows by `proj_pts`. Those
+1000 rows held **145 distinct players, each repeated seven times**. Eight models would
+have drafted from a board of 145 believing it held 1000 — and since `availableFor`
+removes drafted players by id, the six surviving copies of anyone taken would have stayed
+on the board for somebody else to draft again.
+
+This project already knew the rule. Migration `0003` splits `job_runs` into two partial
+indexes carrying exactly this comment: *"NULLs do not collide under a plain unique"*. The
+lesson was never carried back to the table the draft reads.
+
+- [x] **Data fixed** *(10 Aug)* — `scripts/dedupe-projections.ts --season 2026 --commit`.
+      19,400 duplicates removed, then 677 more: the first pass paged with
+      `order('created_at')`, which is not unique across a bulk insert, so rows shuffled
+      between requests and some were never seen. Caught only because the script tallies
+      what remains against what it expected. Now pages on `id`.
+- [x] **Ingest fixed** *(10 Aug)* — season-long projections are delete-then-insert, not
+      upsert. A partial index cannot be an `ON CONFLICT` target through PostgREST, since
+      inferring one means restating its predicate and `on_conflict` cannot express that.
+- [ ] **Apply migration `0008_season_projection_uniqueness.sql`** — the partial indexes
+      that make it impossible to regress. The data and the ingest are already correct, so
+      this is belt-and-braces rather than a blocker; apply it anyway before the draft.
+
+> Verified after the fix, against the queries the draft actually runs: auction board 60
+> rows / 60 distinct ids, pool 1000 rows / 1000 distinct ids.
+
+---
+
 ## 🔵 The playoffs are not wired up at all
 
 Found 7 August, by asking what the jobs would do in December rather than waiting to

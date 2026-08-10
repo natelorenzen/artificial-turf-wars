@@ -48,6 +48,33 @@ async function upsertChunked(
   }
 }
 
+/**
+ * Replace a whole set of rows: delete, then insert.
+ *
+ * Used for the SEASON-LONG projections, which cannot be upserted. Their uniqueness is a
+ * partial index (`where week is null`, migration 0008), and a partial index cannot be an
+ * `ON CONFLICT` target through PostgREST — inferring one requires restating its
+ * predicate, which the `on_conflict` parameter has no way to express.
+ *
+ * Before 0008 there was no uniqueness on those rows at all, so the upsert quietly
+ * inserted a fresh copy of every player on every daily run. Deleting first is what makes
+ * this job idempotent rather than accumulative.
+ */
+async function replaceChunked(
+  db: SupabaseClient,
+  table: string,
+  rows: Record<string, unknown>[],
+  scope: (query: ReturnType<SupabaseClient['from']>) => unknown,
+) {
+  const { error: deleteError } = (await scope(db.from(table).delete() as never)) as { error: unknown };
+  if (deleteError) throw new Error(`delete ${table}: ${(deleteError as Error).message}`);
+
+  for (let i = 0; i < rows.length; i += CHUNK) {
+    const { error } = await db.from(table).insert(rows.slice(i, i + CHUNK));
+    if (error) throw new Error(`insert ${table}: ${error.message}`);
+  }
+}
+
 async function recordSnapshot(
   db: SupabaseClient,
   result: SleeperFetchResult<unknown>,
@@ -256,7 +283,14 @@ export async function ingestProjections(
     }
   }
 
-  await upsertChunked(db, 'player_projections', rows, 'player_id,season,week');
+  // Delete-then-insert, NOT upsert. See `replaceChunked`: these rows are keyed by a
+  // partial unique index that `on_conflict` cannot name, and before that index existed
+  // the upsert inserted a duplicate of every player every single day.
+  await replaceChunked(db, 'player_projections', rows, (q) =>
+    (q as never as { eq: (c: string, v: unknown) => { is: (c: string, v: unknown) => unknown } })
+      .eq('season', season)
+      .is('week', null),
+  );
   return { projections: rows.length, withAdp, skipped, calibration };
 }
 
