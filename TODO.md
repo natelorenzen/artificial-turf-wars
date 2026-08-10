@@ -473,7 +473,8 @@ last cheap chance to find an engine bug.
       extrapolated: waiver $0.089/call, auction $0.058, lineup $0.041, draft pick $0.038,
       wrap ~$0.009. **~$1.54/week × 14 = ~$22, plus ~$5 draft, ~$1 playoffs — call it $30.
       Top up OpenRouter to $45** for retries and re-runs. Zero invalid responses in 152.
-- [ ] **Top up OpenRouter to $45** — the number above is measured, the top-up is not done.
+- [x] **OpenRouter topped up** *(7 Aug, confirmed by Nate)* — the draft and the season's
+      ~$30 of weekly calls are funded.
 
 ---
 
