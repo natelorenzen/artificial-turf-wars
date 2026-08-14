@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { accumulateStandings, type WeeklyTotal } from './week';
+import { accumulateStandings, standingsThroughWeek, type WeeklyTotal } from './week';
+import { LEAGUE } from '@/lib/config/league';
+import { FINAL_WEEK, SEMIFINAL_WEEK } from '@/lib/engine/bracket';
 
 /** Four teams is enough for every case here and keeps the fixtures readable. */
 const TEAMS = ['t1', 't2', 't3', 't4'].map((teamId) => ({ teamId, faabRemaining: 50 }));
@@ -146,5 +148,48 @@ describe('cumulative standings', () => {
     expect(rows.filter((r) => r.week === 1).every((r) => r.rank === undefined)).toBe(true);
     expect(rows.filter((r) => r.week === 2).every((r) => typeof r.rank === 'number')).toBe(true);
     expect(rows.find((r) => r.week === 2)!.faab_remaining).toBe(50);
+  });
+});
+
+describe('the standings freeze at the end of the regular season', () => {
+  it('stops accumulating at week 14 however late in the playoffs we are', () => {
+    expect(standingsThroughWeek(LEAGUE.regularSeasonWeeks)).toBe(LEAGUE.regularSeasonWeeks);
+    expect(standingsThroughWeek(SEMIFINAL_WEEK)).toBe(LEAGUE.regularSeasonWeeks);
+    expect(standingsThroughWeek(FINAL_WEEK)).toBe(LEAGUE.regularSeasonWeeks);
+  });
+
+  it('leaves mid-season weeks alone', () => {
+    expect(standingsThroughWeek(1)).toBe(1);
+    expect(standingsThroughWeek(9)).toBe(9);
+  });
+
+  it('would otherwise move the ranking the bracket was seeded from', () => {
+    // Four teams play a semifinal week; the other four are done. Accumulating it would
+    // give every survivor an extra all-play win over teams that did not play, and hand
+    // the two winners another head-to-head win — reordering the very standings that
+    // decided who was in the bracket.
+    const regular = accumulateStandings({
+      teams: TEAMS,
+      weekly: weekly({ t1: { 1: 100 }, t2: { 1: 80 }, t3: { 1: 120 }, t4: { 1: 70 } }),
+      matchups: scheduleWeek(1),
+      throughWeek: 1,
+    });
+
+    const withPlayoffWeek = accumulateStandings({
+      teams: TEAMS,
+      weekly: weekly({
+        t1: { 1: 100, [SEMIFINAL_WEEK]: 140 },
+        t2: { 1: 80 },
+        t3: { 1: 120, [SEMIFINAL_WEEK]: 90 },
+        t4: { 1: 70 },
+      }),
+      matchups: [...scheduleWeek(1), { week: SEMIFINAL_WEEK, homeTeamId: 't1', awayTeamId: 't3' }],
+      throughWeek: SEMIFINAL_WEEK,
+    });
+
+    const leader = (result: typeof regular) => result.standings[0].teamId;
+    expect(leader(regular)).toBe('t3');
+    expect(leader(withPlayoffWeek)).toBe('t1');
+    // Which is why the call site passes `standingsThroughWeek(week)` and never `week`.
   });
 });

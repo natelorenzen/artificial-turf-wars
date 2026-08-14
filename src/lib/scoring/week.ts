@@ -24,6 +24,7 @@ import {
   type LineupPlayer,
 } from '@/lib/engine/lineup';
 import { allPlayWeek, h2hWeek, rankStandings, type StandingRow } from '@/lib/engine/allplay';
+import { isPlayoffWeek, LAST_LEAGUE_WEEK } from '@/lib/engine/bracket';
 
 export type ScoreStatus = 'provisional' | 'final';
 
@@ -46,6 +47,8 @@ export interface ScoreWeekInput {
 export interface ScoreWeekResult {
   week: number;
   status: ScoreStatus;
+  /** Playoff weeks score lineups but do not touch the regular-season standings. */
+  playoff: boolean;
   ingest: { scored: number; skippedDefenses: number; backfilled: number; corrections: number };
   teamsScored: number;
   emptySlots: number;
@@ -122,11 +125,12 @@ export async function scoreWeek(db: SupabaseClient, input: ScoreWeekInput): Prom
     }
   }
 
-  const standings = await rebuildStandings(db, seasonId, week);
+  const standings = await rebuildStandings(db, seasonId, standingsThroughWeek(week));
 
   return {
     week,
     status,
+    playoff: isPlayoffWeek(week),
     ingest,
     teamsScored,
     emptySlots,
@@ -138,6 +142,23 @@ export async function scoreWeek(db: SupabaseClient, input: ScoreWeekInput): Prom
 // ---------------------------------------------------------------------------
 // Standings
 // ---------------------------------------------------------------------------
+
+/**
+ * How far the standings run after scoring `week`. The regular season, and no further.
+ *
+ * Standings are a regular-season table. Accumulating a playoff week through the same
+ * path would fold four teams' scores into an eight-team all-play record, hand every
+ * survivor another head-to-head win, and MOVE THE RANKING THE BRACKET WAS SEEDED FROM
+ * — retroactively changing who should have been playing that very week. The bracket's
+ * results live in `lineup_scores`, and `buildBracket` derives them against the frozen
+ * week-14 order.
+ *
+ * Named and exported rather than inlined because the whole property is one `Math.min`
+ * at one call site, which is exactly the kind of line a later edit drops.
+ */
+export function standingsThroughWeek(week: number): number {
+  return Math.min(week, LEAGUE.regularSeasonWeeks);
+}
 
 /**
  * Recompute weeks 1..throughWeek from stored lineup scores rather than incrementing
@@ -410,8 +431,13 @@ export interface WeeklyTotal {
   kickerPts: number;
 }
 
-/** Best available score per team per week: final where it exists, else provisional. */
-async function loadWeeklyTotals(
+/**
+ * Best available score per team per week: final where it exists, else provisional.
+ *
+ * Exported because the bracket needs exactly this and a second copy of "final beats
+ * provisional" is a copy that eventually disagrees about who won a semifinal.
+ */
+export async function loadWeeklyTotals(
   db: SupabaseClient,
   teamIds: string[],
   throughWeek: number,
@@ -459,6 +485,10 @@ async function loadWeeklyTotals(
  *
  * The answer is the latest week whose first kickoff has already happened. On the
  * Tuesday and Thursday after a slate, that is the week just played.
+ *
+ * Bounded by the last PLAYOFF week. Capped at 14 this returned 14 forever from mid
+ * December onwards, so the semifinals and the final would never have been scored and
+ * the season's result would have been the week-14 standings.
  */
 export async function resolveScoringWeek(
   db: SupabaseClient,
@@ -469,7 +499,7 @@ export async function resolveScoringWeek(
     .from('nfl_games')
     .select('week')
     .eq('season', season)
-    .lte('week', LEAGUE.regularSeasonWeeks)
+    .lte('week', LAST_LEAGUE_WEEK)
     .lt('kickoff_at', now.toISOString())
     .order('week', { ascending: false })
     .limit(1);

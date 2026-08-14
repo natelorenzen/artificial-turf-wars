@@ -15,7 +15,7 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { LEAGUE } from '@/lib/config/league';
+import { LAST_LEAGUE_WEEK } from '@/lib/engine/bracket';
 
 /**
  * How far ahead of kickoff a weekly job may legitimately run.
@@ -35,11 +35,16 @@ export interface UpcomingWeek {
 }
 
 /**
- * The next regular-season week with a kickoff still ahead of us.
+ * The next league week with a kickoff still ahead of us.
  *
  * Read from the ingested schedule rather than counted from a season-start date, for
  * the same reason the scoring jobs do it: international games, the Thanksgiving slate
  * and the 1 November DST shift all break the arithmetic version.
+ *
+ * The bound is the last PLAYOFF week. While it was the last regular-season week, every
+ * forward-looking job answered "nothing ahead of me" from mid-December on, so no
+ * playoff lineup would ever have been set and the four survivors would have scored
+ * whatever their week-14 lineup happened to be.
  */
 export async function upcomingWeek(
   db: SupabaseClient,
@@ -51,7 +56,7 @@ export async function upcomingWeek(
     .select('week, kickoff_at')
     .eq('season', season)
     .eq('season_type', 'regular')
-    .lte('week', LEAGUE.regularSeasonWeeks)
+    .lte('week', LAST_LEAGUE_WEEK)
     .gt('kickoff_at', now.toISOString())
     .order('kickoff_at', { ascending: true })
     .limit(1);

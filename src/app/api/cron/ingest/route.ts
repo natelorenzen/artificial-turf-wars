@@ -6,7 +6,7 @@ import {
   ingestWeekProjections,
 } from '@/lib/sleeper/ingest';
 import { supabaseServer } from '@/lib/supabase-server';
-import { LEAGUE } from '@/lib/config/league';
+import { LAST_LEAGUE_WEEK } from '@/lib/engine/bracket';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
@@ -51,14 +51,21 @@ export async function GET(request: Request) {
   }
 }
 
-/** The next regular-season week with a kickoff still ahead — the one to project. */
+/**
+ * The next league week with a kickoff still ahead — the one to project.
+ *
+ * Bounded by the last PLAYOFF week, not the last regular-season one. Capped at 14 this
+ * stopped fetching weekly projections the moment the regular season ended, so there
+ * would have been nothing to set a week-15 lineup from even once something asked for
+ * one — a December failure with a September cause.
+ */
 async function upcomingWeek(season: number): Promise<number | null> {
   const { data, error } = await supabaseServer()
     .from('nfl_games')
     .select('week')
     .eq('season', season)
     .eq('season_type', 'regular')
-    .lte('week', LEAGUE.regularSeasonWeeks)
+    .lte('week', LAST_LEAGUE_WEEK)
     .gt('kickoff_at', new Date().toISOString())
     .order('week', { ascending: true })
     .limit(1);

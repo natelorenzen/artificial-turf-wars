@@ -14,6 +14,8 @@
 import { LEAGUE, RANKING_BASIS } from '@/lib/config/league';
 import { supabase, SUPABASE_CONFIGURED } from '@/lib/supabase';
 import { buildWrapFacts, type WrapFacts, type WrapTeamFacts } from '@/lib/weekly/wrap';
+import { FINAL_WEEK, isPlayoffWeek, SEMIFINAL_WEEK } from '@/lib/engine/bracket';
+import { loadBracket } from '@/lib/playoffs/state';
 
 /**
  * Which season the site shows.
@@ -38,6 +40,31 @@ export interface WeekResults {
   facts: WrapFacts;
   matchups: WeekMatchup[];
   recap: WeekRecap | null;
+  /** Present only in weeks 15 and 16. */
+  playoff: PlayoffView | null;
+}
+
+export interface PlayoffView {
+  /** What the whole week is: two semifinals, or the final and the third-place game. */
+  weekLabel: string;
+  /** Round per matchup, keyed by the two model display names sorted and joined. */
+  roundOf: Map<string, 'semifinal' | 'final' | 'third_place'>;
+  /** Named once week 16's final has been scored, and null every moment before that. */
+  champion: string | null;
+  runnerUp: string | null;
+  third: string | null;
+  /** Seed number per model display name, for "(3) beat (2)". */
+  seedOf: Map<string, number>;
+}
+
+const ROUND_LABEL: Record<'semifinal' | 'final' | 'third_place', string> = {
+  semifinal: 'Semifinal',
+  final: 'Final',
+  third_place: 'Third place',
+};
+
+export function roundLabel(round: 'semifinal' | 'final' | 'third_place'): string {
+  return ROUND_LABEL[round];
 }
 
 export interface WeekRecap {
@@ -59,10 +86,16 @@ async function seasonId(season: number): Promise<string | null> {
 /**
  * Every week that has been scored, newest first.
  *
- * Derived from `standings` rather than from the schedule: a week exists on this site
- * once it has been scored, not once it has been played. The gap between those two is
- * real — Tuesday morning — and showing an empty week during it would look like the
- * league had a bad week rather than like the job had not run yet.
+ * Derived from what has been scored rather than from the schedule: a week exists on
+ * this site once it has been scored, not once it has been played. The gap between
+ * those two is real — Tuesday morning — and showing an empty week during it would
+ * look like the league had a bad week rather than like the job had not run yet.
+ *
+ * Two sources, not one. `standings` covers the regular season; the playoff weeks
+ * never write a standings row, by design, because they must not move the ranking the
+ * bracket was seeded from. Reading `standings` alone — which is what this did — meant
+ * `/results/15` and `/results/16` would have 404ed through the entire postseason,
+ * including on the week the champion was decided.
  */
 export async function scoredWeeks(season = SEASON): Promise<number[]> {
   const id = await seasonId(season);
@@ -73,7 +106,16 @@ export async function scoredWeeks(season = SEASON): Promise<number[]> {
   if (ids.length === 0) return [];
 
   const { data } = await supabase.from('standings').select('week').in('team_id', ids);
-  return [...new Set((data ?? []).map((r) => r.week as number))].sort((a, b) => b - a);
+  const weeks = new Set((data ?? []).map((r) => r.week as number));
+
+  const { data: playoffScores } = await supabase
+    .from('lineup_scores')
+    .select('week, lineups!inner(team_id)')
+    .gt('week', LEAGUE.regularSeasonWeeks)
+    .in('lineups.team_id', ids);
+  for (const row of playoffScores ?? []) weeks.add(row.week as number);
+
+  return [...weeks].sort((a, b) => b - a);
 }
 
 export async function loadWeekResults(
@@ -93,7 +135,60 @@ export async function loadWeekResults(
   const facts = await buildWrapFacts(supabase, { seasonId: id, season, week });
   if (facts.teams.length === 0) return null;
 
-  return { week, facts, matchups: pairUp(facts), recap: await loadRecap(id, week) };
+  return {
+    week,
+    facts,
+    matchups: pairUp(facts),
+    recap: await loadRecap(id, week),
+    playoff: isPlayoffWeek(week) ? await loadPlayoffView(id, week) : null,
+  };
+}
+
+/**
+ * The bracket, translated from team ids into the model names the site shows.
+ *
+ * Derived rather than stored, like everything else about the bracket: the seeds come
+ * from the frozen field and the winners from the same `lineup_scores` the scoreline
+ * above is built from, so a page cannot show a champion the scores disagree with.
+ */
+export async function loadPlayoffView(
+  seasonRowId: string,
+  week: number,
+): Promise<PlayoffView | null> {
+  const bracket = await loadBracket(supabase, seasonRowId);
+  if (!bracket) return null;
+
+  const { data: teams } = await supabase
+    .from('teams')
+    .select('id, models!inner(display_name)')
+    .eq('season_id', seasonRowId);
+  const nameOf = new Map(
+    ((teams ?? []) as unknown as { id: string; models: { display_name: string } }[]).map((t) => [
+      t.id,
+      t.models.display_name,
+    ]),
+  );
+
+  const games = week === SEMIFINAL_WEEK ? bracket.semifinals : bracket.championship;
+  const roundOf = new Map<string, 'semifinal' | 'final' | 'third_place'>();
+  for (const game of games) {
+    const pair = [nameOf.get(game.homeTeamId), nameOf.get(game.awayTeamId)];
+    if (pair.some((n) => !n)) continue;
+    roundOf.set(pair.sort().join('|'), game.round);
+  }
+
+  return {
+    weekLabel: week === SEMIFINAL_WEEK ? 'Semifinals' : 'Final and third place',
+    roundOf,
+    champion: bracket.championTeamId ? (nameOf.get(bracket.championTeamId) ?? null) : null,
+    runnerUp: bracket.runnerUpTeamId ? (nameOf.get(bracket.runnerUpTeamId) ?? null) : null,
+    third: bracket.thirdTeamId ? (nameOf.get(bracket.thirdTeamId) ?? null) : null,
+    seedOf: new Map(
+      bracket.seeds
+        .map((teamId, i) => [nameOf.get(teamId), i + 1] as const)
+        .filter((entry): entry is readonly [string, number] => Boolean(entry[0])),
+    ),
+  };
 }
 
 /**
@@ -171,6 +266,8 @@ export interface SeasonSnapshot {
   rankingBasis: typeof RANKING_BASIS;
   playoffSpots: number;
   table: StandingsRow[];
+  /** The model that won the final, once week 16 has been scored. Null before that. */
+  champion: string | null;
 }
 
 /**
@@ -187,6 +284,7 @@ export async function loadSeasonSnapshot(season = SEASON): Promise<SeasonSnapsho
     rankingBasis: RANKING_BASIS,
     playoffSpots: LEAGUE.playoffTeams,
     table: [],
+    champion: null,
   };
 
   const id = await seasonId(season);
@@ -252,5 +350,13 @@ export async function loadSeasonSnapshot(season = SEASON): Promise<SeasonSnapsho
     );
   }
 
-  return { season, throughWeek, rankingBasis: RANKING_BASIS, playoffSpots: LEAGUE.playoffTeams, table };
+  return {
+    season,
+    throughWeek,
+    rankingBasis: RANKING_BASIS,
+    playoffSpots: LEAGUE.playoffTeams,
+    table,
+    // Null until the final has been scored, which is the only moment it becomes true.
+    champion: (await loadPlayoffView(id, FINAL_WEEK))?.champion ?? null,
+  };
 }

@@ -24,6 +24,14 @@ import { round2 } from '@/lib/scoring/engine';
 import { buildLabelMap } from '@/lib/engine/labels';
 import { rankStandings, type StandingRow } from '@/lib/engine/allplay';
 import {
+  activeTeamsIn,
+  bracketOpponent,
+  isPlayoffWeek,
+  LAST_LEAGUE_WEEK,
+  type PlayoffRound,
+} from '@/lib/engine/bracket';
+import { loadBracket } from '@/lib/playoffs/state';
+import {
   buildLookahead,
   buildOpponentView,
   buildStandingView,
@@ -85,6 +93,12 @@ export interface WeeklyContext {
   byeTeams: string[];
   /** Per-team continuity block, already rendered (SPEC §4.1b). */
   memoryBlocks: Map<string, string>;
+  /**
+   * Which bracket game each team is playing, in a playoff week. Empty every other
+   * week, and empty for the four eliminated teams — whose season is over (§14.5), and
+   * whose absence from this map is what stops the lineup job asking them anything.
+   */
+  playoffRoundOf: Map<string, PlayoffRound>;
 }
 
 export interface BuildWeeklyContextInput {
@@ -121,6 +135,19 @@ export async function buildWeeklyContext(
   for (const match of schedule.filter((m) => m.week === week)) {
     opponentOf.set(match.homeTeamId, match.awayTeamId);
     opponentOf.set(match.awayTeamId, match.homeTeamId);
+  }
+
+  // In a playoff week the opponent above comes from the bracket fixtures the job
+  // persisted into the same table; this only adds which ROUND it is. A model asked to
+  // set a lineup for a final and one asked to set it for third place are being asked
+  // different questions, and it should be able to tell which it is in.
+  const playoffRoundOf = new Map<string, PlayoffRound>();
+  if (isPlayoffWeek(week)) {
+    const bracket = await loadBracket(db, seasonId);
+    for (const teamId of bracket ? activeTeamsIn(bracket, week) : []) {
+      const game = bracketOpponent(bracket!, week, teamId);
+      if (game) playoffRoundOf.set(teamId, game.round);
+    }
   }
 
   const gameplans = await loadGameplans(db, teamIds);
@@ -174,7 +201,22 @@ export async function buildWeeklyContext(
     opponentOf,
     byeTeams: [...byeTeams].sort(),
     memoryBlocks,
+    playoffRoundOf,
   };
+}
+
+/**
+ * The teams with a game this week — all eight in the regular season, the four
+ * survivors in a playoff week.
+ *
+ * One function rather than a filter repeated at each call site, because the three
+ * places that need it (the §14.6 assertion, the deterministic seeded lineups, and the
+ * model calls themselves) must agree exactly. Two of them agreeing and one not is how
+ * you get an eliminated team charged for a lineup, or a semifinalist left without one.
+ */
+export function teamsPlayingIn(context: WeeklyContext): WeeklyTeam[] {
+  if (!isPlayoffWeek(context.week)) return context.teams;
+  return context.teams.filter((team) => context.playoffRoundOf.has(team.teamId));
 }
 
 // ---------------------------------------------------------------------------
@@ -186,6 +228,8 @@ export interface WeeklyBase {
   ranking_basis: typeof RANKING_BASIS;
   regular_season_weeks: number;
   playoff_spots: number;
+  /** Which half of the season this is. Identical for all eight, so it belongs here. */
+  phase: 'regular_season' | 'playoffs';
   weeks_remaining: number;
   /** NFL teams with no game this week. A player on one of these cannot score. */
   nfl_teams_on_bye: string[];
@@ -207,7 +251,13 @@ export function weeklyBase(context: WeeklyContext): WeeklyBase {
     ranking_basis: RANKING_BASIS,
     regular_season_weeks: LEAGUE.regularSeasonWeeks,
     playoff_spots: LEAGUE.playoffTeams,
-    weeks_remaining: Math.max(0, LEAGUE.regularSeasonWeeks - context.week + 1),
+    phase: isPlayoffWeek(context.week) ? 'playoffs' : 'regular_season',
+    // Weeks left to play, counted within the phase you are in. Under the old
+    // expression a playoff week read `0`, which says "the season is over" to a model
+    // being asked to win a semifinal.
+    weeks_remaining: isPlayoffWeek(context.week)
+      ? Math.max(0, LAST_LEAGUE_WEEK - context.week + 1)
+      : Math.max(0, LEAGUE.regularSeasonWeeks - context.week + 1),
     nfl_teams_on_bye: context.byeTeams,
     standings: [...context.standings]
       .sort((a, b) => a.rank - b.rank)
@@ -236,6 +286,14 @@ export interface WeeklyOverlay {
   your_roster: RosterEntry[];
   /** Null in a week this team has no fixture — the playoff weeks, mainly. */
   opponent: OpponentView | null;
+  /**
+   * Which bracket game this is, when it is one. Null all regular season.
+   *
+   * Per-team rather than shared, because in week 16 two models are playing for the
+   * title and two for third, and telling all four the same thing would be false for
+   * half of them.
+   */
+  playoff_round: PlayoffRound | null;
   standing: StandingView;
   lookahead: LookaheadOpponent[];
 }
@@ -270,6 +328,7 @@ export function weeklyOverlay(context: WeeklyContext, teamId: string): WeeklyOve
             roster: context.rosters.get(opponentId) ?? [],
           })
         : null,
+    playoff_round: context.playoffRoundOf.get(teamId) ?? null,
     standing: buildStandingView(context.standings, teamId, context.labels, context.throughWeek),
     lookahead: buildLookahead(
       context.schedule,

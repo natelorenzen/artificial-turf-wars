@@ -11,8 +11,16 @@ export type Position = 'QB' | 'RB' | 'WR' | 'TE' | 'K' | 'DEF';
 export type StarterSlot = 'QB' | 'RB' | 'WR' | 'TE' | 'FLEX' | 'K' | 'DEF';
 
 export const PROMPT_VERSION = 'sys-v2';
-/** Bumped for the v3 amendment (SPEC §14): H2H objective, opponent awareness. */
-export const RULEBOOK_VERSION = 'rulebook-v2';
+/**
+ * Bumped for the v3 amendment (SPEC §14): H2H objective, opponent awareness.
+ *
+ * v3 adds the two playoff rules that were enforceable but unstated: the third-place
+ * game SPEC §3.3 has always specified, and what happens when a bracket game ends in an
+ * exact tie. A regular-season tie is a tie; a bracket has to advance somebody. Leaving
+ * that in the engine only would have repeated the most expensive mistake of the
+ * rehearsals — a model marked down for a rule nobody told it.
+ */
+export const RULEBOOK_VERSION = 'rulebook-v3';
 
 /**
  * SPEC §14.2 — head-to-head decides the season. All-play is still computed and
@@ -123,6 +131,12 @@ export const LEAGUE = {
    * teams stop setting lineups.
    */
   playoffPoolRelease: true,
+  /**
+   * How a bracket game that ends level is decided. The regular season records a tie as
+   * a tie; the playoffs cannot, so the higher seed advances — the thing fourteen weeks
+   * of head-to-head record actually bought. Stated in the rulebook, not just enforced.
+   */
+  playoffTieBreak: 'higher_seed' as const,
   /** How many upcoming opponents a model is shown, so "save it for next week" is groundable. */
   lookaheadOpponents: 3,
   /** Soft cap fires from this round if a required position is still unfilled (SPEC §4.3). */

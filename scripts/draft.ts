@@ -33,7 +33,7 @@
  */
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import { COHORT, LEAGUE, type Position } from '@/lib/config/league';
+import { COHORT, LEAGUE, RULEBOOK_VERSION, type Position } from '@/lib/config/league';
 import { slotPickNumbers } from '@/lib/engine/draft';
 import { auctionDiscriminates, resolveAuction, type AuctionEntry } from '@/lib/engine/auction';
 import { assertSharedContext } from '@/lib/prompt/assemble';
@@ -173,6 +173,29 @@ async function seasonAndTeams(supabase: SupabaseClient) {
 }
 
 /**
+ * Refuse to draft under a rulebook the league has not been told about.
+ *
+ * The season row freezes the rulebook version at seed time; `RULEBOOK_VERSION` is what
+ * the generator stamps on the text every model actually receives. When they disagree,
+ * the models are being sent rules that differ from the ones the site publishes and the
+ * comprehension check was sat against — and the draft is the one step that cannot be
+ * re-run afterwards.
+ *
+ * Found the honest way: bumping the rulebook to v3 for the playoff tie rule left the
+ * 2026 season row reading v2 with nothing anywhere complaining about it.
+ */
+function assertRulebookMatches(rulebookVersion: string) {
+  if (rulebookVersion === RULEBOOK_VERSION) return;
+  fail(
+    `the ${SEASON} season row was seeded under "${rulebookVersion}" but the code now generates ` +
+      `"${RULEBOOK_VERSION}".\n` +
+      '  The models would draft under rules the published season row does not describe.\n' +
+      '  Update seasons.rulebook_version and re-run the comprehension check ' +
+      '(scripts/preseason-rules-check.ts) before drafting.',
+  );
+}
+
+/**
  * How deep a pool the draft runs against. 1000 is not arbitrary: it is what the 2025
  * rehearsal actually used, and the rehearsal only certifies the real draft if the two
  * see the same shape of board.
@@ -229,7 +252,8 @@ async function loadDraftState(
   supabase: SupabaseClient,
   provisionalSlots = false,
 ): Promise<DraftState> {
-  const { seasonId, teams } = await seasonAndTeams(supabase);
+  const { seasonId, teams, rulebookVersion } = await seasonAndTeams(supabase);
+  assertRulebookMatches(rulebookVersion);
   const unassigned = teams.some((t) => t.draft_slot === null);
 
   if (unassigned && !provisionalSlots) {
@@ -303,7 +327,12 @@ async function stageStatus() {
   const slotted = teams.filter((t) => t.draft_slot !== null).length;
 
   console.log(`Season ${SEASON} — ${LEAGUE.name}\n`);
-  console.log(`  rulebook      ${rulebookVersion}`);
+  console.log(
+    `  rulebook      ${rulebookVersion}` +
+      (rulebookVersion === RULEBOOK_VERSION
+        ? ''
+        : `  ⚠ the code now generates ${RULEBOOK_VERSION} — both stages will refuse until this is reconciled`),
+  );
   console.log(`  teams         ${teams.length}`);
   console.log(`  auction       ${slotted === 0 ? 'not run' : `${slotted}/${teams.length} slots assigned`}`);
   console.log(`  draft         ${pickCount ?? 0}/${TOTAL_PICKS} picks`);
@@ -341,7 +370,8 @@ const AUCTION_TASK =
 
 async function stageAuction(commit: boolean) {
   const supabase = db();
-  const { seasonId, teams } = await seasonAndTeams(supabase);
+  const { seasonId, teams, rulebookVersion } = await seasonAndTeams(supabase);
+  assertRulebookMatches(rulebookVersion);
 
   // Precondition. The auction is single-round and first-price: re-running it after
   // slots exist would resolve a second time against different bids and silently

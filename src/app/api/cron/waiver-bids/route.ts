@@ -2,6 +2,8 @@ import { assertBeforeKickoff, assertCronAuth, cronErrorResponse } from '@/lib/cr
 import { claimJobRun, completeJobRun, failJobRun } from '@/lib/cron/job-run';
 import { supabaseServer } from '@/lib/supabase-server';
 import { LEAGUE } from '@/lib/config/league';
+import { isPlayoffWeek, LAST_LEAGUE_WEEK, SEMIFINAL_WEEK } from '@/lib/engine/bracket';
+import { decidePlayoffField, releaseEliminatedRosters, type PlayoffFieldResult } from '@/lib/playoffs/pool';
 import { resolveScoringWeek, seasonIdFor } from '@/lib/scoring/week';
 import { buildWeeklyContext } from '@/lib/weekly/context';
 import {
@@ -45,13 +47,43 @@ export async function GET(request: Request) {
     }
 
     const effectiveWeek = bidWeek + 1;
-    if (effectiveWeek > LEAGUE.regularSeasonWeeks) {
-      return Response.json({
-        ok: true,
-        skipped: 'regular season is over — the playoff pool runs separately (SPEC §14.5)',
-        season,
-        bidWeek,
-      });
+    if (effectiveWeek > LAST_LEAGUE_WEEK) {
+      return Response.json({ ok: true, skipped: 'the season is over', season, bidWeek });
+    }
+
+    /**
+     * The Tuesday after week 14 is the playoff pool run (§14.5), and it is this job
+     * rather than a new one for a reason: the pool is mechanically the same sealed-bid
+     * FAAB round, and it needs the same guards, the same `job_runs` claim and the same
+     * place in the week. A separate route would be a second copy of all three, running
+     * once a season, tested never.
+     *
+     * What has to happen before the bids, in this order: freeze the field, then release
+     * the eliminated rosters, so that the ordinary free-agent loader sees the released
+     * players with no special case in it.
+     */
+    let release: { field: PlayoffFieldResult; players: number } | null = null;
+    if (isPlayoffWeek(effectiveWeek)) {
+      if (effectiveWeek !== SEMIFINAL_WEEK) {
+        return Response.json({
+          ok: true,
+          skipped: 'the pool runs once, before the semifinals — the final has no waiver round',
+          season,
+          bidWeek,
+        });
+      }
+
+      const field = await decidePlayoffField(db, seasonId);
+      if (!field) {
+        return Response.json({
+          ok: true,
+          skipped: `week ${LEAGUE.regularSeasonWeeks} is not scored, so there is no field yet`,
+          season,
+          bidWeek,
+        });
+      }
+      const released = await releaseEliminatedRosters(db, field.eliminated, effectiveWeek);
+      release = { field, players: released.players };
     }
 
     // The claims transact before the week they are for. After kickoff they would
@@ -106,6 +138,16 @@ export async function GET(request: Request) {
         effectiveWeek,
         kickoffAt: kickoff.kickoffAt,
         pool: freeAgents.length,
+        // Present once a season: who survived week 14 and how many players their four
+        // eliminated rivals just put on the market.
+        playoffPool: release
+          ? {
+              seeds: release.field.seeds.length,
+              eliminated: release.field.eliminated.length,
+              playersReleased: release.players,
+              fieldFrozenNow: release.field.frozen,
+            }
+          : null,
         claims: totalClaims,
         teams: decisions.map((d) => ({
           label: d.team.label,

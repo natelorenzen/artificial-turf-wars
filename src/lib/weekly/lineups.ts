@@ -39,7 +39,13 @@ import {
 import type { RosterEntry } from '@/lib/prompt/context';
 import { recordEngineRejection, runDecision } from '@/lib/decisions/run';
 import { lineupSchema, type LineupResponse } from '@/lib/schemas/decisions';
-import { weeklyBase, weeklyOverlay, type WeeklyContext, type WeeklyTeam } from './context';
+import {
+  teamsPlayingIn,
+  weeklyBase,
+  weeklyOverlay,
+  type WeeklyContext,
+  type WeeklyTeam,
+} from './context';
 
 /** Lab and model names that must never reach a DATA block (SPEC §14.3). */
 export const FORBIDDEN_NAMES = [...COHORT.map((m) => m.displayName), ...COHORT.map((m) => m.lab)];
@@ -149,7 +155,11 @@ export function buildLineupContext(context: WeeklyContext, teamId: string): Line
  * makes the failure free.
  */
 export function assertLineupContexts(context: WeeklyContext): SplitHashes[] {
-  const built = context.teams.map((team) => ({
+  // The teams being ASKED, which in a playoff week is the four survivors. The base
+  // must be identical across the models that receive it; asserting it across four
+  // teams that are playing and four whose season ended would be asserting it over a
+  // block nobody was ever sent.
+  const built = teamsPlayingIn(context).map((team) => ({
     teamId: team.teamId,
     context: buildLineupContext(context, team.teamId),
   }));
@@ -365,7 +375,7 @@ export async function decideLineups(
   context: WeeklyContext,
   db: SupabaseClient | null,
 ): Promise<{ decisions: LineupDecision[]; failures: { team: WeeklyTeam; error: string }[] }> {
-  const callable = context.teams.filter((team) => !team.frozen);
+  const callable = teamsPlayingIn(context).filter((team) => !team.frozen);
 
   const settled = await Promise.allSettled(
     callable.map((team) => decideLineup(context, team, db)),
@@ -420,11 +430,14 @@ export async function seedFallbackLineups(
     .from('lineups')
     .select('team_id')
     .eq('week', context.week)
-    .in('team_id', context.teams.map((t) => t.teamId));
+    .in('team_id', teamsPlayingIn(context).map((t) => t.teamId));
   if (error) throw new Error(`lineups read: ${error.message}`);
 
   const existing = new Set((data ?? []).map((row) => row.team_id as string));
-  const missing = context.teams.filter((team) => !existing.has(team.teamId));
+  // Eliminated teams are not seeded a playoff lineup. Their season ended in week 14
+  // and most of their roster is on somebody else's team by now (§14.5); writing them
+  // a legal-looking lineup would put a scoreable row in a week they are not in.
+  const missing = teamsPlayingIn(context).filter((team) => !existing.has(team.teamId));
   if (missing.length === 0) return { seeded: [] };
 
   const rows = missing.map((team) => {
