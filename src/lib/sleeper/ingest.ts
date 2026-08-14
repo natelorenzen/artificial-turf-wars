@@ -358,7 +358,25 @@ export async function ingestWeekProjections(
     }
   }
 
-  await upsertChunked(db, 'player_projections', rows, 'player_id,season,week');
+  // Delete-then-insert, exactly as the season-long path does, and for the same reason.
+  //
+  // Migration 0008 replaced the plain `unique (player_id, season, week)` with two
+  // PARTIAL indexes — one where `week is not null`, one where it is null — because a
+  // plain unique never constrained the season-long rows at all (every NULL is distinct
+  // from every other NULL, so the daily ingest inserted a fresh copy of every player
+  // every day). The seasonal write was converted then; this one was not.
+  //
+  // A partial index cannot be an `ON CONFLICT` target through PostgREST: inferring one
+  // means restating its predicate, and `on_conflict` has no way to express that. So the
+  // moment 0008 was applied this upsert began failing with "no unique or exclusion
+  // constraint matching the ON CONFLICT specification" — and it is the DAILY job, which
+  // would have started failing at 10:00 UTC the next morning and taken the weekly
+  // projections with it.
+  await replaceChunked(db, 'player_projections', rows, (q) =>
+    (q as never as { eq: (c: string, v: unknown) => { eq: (c: string, v: unknown) => unknown } })
+      .eq('season', season)
+      .eq('week', week),
+  );
   return { projections: rows.length, withOpponent, skipped, week };
 }
 
