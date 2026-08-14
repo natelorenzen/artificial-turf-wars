@@ -33,6 +33,20 @@ export const POST_LIMIT = 280;
 export const COST_PER_POST = 0.015;
 export const COST_PER_POST_WITH_URL = 0.2;
 
+/**
+ * Every post this account sends is TEXT ONLY, and points at the profile instead.
+ *
+ * X charges thirteen times as much for a post containing a URL — $0.20 against
+ * $0.015 — which over a season of results, guides and findings is about $8 against
+ * $0.50. "Link in bio" is the ordinary convention on the platform, it costs a
+ * penny and a half, and the alternative is paying a 13x premium for a link most
+ * readers reach through the profile anyway.
+ *
+ * The link plumbing below stays. Nothing composes one today, and the day that
+ * changes it should be a decision with a price attached rather than a rediscovery.
+ */
+export const LINK_IN_BIO = 'Link in bio.';
+
 export type PostKind = 'results' | 'waivers' | 'weekend' | 'findings' | 'draft';
 
 export interface ComposedPost {
@@ -100,17 +114,17 @@ export interface ResultsSource {
  */
 export function composeResults(source: ResultsSource): ComposedPost {
   const { facts, recap } = source;
-  const link = absoluteUrl(`/results/${facts.week}`);
 
   const checksFailed = recap ? !recap.numberCheckPassed : false;
-  const body = recap && !checksFailed ? recap.shortPost : deterministicResults(facts);
+  const written = recap && !checksFailed ? recap.shortPost : deterministicResults(facts);
+  const body = `${written} ${LINK_IN_BIO}`;
 
   return finish({
     kind: 'results',
     week: facts.week,
     dedupeKey: `results:${facts.week}`,
-    body: trimToFit(body, link),
-    link,
+    body: trimToFit(body, null),
+    link: null,
     // The one model-written post, and therefore the one that must not go out on trust.
     autoEligible: !checksFailed,
     holdReason: checksFailed
@@ -206,15 +220,14 @@ export function composeWeekend(input: {
   standfirst: string;
   published: boolean;
 }): ComposedPost {
-  const link = absoluteUrl(`/weekend/${input.week}`);
-  const body = `${input.headline}\n\n${input.standfirst}`;
+  const body = `${input.headline}\n\n${input.standfirst}\n\n${LINK_IN_BIO}`;
 
   return finish({
     kind: 'weekend',
     week: input.week,
     dedupeKey: `weekend:${input.week}`,
-    body: trimToFit(body, link),
-    link,
+    body: trimToFit(body, null),
+    link: null,
     // A guide nobody has released must not be announced. The post would link to a page
     // that does not show the article yet.
     autoEligible: input.published,
@@ -232,16 +245,17 @@ export function composeFinding(input: {
   summary: string;
   kicker: string | null;
 }): ComposedPost {
-  const link = absoluteUrl(`/findings/${input.slug}`);
-  const body = input.kicker ? `${input.kicker}: ${input.title}` : input.title;
+  const headline = input.kicker ? `${input.kicker}: ${input.title}` : input.title;
+  const full = `${headline}\n\n${input.summary}\n\n${LINK_IN_BIO}`;
+  const short = `${headline}\n\n${LINK_IN_BIO}`;
 
   return finish({
     kind: 'findings',
     week: null,
     dedupeKey: `findings:${input.slug}`,
     // The title is written to stand alone; the summary is there when there is room.
-    body: trimToFit(fits(`${body}\n\n${input.summary}`, link) ? `${body}\n\n${input.summary}` : body, link),
-    link,
+    body: trimToFit(fits(full, null) ? full : short, null),
+    link: null,
     autoEligible: true,
     holdReason: null,
   });
@@ -253,18 +267,17 @@ export function composeDraft(input: {
   costUsd: number;
   fallbacks: number;
 }): ComposedPost {
-  const link = absoluteUrl('/teams');
   const body =
     `The ${input.season} draft is done. Eight AI models, ${input.picks} picks, ` +
     `$${input.costUsd.toFixed(2)} of inference, ${input.fallbacks} fallbacks. ` +
-    'Every prompt and every raw response is published.';
+    `Every prompt and every raw response is published. ${LINK_IN_BIO}`;
 
   return finish({
     kind: 'draft',
     week: null,
     dedupeKey: `draft:${input.season}`,
-    body: trimToFit(body, link),
-    link,
+    body: trimToFit(body, null),
+    link: null,
     autoEligible: true,
     holdReason: null,
   });

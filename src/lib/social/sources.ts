@@ -91,9 +91,13 @@ async function waiverPost(
   );
   if (nameOf.size === 0) return null;
 
+  // The FK is named explicitly because `waiver_bids` references `players` TWICE — the
+  // player added and the player dropped — and PostgREST refuses to guess which. Left
+  // implicit it fails at request time with "more than one relationship was found",
+  // which no test catches because the ambiguity lives in the database, not the query.
   const { data, error } = await db
     .from('waiver_bids')
-    .select('week, team_id, bid, won, created_at, players!inner(name)')
+    .select('week, team_id, bid, won, created_at, players!waiver_bids_add_player_id_fkey(name)')
     .in('team_id', [...nameOf.keys()])
     .not('won', 'is', null)
     .order('week', { ascending: false })
