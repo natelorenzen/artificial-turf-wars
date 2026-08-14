@@ -50,3 +50,6 @@ tools/.cache/*
 
 # Chalk or Walk transcripts — evidence for a run, not source
 debate-runs/
+
+# A scratch file for pasting X credentials into. Never committed.
+PASTE-X-KEYS-HERE.txt

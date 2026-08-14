@@ -88,9 +88,10 @@ describe('the results post', () => {
         numberCheckNotes: [],
       },
     });
-    expect(post.body).toBe('DeepSeek V4 Pro hit 100% lineup efficiency and still lost.');
+    expect(post.body).toBe('DeepSeek V4 Pro hit 100% lineup efficiency and still lost. Link in bio.');
     expect(post.autoEligible).toBe(true);
-    expect(post.link).toContain('/results/6');
+    // Text only. X charges 13x for a post carrying a URL and the profile already has one.
+    expect(post.link).toBeNull();
   });
 
   it('HOLDS a post whose column failed its checks', () => {
@@ -197,7 +198,7 @@ describe('findings and the draft', () => {
 
   it('keeps the summary when there is room', () => {
     const post = composeFinding({ slug: 'x', title: 'Short title', summary: 'Short summary.', kicker: null });
-    expect(post.body).toBe('Short title\n\nShort summary.');
+    expect(post.body).toBe('Short title\n\nShort summary.\n\nLink in bio.');
   });
 
   it('reports the draft as figures, not adjectives', () => {
@@ -212,13 +213,16 @@ describe('cost', () => {
     expect(COST_PER_POST_WITH_URL / COST_PER_POST).toBeCloseTo(13.33, 1);
   });
 
-  it('totals a typical week', () => {
-    // Results + weekend carry links; waivers does not.
+  it('totals a typical week at three plain posts', () => {
+    // Nothing carries a link any more, so a week costs three times a penny and a half
+    // rather than $0.415. Over fourteen weeks that is the difference between about
+    // $8 and about $0.60.
     const week = [
       composeResults({ season: 2025, facts: wk6, recap: null }),
       composeWaivers(6, [{ model: 'Grok 4.5', player: 'X', bid: 1, won: true }])!,
       composeWeekend({ week: 6, headline: 'h', standfirst: 's', published: true }),
     ];
-    expect(estimateCost(week)).toBeCloseTo(0.415, 3);
+    expect(week.every((p) => p.link === null)).toBe(true);
+    expect(estimateCost(week)).toBeCloseTo(0.045, 3);
   });
 });
