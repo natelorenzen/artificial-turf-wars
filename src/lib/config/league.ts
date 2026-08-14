@@ -10,7 +10,22 @@
 export type Position = 'QB' | 'RB' | 'WR' | 'TE' | 'K' | 'DEF';
 export type StarterSlot = 'QB' | 'RB' | 'WR' | 'TE' | 'FLEX' | 'K' | 'DEF';
 
-export const PROMPT_VERSION = 'sys-v2';
+/**
+ * Bumped to v3 on 14 August: the lineup task now DEFINES `confidence` as the model's
+ * probability of outscoring its opponent that week.
+ *
+ * It was previously undefined — the field appeared in the output example as `0.5` and
+ * nothing said what the number meant. Every model answered anyway, between 0.62 and
+ * 0.90 across the rehearsals, and it is impossible to say what any of them were
+ * answering. Scoring that against real results and publishing "this model is
+ * overconfident" would have been an accusation built on a question nobody asked.
+ *
+ * SPEC §14.3 already wanted this measurable — "each model's implied estimate of its own
+ * win chance, against ours" — and it only becomes one once the question is stated.
+ * Forecasts made under sys-v2 are not comparable to forecasts made under this, so the
+ * calibration board starts from the first week decided under v3.
+ */
+export const PROMPT_VERSION = 'sys-v3';
 /**
  * Bumped for the v3 amendment (SPEC §14): H2H objective, opponent awareness.
  *
@@ -202,10 +217,26 @@ export const SCORING_NOTES = {
  * frozen on a stated date, published on /methodology, and after it no model ID changes
  * for any reason short of a provider withdrawing one.
  *
- * We did NOT take qwen3.8-max. It shipped with no track record three weeks before the
- * draft, all eight incumbents had already passed the comprehension gate together, and
- * swapping one would have invalidated the "8/8 at 17/17 from one shared briefing" claim
- * until that model was re-gated. Currency was not worth spending that for.
+ * On 3 August we did NOT take qwen3.8-max, because swapping a seat would have
+ * invalidated the "8/8 at 17/17 from one shared briefing" claim until that model was
+ * re-gated, and currency was not worth spending that for.
+ *
+ * REVISED 14 August. That objection stopped applying. Bumping the rulebook to v3 for
+ * the playoff rules forces all eight to re-sit the comprehension check anyway, so the
+ * re-gate is happening regardless and the marginal cost of taking the newest models is
+ * zero. Four seats moved, each to its lab's current top-tier generally-available model,
+ * verified against the OpenRouter catalogue that day:
+ *
+ *   xAI       grok-4.5           → grok-4.6              (shipped 12 Aug)
+ *   Meta      muse-spark-1.1     → muse-spark-1.2        (shipped  5 Aug)
+ *   DeepSeek  deepseek-v4-pro    → deepseek-v4-pro-0813  (shipped 12 Aug, the GA release)
+ *   Alibaba   qwen3.7-plus       → qwen3.8-max           (shipped  3 Aug)
+ *
+ * OpenAI, Anthropic, Moonshot and Google were already on their lab's top tier. Google
+ * looks stale at February, and is not: everything newer from them is Flash, a tier down.
+ *
+ * The date below still governs. After it, no model ID changes for any reason short of a
+ * provider withdrawing one — including if a lab ships something on 25 August.
  */
 export const COHORT_FROZEN_AT = '2026-08-24';
 
@@ -223,15 +254,18 @@ export interface CohortModel {
 export const COHORT: readonly CohortModel[] = [
   { key: 'gpt-5-6-sol', displayName: 'GPT-5.6 Sol', openrouterId: 'openai/gpt-5.6-sol', lab: 'OpenAI', contextWindow: 1_050_000, priceIn: 5.0, priceOut: 30.0 },
   { key: 'claude-opus-5', displayName: 'Claude Opus 5', openrouterId: 'anthropic/claude-opus-5', lab: 'Anthropic', contextWindow: 1_000_000, priceIn: 5.0, priceOut: 25.0 },
-  { key: 'grok-4-5', displayName: 'Grok 4.5', openrouterId: 'x-ai/grok-4.5', lab: 'xAI', contextWindow: 500_000, priceIn: 2.0, priceOut: 6.0 },
-  { key: 'gemini-3-1-pro', displayName: 'Gemini 3.1 Pro', openrouterId: 'google/gemini-3.1-pro-preview', lab: 'Google', contextWindow: 1_050_000, priceIn: 2.0, priceOut: 12.0 },
-  { key: 'muse-spark-1-1', displayName: 'Muse Spark 1.1', openrouterId: 'meta/muse-spark-1.1', lab: 'Meta', contextWindow: 1_050_000, priceIn: 1.25, priceOut: 4.25 },
-  { key: 'deepseek-v4-pro', displayName: 'DeepSeek V4 Pro', openrouterId: 'deepseek/deepseek-v4-pro', lab: 'DeepSeek', contextWindow: 1_050_000, priceIn: 0.43, priceOut: 0.87 },
-  { key: 'kimi-k3', displayName: 'Kimi K3', openrouterId: 'moonshotai/kimi-k3', lab: 'Moonshot', contextWindow: 1_050_000, priceIn: 3.0, priceOut: 15.0 },
+  { key: 'grok-4-6', displayName: 'Grok 4.6', openrouterId: 'x-ai/grok-4.6', lab: 'xAI', contextWindow: 500_000, priceIn: 2.0, priceOut: 6.0 },
+  { key: 'gemini-3-1-pro', displayName: 'Gemini 3.1 Pro', openrouterId: 'google/gemini-3.1-pro-preview', lab: 'Google', contextWindow: 1_048_576, priceIn: 2.0, priceOut: 12.0 },
+  { key: 'muse-spark-1-2', displayName: 'Muse Spark 1.2', openrouterId: 'meta/muse-spark-1.2', lab: 'Meta', contextWindow: 1_048_576, priceIn: 1.25, priceOut: 4.25 },
+  { key: 'deepseek-v4-pro-0813', displayName: 'DeepSeek V4 Pro 0813', openrouterId: 'deepseek/deepseek-v4-pro-0813', lab: 'DeepSeek', contextWindow: 1_048_576, priceIn: 0.43, priceOut: 0.87 },
+  { key: 'kimi-k3', displayName: 'Kimi K3', openrouterId: 'moonshotai/kimi-k3', lab: 'Moonshot', contextWindow: 1_048_576, priceIn: 3.0, priceOut: 15.0 },
   // priceOut was null here, which the cohort table rendered as "—" — implying Qwen
   // charged nothing for output. It charges $1.28/M. Corrected against the OpenRouter
   // catalogue, 3 August 2026.
-  { key: 'qwen3-7-plus', displayName: 'Qwen3.7 Plus', openrouterId: 'qwen/qwen3.7-plus', lab: 'Alibaba', contextWindow: 1_000_000, priceIn: 0.32, priceOut: 1.28 },
+  // Qwen3.8 Max, not the newer `qwen3.8-2.4t-a95b`: OpenRouter describes that one as
+  // "the open-weight variant of Qwen3.8 Max", so it is a sibling release rather than a
+  // tier above. Newest is not the rule; top-tier generally-available is.
+  { key: 'qwen3-8-max', displayName: 'Qwen3.8 Max', openrouterId: 'qwen/qwen3.8-max', lab: 'Alibaba', contextWindow: 1_000_000, priceIn: 2.0, priceOut: 6.0 },
 ] as const;
 
 /**
