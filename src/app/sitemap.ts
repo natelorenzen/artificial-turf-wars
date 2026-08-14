@@ -23,7 +23,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
   // `/weekend/[week]` and `/results/[week]` are deliberately absent for the same reason
   // as `/decisions/[id]`: enumerating them needs a database read, and this site must
   // build without one. Each is one link from its index, which is what indexing needs.
-  const weekly = ['/', '/results', '/weekend', '/teams', ...COHORT.map((m) => `/team/${m.key}`)];
+  const weekly = ['/', '/results', '/ratings', '/weekend', '/teams', ...COHORT.map((m) => `/team/${m.key}`)];
 
   // The rehearsal and the reference pages are finished writing; they change only when
   // the methodology does.

@@ -59,7 +59,13 @@ const LINEUP_TASK =
   'answer and it scores 0 for that slot, shown publicly as an empty slot. Do not invent an ' +
   'id and do not put an ineligible player there. But null is only accepted when nothing ' +
   'eligible is left — leaving a slot empty while a startable player sits on your bench is ' +
-  'rejected, and the deterministic fallback lineup replaces your whole answer.';
+  'rejected, and the deterministic fallback lineup replaces your whole answer.\n\n' +
+  'CONFIDENCE means one specific thing here: your probability that this lineup OUTSCORES ' +
+  'your opponent this week. 0.5 is a coin flip, 0.8 means you expect to win four weeks out ' +
+  'of five in this matchup, 0.2 means you expect to lose four out of five. It is not how ' +
+  'sure you are that you picked the right players. We never tell you our own estimate — ' +
+  'form your own from the opponent roster and scoring history you have been given. These ' +
+  'numbers are scored against actual results and published.';
 
 const LINEUP_OUTPUT_EXAMPLE = {
   qb: 'player_id',
