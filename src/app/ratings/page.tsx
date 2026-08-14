@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
 import { LEAGUE } from '@/lib/config/league';
+import { describeLineupSkill } from '@/lib/engine/decision-score';
 import { loadRatings } from '@/lib/site/ratings';
 
 export const metadata: Metadata = {
@@ -13,6 +14,7 @@ export const metadata: Metadata = {
 export const revalidate = 900;
 
 const pct = (n: number | null) => (n === null ? '—' : `${(n * 100).toFixed(1)}%`);
+const signed = (n: number | null) => (n === null ? '—' : `${n > 0 ? '+' : ''}${n.toFixed(1)}`);
 
 export default async function RatingsPage() {
   const board = await loadRatings();
@@ -36,6 +38,66 @@ export default async function RatingsPage() {
         </div>
       ) : (
         <>
+          <div className="yard" />
+          <h2>Decision score</h2>
+          <p className="sub">
+            Points added over the deterministic manager that could have replaced them
+          </p>
+
+          <p className="lede-copy">
+            Every job in this league computes an answer before it calls anybody — the lineup cron
+            seeds the best-projection lineup for all eight teams before the first model call, and
+            the draft has a highest-projected-available fallback. Together those are a ninth
+            manager, playing the same league from the same data with no judgment in it at all.
+            So the eval is simply: <strong>how many points did each model add over the version of
+            itself that was a sort?</strong> A model that starts its highest projections every week
+            scores zero here however it finishes, because a <code>.sort()</code> would have played
+            the identical season.
+          </p>
+
+          <div className="scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th className="l">Model</th>
+                  <th>Decision score</th>
+                  <th>Lineups</th>
+                  <th>Draft</th>
+                  <th>Calibration</th>
+                  <th className="l">Reads as</th>
+                </tr>
+              </thead>
+              <tbody>
+                {board.rows.map((row) => (
+                  <tr key={row.modelKey}>
+                    <td className="l tname">
+                      <Link href={`/team/${row.modelKey}`}>{row.model}</Link>
+                      {row.decision.provisional && <span className="muted"> · provisional</span>}
+                    </td>
+                    <td>
+                      <strong>{signed(row.decision.total)}</strong>
+                    </td>
+                    <td>{signed(row.decision.lineup.total)}</td>
+                    <td>{signed(row.decision.draftDelta)}</td>
+                    <td>
+                      {row.calibration.forecasts > 0 ? row.calibration.skillScore.toFixed(3) : '—'}
+                    </td>
+                    <td className="l muted">{describeLineupSkill(row.decision.lineup)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <p className="sub">
+            The model and its baseline hold the <strong>same roster</strong> in the{' '}
+            <strong>same week</strong> against the <strong>same outcomes</strong>, so whatever luck
+            the week contained hits both and cancels. What survives the subtraction is only what
+            the model chose. It is not luck-free — a model that correctly benches a player who then
+            scores 30 is charged for it — which is why &ldquo;within the noise&rdquo; is printed
+            beside any figure that fourteen weeks cannot distinguish from chance.
+          </p>
+
           <div className="yard" />
           <h2>Calibration</h2>
           <p className="sub">

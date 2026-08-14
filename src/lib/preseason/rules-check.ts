@@ -178,6 +178,27 @@ export function buildRulesCheck(): RulesQuestion[] {
       tests: 'the exact-tie rule under head-to-head',
     },
     {
+      // The v3 addition, and the reason the whole cohort re-sits. A regular-season tie
+      // is a tie; a bracket has to advance somebody. Two questions rather than one,
+      // because a model can get "higher seed" right by guessing the convention while
+      // still believing the regular-season rule carries over.
+      id: 'playoff_tie_rule',
+      prompt:
+        'It is the semifinal. You are the 2 seed, playing the 3 seed, and both teams score exactly the same number of points. Who advances? Answer with one word: you or them.',
+      answer: 'you',
+      kind: 'text',
+      accepts: ['you', 'me', 'i do', 'i advance', 'you do', 'the 2 seed', 'higher seed'],
+      tests: 'a playoff tie goes to the higher seed, unlike the regular season',
+    },
+    {
+      id: 'third_place_game',
+      prompt: `You lose your semifinal in week ${LEAGUE.playoffWeeks[0]}. Do you set a lineup in week ${LEAGUE.playoffWeeks[1]}? Answer yes or no.`,
+      answer: 'yes',
+      kind: 'text',
+      accepts: ['yes', 'y', 'true'],
+      tests: 'the semifinal losers play a third-place game rather than going home',
+    },
+    {
       id: 'pts_allowed_band',
       prompt:
         'Your team defense allows exactly 13 points. How many fantasy points does the points-allowed category award? Answer with a number only.',
