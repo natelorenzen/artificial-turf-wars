@@ -46,14 +46,16 @@ npx tsx --env-file=.env.local scripts/weekly-dry-run.ts --crons --season 2026
 
 ## Gate 1 — The league exists 🔴 *blocks everything below*
 
-- [ ] Migration `0008_season_projection_uniqueness.sql` applied
-- [ ] Migration `0009_playoff_seeds.sql` applied *(added 14 Aug with the playoff phase)*
-- [ ] **Reconcile the rulebook version.** The playoff work bumped `RULEBOOK_VERSION` to
-      `rulebook-v3` — the third-place game and the playoff tie rule were both enforceable
-      and unstated. The 2026 season row still reads `rulebook-v2`, so `scripts/draft.ts`
-      now REFUSES both stages until `seasons.rulebook_version` is updated and the
-      comprehension check is re-sat under v3 (8 calls, about $0.10).
-      `scripts/draft.ts --status` prints the mismatch.
+- [x] Migration `0008_season_projection_uniqueness.sql` applied *(14 Aug)* — and verified
+      by attempting a duplicate season-long insert, which came back `23505`. An index
+      that exists but does not fire is the same as no index.
+- [x] Migration `0009_playoff_seeds.sql` applied *(14 Aug)* — present, anon-readable.
+- [x] **Rulebook version reconciled** *(14 Aug)* — `seasons.rulebook_version` is now
+      `rulebook-v3`, matching what the generator stamps on every prompt. `draft.ts`
+      refused both stages until this agreed, which is the guard working.
+- [x] **Comprehension check re-sat under v3** *(14 Aug, $0.17)* — **8/8 at 19/19, every
+      one on the first attempt**, including the four models pinned that morning and both
+      new playoff questions. Shared context hash `c69d1c8d…`.
 - [ ] Auction run — 8 slots assigned, seed verified against the published commitment
 - [ ] Draft run — 120 picks, 8 rosters of 15
 
@@ -109,9 +111,14 @@ from job_runs where week = 1 order by started_at;
 - [x] **X adapter + `/api/cron/social` built** *(14 Aug)* — OAuth 1.0a signing with 13
       tests, a daily 20:00 UTC cron entry, compose-then-release with a per-run cap of 3.
       Runs and skips cleanly with no credentials, queueing drafts either way.
-- [ ] X developer app for `@playATW`, and four env vars set:
-      `X_API_KEY`, `X_API_SECRET`, `X_ACCESS_TOKEN`, `X_ACCESS_TOKEN_SECRET`
-- [ ] A post auto-releases when its checks pass, and is held when they do not
+- [x] **X app connected as @PlayATW** *(14 Aug)* — four env vars set locally and on
+      Production, verified end to end by posting. `scripts/x-check.ts` reports the handle
+      the tokens belong to, which is the thing worth checking before a season of posts
+      goes out under the wrong name.
+- [x] **Text only, "link in bio"** *(14 Aug)* — X charges $0.20 for a post carrying a URL
+      against $0.015 without. The season drops from about $8 to about $0.60.
+- [ ] A post auto-releases when its checks pass, and is held when they do not — the queue
+      runs daily and has had nothing fresh to say yet
 
 > **Two traps in the portal.** App permissions must be **Read and write** and the access
 > token must be **regenerated afterwards** — a token minted before the change keeps its
@@ -177,13 +184,24 @@ This is the part worth re-reading in October.
 | Gate | State |
 |---|---|
 | 0 — Deployed and guarded | ✅ |
-| 1 — The league exists | 🔴 draft not run; two migrations and the rulebook version outstanding |
+| 1 — The league exists | 🔴 **only the auction and draft remain** — schema, rulebook and the 19/19 gate are all done |
 | 2 — A week runs unattended | ⬜ blocked by 1 |
-| 3 — It publishes itself | 🟡 built end to end, credentials outstanding |
+| 3 — It publishes itself | ✅ @PlayATW connected and posting; queue live |
 | 4 — It finishes itself | 🟡 built 14 Aug, never run |
 
 **Two full weekly cycles have been rehearsed** against 2025, ten bugs found and fixed.
 The machine works. It has never been asked to run a week that counts.
+
+### The eval, added 14 August
+
+`/ratings` scores the models on decisioning rather than luck: **points added over the
+deterministic manager** — the projection sort the crons already run as a fallback. Same
+roster, same week, same outcomes, so the variance cancels and what survives is what the
+model chose. Plus a calibration board on their stated win probabilities.
+
+Against the 2025 rehearsal, six of eight models have a lineup delta of **exactly zero** —
+they do not deviate from the projection-optimal lineup at all. Two weeks concludes
+nothing, but if it holds over fourteen it is the most interesting finding here.
 
 ### What changed on 14 August
 
