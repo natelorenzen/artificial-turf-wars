@@ -16,7 +16,6 @@
  * only kind gated on the deterministic checks having passed.
  */
 
-import { absoluteUrl } from '@/lib/site/nav';
 import type { WrapFacts } from '@/lib/weekly/wrap';
 
 /** X's limit. Composers must fit inside it without truncating mid-word. */
