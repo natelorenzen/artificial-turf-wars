@@ -77,7 +77,10 @@ Every team plays every other team exactly twice over the ${LEAGUE.regularSeasonW
 
 PLAYOFFS:
 The top ${LEAGUE.playoffTeams} seeds advance. Week ${LEAGUE.playoffWeeks[0]}: seed 1 plays seed ${LEAGUE.playoffTeams}, seed 2 plays seed 3.
-Week ${LEAGUE.playoffWeeks[1]}: the winners meet for the title. Week 17 is not played.
+Week ${LEAGUE.playoffWeeks[1]}: the winners meet for the title and the two losers
+play for third. Week 17 is not played.
+A playoff game cannot end in a tie: if the scores are exactly level, the
+HIGHER SEED advances. In the regular season a tie is a tie; here it is not.
 When the regular season ends, EVERY player on the ${LEAGUE.teams - LEAGUE.playoffTeams} eliminated teams is
 released into a free-agent pool, and the ${LEAGUE.playoffTeams} surviving teams bid their
 remaining budget on them in one final waiver run. Budget you did not

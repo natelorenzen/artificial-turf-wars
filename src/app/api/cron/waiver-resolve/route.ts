@@ -1,8 +1,15 @@
 import { assertCronAuth, assertBeforeKickoff, cronErrorResponse } from '@/lib/cron/guard';
 import { supabaseServer } from '@/lib/supabase-server';
-import { resolveWaivers, type TeamWaiverState, type WaiverClaim } from '@/lib/engine/faab';
+import {
+  resolveWaivers,
+  type TeamWaiverState,
+  type WaiverClaim,
+  type WaiverResolution,
+} from '@/lib/engine/faab';
+import { isPlayoffWeek, LAST_LEAGUE_WEEK } from '@/lib/engine/bracket';
+import { resolvePlayoffPool } from '@/lib/engine/playoff-pool';
+import { loadStoredSeeds } from '@/lib/playoffs/state';
 import { resolveScoringWeek, seasonIdFor } from '@/lib/scoring/week';
-import { LEAGUE } from '@/lib/config/league';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
@@ -32,8 +39,8 @@ export async function GET(request: Request) {
       return Response.json({ ok: true, skipped: 'season has not started', season });
     }
     const targetWeek = playedWeek + 1;
-    if (targetWeek > LEAGUE.regularSeasonWeeks) {
-      return Response.json({ ok: true, skipped: 'regular season is over', season, playedWeek });
+    if (targetWeek > LAST_LEAGUE_WEEK) {
+      return Response.json({ ok: true, skipped: 'the season is over', season, playedWeek });
     }
     await assertBeforeKickoff(db, season, targetWeek);
 
@@ -84,7 +91,18 @@ export async function GET(request: Request) {
     }));
 
     // --- resolve -------------------------------------------------------------
-    const resolution = resolveWaivers(claims, teams);
+    //
+    // The playoff pool resolves through the same rule with one extra guard: only the
+    // four qualifiers may bid (§14.5). Nothing should ever have taken a bid from an
+    // eliminated team — the pool run never asks them — so a rejection here means
+    // something upstream is wrong, and it is reported rather than quietly resolved.
+    const seeds = isPlayoffWeek(targetWeek) ? await loadStoredSeeds(db, seasonId) : [];
+    const pool =
+      seeds.length > 0
+        ? resolvePlayoffPool(claims, teams, { qualified: seeds, eliminated: [] })
+        : null;
+    const resolution: WaiverResolution = pool ?? resolveWaivers(claims, teams);
+    const rejectedClaims: WaiverClaim[] = pool?.rejected ?? [];
 
     // --- persist -------------------------------------------------------------
     // Losing bids are updated, never deleted: a team that bid $40 and lost to $41 is
@@ -141,6 +159,10 @@ export async function GET(request: Request) {
       bidWeek: playedWeek,
       effectiveWeek: targetWeek,
       claims: resolution.outcomes.length,
+      playoffPool: seeds.length > 0,
+      // Should always be zero. A non-zero here means a team whose season ended filed a
+      // claim, which the pool run has no path to produce.
+      rejectedIneligible: rejectedClaims.length,
       won: won.length,
       spent: won.reduce((sum, o) => sum + o.bid, 0),
       outcomes: resolution.outcomes.map((o) => ({

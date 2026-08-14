@@ -3,8 +3,10 @@ import { defersToLaterFiring, LINEUP_FIRINGS, resolveUpcomingWeek } from '@/lib/
 import { claimJobRun, completeJobRun, failJobRun } from '@/lib/cron/job-run';
 import { supabaseServer } from '@/lib/supabase-server';
 import { LEAGUE } from '@/lib/config/league';
+import { isPlayoffWeek, SEMIFINAL_WEEK } from '@/lib/engine/bracket';
+import { loadBracket, persistBracketWeek } from '@/lib/playoffs/state';
 import { seasonIdFor } from '@/lib/scoring/week';
-import { buildWeeklyContext } from '@/lib/weekly/context';
+import { buildWeeklyContext, teamsPlayingIn } from '@/lib/weekly/context';
 import {
   assertLineupContexts,
   decideLineups,
@@ -69,6 +71,33 @@ export async function GET(request: Request) {
       });
     }
 
+    // In a playoff week the fixtures do not exist until they are derived: week 15 from
+    // the final standings, week 16 from week 15's scores. Written before the context is
+    // built, because the context reads opponents out of `h2h_schedule` exactly as it
+    // does for every other week of the season — the bracket is not a special case once
+    // the rows are there.
+    const bracket = isPlayoffWeek(week) ? await loadBracket(db, seasonId) : null;
+    if (isPlayoffWeek(week)) {
+      if (!bracket) {
+        return Response.json({
+          ok: true,
+          skipped: `week ${LEAGUE.regularSeasonWeeks} has not been scored, so there is no bracket to seed`,
+          season,
+          week,
+        });
+      }
+      const games = week === SEMIFINAL_WEEK ? bracket.semifinals : bracket.championship;
+      if (games.length === 0) {
+        return Response.json({
+          ok: true,
+          skipped: `week ${SEMIFINAL_WEEK} is not scored yet — the week ${week} fixtures are undecided`,
+          season,
+          week,
+        });
+      }
+      await persistBracketWeek(db, seasonId, games);
+    }
+
     const claim = await claimJobRun(db, { job: 'lineups', seasonId, week });
     if (!claim.claimed) {
       return Response.json({ ok: true, skipped: claim.reason, season, week });
@@ -94,7 +123,8 @@ export async function GET(request: Request) {
       // A team the loop never reached at all keeps its seeded lineup. Counted apart
       // from `fallbacks`, because "the model answered badly" and "the model was never
       // successfully asked" are different findings about a week.
-      const undecided = context.teams.filter(
+      const playing = teamsPlayingIn(context);
+      const undecided = playing.filter(
         (team) => !decisions.some((d) => d.team.teamId === team.teamId),
       );
 
@@ -103,7 +133,7 @@ export async function GET(request: Request) {
         modelCalls: decisions.length,
         costUsd: cost,
         detail:
-          `${decisions.length - fallbacks.length}/${context.teams.length} model lineups, ` +
+          `${decisions.length - fallbacks.length}/${playing.length} model lineups, ` +
           `${fallbacks.length} fallback, ${undecided.length} left on the seeded lineup` +
           (failures.length > 0 ? `; errors: ${failures.map((f) => f.error).join(' | ')}` : ''),
       });
@@ -116,6 +146,14 @@ export async function GET(request: Request) {
         hoursOfSlack: kickoff.hoursOfSlack,
         lockedAt: lockedAt.toISOString(),
         seeded: seeded.seeded.length,
+        // Null all regular season; in the playoffs it is which teams are still alive
+        // and what each of them is playing for.
+        playoff: bracket
+          ? {
+              round: week === SEMIFINAL_WEEK ? 'semifinals' : 'final and third place',
+              teams: playing.map((t) => t.label),
+            }
+          : null,
         teams: decisions.map((d) => ({
           label: d.team.label,
           model: d.team.displayName,

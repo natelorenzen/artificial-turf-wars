@@ -28,6 +28,7 @@ import { collectDataIndex } from '@/lib/prompt/cited';
 import { round2 } from '@/lib/scoring/engine';
 import { allPlayWeek } from '@/lib/engine/allplay';
 import { buildLabelMap } from '@/lib/engine/labels';
+import { standingsThroughWeek } from '@/lib/scoring/week';
 import { stableHash } from '@/lib/util/hash';
 import { recapSchema, type RecapResponse } from '@/lib/schemas/decisions';
 
@@ -131,7 +132,11 @@ export async function buildWrapFacts(
 
   const scores = await loadWeekScores(db, teams.map((t) => t.id), week);
   const lineupMeta = await loadLineupMeta(db, teams.map((t) => t.id), week);
-  const standings = await loadStandingsRow(db, teams.map((t) => t.id), week);
+  // A playoff week writes no standings row on purpose (see `standingsThroughWeek`), so
+  // the record and rank shown beside a semifinal are the ones the team finished the
+  // regular season with. Asking for week 15's row would return nothing, and every team
+  // on the page would read "0-0", unranked, in the biggest week of the year.
+  const standings = await loadStandingsRow(db, teams.map((t) => t.id), standingsThroughWeek(week));
   const matchups = await loadMatchups(db, seasonId, week);
 
   const scored = teams.filter((t) => scores.has(t.id));

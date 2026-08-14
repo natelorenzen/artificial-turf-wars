@@ -47,6 +47,13 @@ npx tsx --env-file=.env.local scripts/weekly-dry-run.ts --crons --season 2026
 ## Gate 1 — The league exists 🔴 *blocks everything below*
 
 - [ ] Migration `0008_season_projection_uniqueness.sql` applied
+- [ ] Migration `0009_playoff_seeds.sql` applied *(added 14 Aug with the playoff phase)*
+- [ ] **Reconcile the rulebook version.** The playoff work bumped `RULEBOOK_VERSION` to
+      `rulebook-v3` — the third-place game and the playoff tie rule were both enforceable
+      and unstated. The 2026 season row still reads `rulebook-v2`, so `scripts/draft.ts`
+      now REFUSES both stages until `seasons.rulebook_version` is updated and the
+      comprehension check is re-sat under v3 (8 calls, about $0.10).
+      `scripts/draft.ts --status` prints the mismatch.
 - [ ] Auction run — 8 slots assigned, seed verified against the published commitment
 - [ ] Draft run — 120 picks, 8 rosters of 15
 
@@ -97,10 +104,20 @@ from job_runs where week = 1 order by started_at;
 
 ## Gate 3 — It publishes itself 🟡
 
-- [ ] Migration `0007_social_posts.sql` applied
-- [ ] X developer app created for `@playATW`, credits purchased, four env vars set
-- [ ] X adapter + `/api/cron/social` built
+- [x] Migration `0007_social_posts.sql` applied *(it already was — the 10 Aug entry was
+      wrong; `social_posts` is present, verified 14 Aug)*
+- [x] **X adapter + `/api/cron/social` built** *(14 Aug)* — OAuth 1.0a signing with 13
+      tests, a daily 20:00 UTC cron entry, compose-then-release with a per-run cap of 3.
+      Runs and skips cleanly with no credentials, queueing drafts either way.
+- [ ] X developer app for `@playATW`, and four env vars set:
+      `X_API_KEY`, `X_API_SECRET`, `X_ACCESS_TOKEN`, `X_ACCESS_TOKEN_SECRET`
 - [ ] A post auto-releases when its checks pass, and is held when they do not
+
+> **Two traps in the portal.** App permissions must be **Read and write** and the access
+> token must be **regenerated afterwards** — a token minted before the change keeps its
+> read-only scope and returns a 403 that does not mention permissions. And the token
+> belongs to whichever account was signed in when it was generated, which is the byline
+> on every post for the season. The **Bearer token is app-only and cannot post.**
 
 **Passing looks like:** `social_posts` rows moving `draft → posted` on their own, and a
 row with `auto_eligible = false` sitting untouched with a `hold_reason`.
@@ -110,17 +127,34 @@ row with `auto_eligible = false` sitting untouched with a `hold_reason`.
 
 ---
 
-## Gate 4 — It finishes itself 🔵 *late November*
+## Gate 4 — It finishes itself 🔵 *built 14 Aug, not yet rehearsed*
 
-The regular season is complete and unaffected; the playoffs are not wired at all.
+- [x] **Weeks 15–16 reachable by every job** — the week-14 cap is gone from
+      `resolveScoringWeek`, `upcomingWeek`, the lead-time guard and the daily projection
+      ingest. `LAST_LEAGUE_WEEK` is now the single bound.
+- [x] **The bracket** — `src/lib/engine/bracket.ts`, 20 tests. 1v4 and 2v3 in week 15;
+      the winners meet for the title and the losers play for third in week 16.
+- [x] **Playoff lineups** — the lineup job derives and persists the week's fixtures, then
+      asks only the teams still playing. Eliminated teams are not seeded a lineup.
+- [x] **§14.5 playoff FAAB pool run** — it is the Tuesday `waiver-bids` job, not a new
+      route: freeze the field, release the four eliminated rosters, then the same sealed
+      bids among the four survivors, resolved by the same Wednesday job.
+- [x] **A champion declared, and the site says who** — `/results/15` and `/results/16`
+      render (they would have 404ed), with round labels and seeds, and the front page
+      carries the title beside the sentence that stops it overwriting the ranking.
+- [ ] **Rehearse it against 2025**, exactly as the weekly cycle was. Nothing here has run.
 
-- [ ] Weeks 15–16 reachable by the forward-looking jobs (they cap at week 14 today)
-- [ ] Playoff lineups set, playoff weeks scored
-- [ ] §14.5 playoff FAAB pool run — `playoff-pool.ts` is written and tested, and nothing
-      calls it
-- [ ] A champion declared, and the site says who
+**Passing looks like:** `/results/16` naming a champion the `lineup_scores` agree with.
 
-**Passing looks like:** a week-16 row in `standings` and a result on the front page.
+> **The standings deliberately do NOT reach week 16.** Accumulating a playoff week would
+> fold four teams' scores into an eight-team all-play record and move the very ranking
+> the bracket was seeded from. `standingsThroughWeek` caps it at 14 and there is a test
+> asserting the leader would otherwise change.
+>
+> **The field is frozen when the pool runs**, in `playoff_seeds`, because the pool runs on
+> Tuesday's PROVISIONAL week-14 scores and the final pass lands on Thursday. A team
+> cannot be told on Thursday that the roster it rebuilt on Wednesday was for a playoff
+> run it is not in. A later correction changes the published numbers, never the bracket.
 
 ---
 
@@ -143,10 +177,18 @@ This is the part worth re-reading in October.
 | Gate | State |
 |---|---|
 | 0 — Deployed and guarded | ✅ |
-| 1 — The league exists | 🔴 draft not run |
+| 1 — The league exists | 🔴 draft not run; two migrations and the rulebook version outstanding |
 | 2 — A week runs unattended | ⬜ blocked by 1 |
-| 3 — It publishes itself | 🟡 composer + queue built, credentials outstanding |
-| 4 — It finishes itself | 🔵 not started, due late November |
+| 3 — It publishes itself | 🟡 built end to end, credentials outstanding |
+| 4 — It finishes itself | 🟡 built 14 Aug, never run |
 
 **Two full weekly cycles have been rehearsed** against 2025, ten bugs found and fixed.
 The machine works. It has never been asked to run a week that counts.
+
+### What changed on 14 August
+
+Everything except the draft. The playoff phase was built four months early rather than in
+late November, and doing it now paid for itself immediately: the bracket needed two rules
+stated in the rulebook that were enforceable but unstated, and **a rulebook change is free
+before the draft and expensive after it.** In November that bump would have landed
+mid-season, with 120 picks and ten weeks of decisions already taken under v2.

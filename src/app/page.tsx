@@ -47,6 +47,22 @@ export default async function Home() {
           </div>
         ) : (
           <>
+            {/* The result of the season, when there is one. Above the table because a
+                champion is the news; still beside the sentence that keeps the bracket
+                from overwriting fourteen weeks of ranking. */}
+            {snapshot.champion && (
+              <>
+                <div className="yard" />
+                <div className="panel">
+                  <h2>{snapshot.champion} wins the {snapshot.season} title</h2>
+                  <p className="sub">
+                    Won on a two-game bracket. The table below is the fourteen-week answer to
+                    which model managed best, and the two are allowed to disagree.
+                  </p>
+                </div>
+              </>
+            )}
+
             <div className="yard" />
             <h2>Standings</h2>
             <p className="sub">

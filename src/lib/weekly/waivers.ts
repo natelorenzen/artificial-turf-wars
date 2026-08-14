@@ -33,11 +33,13 @@ import { recordEngineRejection, runDecision } from '@/lib/decisions/run';
 import { waiverSchema, type WaiverResponse } from '@/lib/schemas/decisions';
 import {
   loadPlayerForm,
+  teamsPlayingIn,
   weeklyBase,
   weeklyOverlay,
   type WeeklyContext,
   type WeeklyTeam,
 } from './context';
+import { isPlayoffWeek } from '@/lib/engine/bracket';
 
 export const FORBIDDEN_NAMES = [...COHORT.map((m) => m.displayName), ...COHORT.map((m) => m.lab)];
 
@@ -220,6 +222,20 @@ export function buildWaiverContext(input: WaiverContextInput, teamId: string): W
     tiebreak_rule:
       'Highest bid wins. Equal bids break on waiver_priority, lowest first. A winning claim ' +
       'drops that team to the bottom of the priority list, within the same run.',
+    // The playoff pool is the same mechanism asking a different question, and the
+    // difference is worth stating rather than leaving to be inferred from the week
+    // number: every eliminated roster is in the pool, only two games remain, and
+    // budget kept past this run buys nothing at all (§14.5).
+    ...(isPlayoffWeek(context.week)
+      ? {
+          pool_type: 'playoff_release' as const,
+          pool_note:
+            `This is the final waiver run of the season. Every player from the ` +
+            `${LEAGUE.teams - LEAGUE.playoffTeams} eliminated teams has been released into the pool ` +
+            `above. There are ${LEAGUE.playoffWeeks.length} games left and no further waiver runs, ` +
+            'so unspent budget has no remaining use.',
+        }
+      : { pool_type: 'weekly' as const }),
   };
 
   const overlay = weeklyOverlay(context, teamId) as unknown as Record<string, unknown>;
@@ -232,7 +248,9 @@ export function buildWaiverContext(input: WaiverContextInput, teamId: string): W
 
 /** The §14.6 proof, run before the first model call — see the note in `lineups.ts`. */
 export function assertWaiverContexts(input: WaiverContextInput): SplitHashes[] {
-  const built = input.context.teams.map((team) => ({
+  // The teams being asked — all eight in the regular season, the four survivors in the
+  // playoff pool run (§14.5).
+  const built = teamsPlayingIn(input.context).map((team) => ({
     teamId: team.teamId,
     block: buildWaiverContext(input, team.teamId),
   }));
@@ -365,7 +383,7 @@ export async function decideAllWaivers(
   input: WaiverContextInput,
   db: SupabaseClient | null,
 ): Promise<{ decisions: WaiverDecision[]; failures: { team: WeeklyTeam; error: string }[] }> {
-  const callable = input.context.teams.filter((team) => !team.frozen);
+  const callable = teamsPlayingIn(input.context).filter((team) => !team.frozen);
 
   const settled = await Promise.allSettled(
     callable.map((team) => decideWaivers(input, team, db)),

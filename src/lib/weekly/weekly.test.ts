@@ -105,6 +105,7 @@ function context(over: Partial<WeeklyContext> = {}): WeeklyContext {
     opponentOf,
     byeTeams: ['DET', 'PHI'],
     memoryBlocks: new Map(teams.map((t) => [t.teamId, `memory for ${t.label}`])),
+    playoffRoundOf: new Map(),
     ...over,
   };
 }
