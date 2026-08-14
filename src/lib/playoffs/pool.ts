@@ -38,10 +38,17 @@ export interface PlayoffFieldResult {
  * the second delivery must not re-seed a bracket the first one already published —
  * particularly since this runs on PROVISIONAL week-14 scores and the numbers underneath
  * it move again on Thursday.
+ *
+ * `commit: false` computes the field and writes nothing. That option exists because the
+ * first dry run of the rehearsal script froze a field: this function wrote on every
+ * call, so previewing the postseason committed it. Harmless on a rehearsal season and
+ * decidedly not on the real one, where the frozen field is what the four survivors then
+ * spend their remaining budget against.
  */
 export async function decidePlayoffField(
   db: SupabaseClient,
   seasonId: string,
+  { commit = true }: { commit?: boolean } = {},
 ): Promise<PlayoffFieldResult | null> {
   const standings = await loadFinalStandings(db, seasonId);
   if (standings.length < LEAGUE.teams) return null;
@@ -63,6 +70,18 @@ export async function decidePlayoffField(
   // a human has to look, and the alternative is a bracket decided by row order.
   const seeds = seedField(standings);
   const rowOf = new Map(standings.map((row) => [row.teamId, row]));
+
+  if (!commit) {
+    const qualified = new Set(seeds);
+    return {
+      seeds,
+      eliminated: standings
+        .filter((row) => !qualified.has(row.teamId))
+        .sort((a, b) => a.rank - b.rank)
+        .map((row) => row.teamId),
+      frozen: false,
+    };
+  }
 
   await freezeSeeds(
     db,

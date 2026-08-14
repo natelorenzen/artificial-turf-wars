@@ -177,12 +177,18 @@ export async function loadPlayoffView(
     roundOf.set(pair.sort().join('|'), game.round);
   }
 
+  // The title belongs to the week it was won in. Carried on every playoff page, the
+  // semifinal page announced a champion decided a week after the games it was showing —
+  // a spoiler on its own scoreline, and a page reporting something that had not happened
+  // when those games were played.
+  const decided = week === FINAL_WEEK;
+
   return {
     weekLabel: week === SEMIFINAL_WEEK ? 'Semifinals' : 'Final and third place',
     roundOf,
-    champion: bracket.championTeamId ? (nameOf.get(bracket.championTeamId) ?? null) : null,
-    runnerUp: bracket.runnerUpTeamId ? (nameOf.get(bracket.runnerUpTeamId) ?? null) : null,
-    third: bracket.thirdTeamId ? (nameOf.get(bracket.thirdTeamId) ?? null) : null,
+    champion: decided && bracket.championTeamId ? (nameOf.get(bracket.championTeamId) ?? null) : null,
+    runnerUp: decided && bracket.runnerUpTeamId ? (nameOf.get(bracket.runnerUpTeamId) ?? null) : null,
+    third: decided && bracket.thirdTeamId ? (nameOf.get(bracket.thirdTeamId) ?? null) : null,
     seedOf: new Map(
       bracket.seeds
         .map((teamId, i) => [nameOf.get(teamId), i + 1] as const)
