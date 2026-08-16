@@ -1,7 +1,8 @@
 # What "fully live and automated" means, and how to know we are there
 
-**Written 10 August 2026.** `TODO.md` tracks *what is left*. This file defines *what done
-looks like* — five gates, each with a condition you can check rather than believe.
+**Written 10 August 2026, status re-verified 16 August.** `TODO.md` tracks *what is left*.
+This file defines *what done looks like* — five gates, each with a condition you can check
+rather than believe.
 
 ---
 
@@ -134,7 +135,7 @@ row with `auto_eligible = false` sitting untouched with a `hold_reason`.
 
 ---
 
-## Gate 4 — It finishes itself 🔵 *built 14 Aug, not yet rehearsed*
+## Gate 4 — It finishes itself ✅ *built and rehearsed 14 Aug*
 
 - [x] **Weeks 15–16 reachable by every job** — the week-14 cap is gone from
       `resolveScoringWeek`, `upcomingWeek`, the lead-time guard and the daily projection
@@ -149,9 +150,18 @@ row with `auto_eligible = false` sitting untouched with a `hold_reason`.
 - [x] **A champion declared, and the site says who** — `/results/15` and `/results/16`
       render (they would have 404ed), with round labels and seeds, and the front page
       carries the title beside the sentence that stops it overwriting the ranking.
-- [ ] **Rehearse it against 2025**, exactly as the weekly cycle was. Nothing here has run.
+- [x] **Rehearsed against 2025** *(14 Aug, $0.80)* — field seeded, pool released, four
+      survivors bidding, two bracket weeks set and scored, champion declared. Three bugs,
+      all found by running it: applying `0008` had broken the daily ingest's WEEKLY write
+      (a partial index cannot be an `ON CONFLICT` target, and only the seasonal write was
+      converted), the dry run **froze the field** because `decidePlayoffField` wrote on
+      every call, and `/results/15` announced the champion a week before it was decided.
+      8/8 valid lineups across both bracket weeks, zero fallbacks, and the standings
+      correctly stopped at 14 — the bracket did not re-seed itself from its own results.
 
 **Passing looks like:** `/results/16` naming a champion the `lineup_scores` agree with.
+*(It did, on 2025: Muse Spark 1.1 arrived at the pool a 4 seed with $80 unspent, spent all
+of it, and won the title 158.6–151.4.)*
 
 > **The standings deliberately do NOT reach week 16.** Accumulating a playoff week would
 > fold four teams' scores into an eight-team all-play record and move the very ranking
@@ -179,18 +189,38 @@ This is the part worth re-reading in October.
 
 ---
 
-## Honest status, 10 August 2026
+## Honest status, 16 August 2026
+
+Verified against the database rather than against this file — `draft.ts --status`,
+`weekly-dry-run.ts --status --crons`, and `db-check.ts`, all re-run on 16 August.
 
 | Gate | State |
 |---|---|
-| 0 — Deployed and guarded | ✅ |
+| 0 — Deployed and guarded | ✅ 29/29 tables, RLS correct, every week clears its kickoff |
 | 1 — The league exists | 🔴 **only the auction and draft remain** — schema, rulebook and the 19/19 gate are all done |
-| 2 — A week runs unattended | ⬜ blocked by 1 |
-| 3 — It publishes itself | ✅ @PlayATW connected and posting; queue live |
-| 4 — It finishes itself | 🟡 built 14 Aug, never run |
+| 2 — A week runs unattended | ⬜ blocked by 1, and by there being no football until 9 Sept |
+| 3 — It publishes itself | 🟡 @PlayATW connected and proven by hand; the queue has never auto-released, because `social_posts` has nothing in it yet |
+| 4 — It finishes itself | ✅ built and rehearsed 14 Aug, champion declared |
 
-**Two full weekly cycles have been rehearsed** against 2025, ten bugs found and fixed.
-The machine works. It has never been asked to run a week that counts.
+**Three full cycles have now been rehearsed** against 2025 — two regular-season weeks and
+the whole postseason — for $2.83. **Sixteen bugs found and fixed**, four of which would
+have ended the season. The machine works. It has never been asked to run a week that
+counts.
+
+### The remaining work is not code
+
+Outside the draft, there is nothing left to build. What is left needs either the draft or
+real football to exist:
+
+| Left | Needs | Earliest |
+|---|---|---|
+| Gate 2 — an unattended weekly cycle | rosters, and a week to run | Week 1, **9 Sept** |
+| Gate 3 — a post auto-releasing | a result worth announcing | first scored week |
+
+> **Week 1 is the Wednesday-opener exception.** It kicks off Wed 9 Sept 19:00 ET, so the
+> Wednesday `lineups` firing is the one that counts and the Thursday one must stand down.
+> It is also the tightest margin of the season — 4.0h for the weekend guide, exactly the
+> required minimum. If any week is going to expose a scheduling assumption, it is this one.
 
 ### The eval, added 14 August
 

@@ -1,21 +1,28 @@
 # What's left before the season runs
 
-**Written 1 August 2026, updated 6 August.** Draft is late August (~3 weeks out). NFL
-Week 1 kicks off **9 September 2026** (~5 weeks out).
+**Written 1 August 2026, updated 16 August.** Draft is imminent. NFL Week 1 kicks off
+**9 September 2026** (~3 weeks out).
 
-State as verified against the database and the repo on 6 August, not from memory
-(`npx tsx --env-file=.env.local scripts/weekly-dry-run.ts --status` reprints all of it):
+> **Read `GO-LIVE.md` first.** It defines what done looks like as five checkable gates.
+> This file is the working log of how each one was closed. Where the two disagree about
+> *status*, believe `GO-LIVE.md` — it is re-verified against the database.
 
-- 2026 season: **8 teams seeded, rules check passed 8/8, and nothing else.** 0 auction
-  bids, 0 draft picks, 0 rosters, 0 lineups. **The draft has not been run.**
-  Schedule, byes and week-1 projections are all ingested and healthy (273 games,
-  32 byes, 3,236 week-1 projections).
-- 2025 rehearsal: draft complete — 120 picks, 128 decisions, $4.99 spent, three gates
-  met. **No weekly cycle has ever run against it**: 0 lineups, 0 standings, 0 bids.
-  It also holds no schedule, no byes and no weekly projections, which is a blocker —
-  see the rehearsal section below.
-- Site: live, four findings posts, the weekend guide, FAQ, feed, llms.txt, sitemap.
-- `vercel.json` declares **8 cron schedules**; **all 8 routes now exist** (was 5).
+State as verified against the database on 16 August, not from memory
+(`scripts/draft.ts --status`, `scripts/weekly-dry-run.ts --status --crons`, `db-check.ts`):
+
+- 2026 season: **8 teams seeded, rules check passed 8/8 at 19/19 under `rulebook-v3`, and
+  nothing else.** 0 auction bids, 0 draft picks, 0 rosters, 0 lineups. **The draft has not
+  been run** — it is the only thing left to build the league. Schedule, byes and week-1
+  projections all ingested and healthy: 3,236 season-long projections with **no
+  duplication**, and the daily ingest confirmed writing at 10:27 UTC on 16 August.
+- 2025 rehearsal: draft complete, **two weekly cycles and the whole postseason run** —
+  142 rosters, 88 lineups, 80 standings rows, 50 bids, a champion. 188 decisions,
+  $8.11 all-in.
+- Site: live, **eight** findings posts, the weekend guide, standings, weekly results,
+  `/ratings`, FAQ, feed, llms.txt, sitemap.
+- `vercel.json` declares **8 cron schedules**; all 8 routes exist and every week of 2026
+  clears its kickoff guard, **including the two playoff weeks**.
+- Tests: 381 across 28 files. Typecheck clean.
 
 ---
 
@@ -469,16 +476,46 @@ lesson was never carried back to the table the draft reads.
 - [x] **Ingest fixed** *(10 Aug)* — season-long projections are delete-then-insert, not
       upsert. A partial index cannot be an `ON CONFLICT` target through PostgREST, since
       inferring one means restating its predicate and `on_conflict` cannot express that.
-- [ ] **Apply migration `0008_season_projection_uniqueness.sql`** — the partial indexes
-      that make it impossible to regress. The data and the ingest are already correct, so
-      this is belt-and-braces rather than a blocker; apply it anyway before the draft.
+- [x] **Applied migration `0008_season_projection_uniqueness.sql`** *(14 Aug)* — and
+      verified by attempting a duplicate season-long insert, which came back `23505`. An
+      index that exists but does not fire is the same as no index.
+
+> **Applying it broke the daily ingest, and that is the more important half of this
+> story.** `0008` drops the plain `unique (player_id, season, week)` in favour of two
+> partial indexes — correct, because the plain one never constrained season-long rows at
+> all. But a partial index cannot be an `ON CONFLICT` target through PostgREST, and only
+> the SEASONAL write had been converted to delete-then-insert. **The WEEKLY write was left
+> on upsert**, so the moment the migration was applied the daily job began failing with
+> "no unique or exclusion constraint matching the ON CONFLICT specification" — and weekly
+> projections are the input to every lineup decision of the season. Caught within the hour
+> only because the postseason rehearsal needed week-15 projections and could not get them.
+> Fixed 14 Aug. **A fix that lands cleanly and breaks the job it was protecting is the
+> exact shape this project keeps producing** — see findings 008.
 
 > Verified after the fix, against the queries the draft actually runs: auction board 60
 > rows / 60 distinct ids, pool 1000 rows / 1000 distinct ids.
 
 ---
 
-## 🔵 The playoffs are not wired up at all
+## ✅ The playoffs — found unwired 7 Aug, built and rehearsed 14 Aug
+
+> **Closed.** Everything below describes the state on 7 August and is kept because the
+> reasoning for deferring it was wrong in an instructive way. The decision at the bottom
+> was to build it in late November; it was built on **14 August** instead, and doing it
+> early paid for itself immediately — **the bracket needed two rules stated in the rulebook
+> that were enforceable but unstated, and a rulebook change is free before the draft and
+> expensive after it.** In November that bump would have landed mid-season, with 120 picks
+> and ten weeks of decisions already taken under the old version.
+>
+> Built: `src/lib/engine/bracket.ts` (20 tests), playoff lineups for surviving teams only,
+> the §14.5 pool as part of the Tuesday `waiver-bids` job rather than a new route,
+> `/results/15` and `/results/16`, and a champion on the front page. `LAST_LEAGUE_WEEK`
+> replaced the week-14 cap in `resolveScoringWeek`, `upcomingWeek`, the lead-time guard
+> and the daily ingest. Rehearsed end to end against 2025 on 14 August for $0.80.
+>
+> **The standings deliberately still stop at week 14.** Accumulating a playoff week would
+> fold four teams' scores into an eight-team all-play record and move the very ranking the
+> bracket was seeded from. There is a test asserting the leader would otherwise change.
 
 Found 7 August, by asking what the jobs would do in December rather than waiting to
 find out. **The engine primitives exist and nothing calls them.**
@@ -509,13 +546,22 @@ bug — roster release, seeding, semifinal and final matchups, a FAAB run, two w
 lineups and scoring — and the shape of it is easier to get right after watching fourteen
 real weeks than before watching any. The regular season is unaffected and complete.
 
-- [ ] **Wire up weeks 15–16** — routes, or a guarded script in the `weekly-rehearsal.ts`
-      mould. Rehearse it against 2025 first, exactly as the weekly cycle was.
-- [ ] **Decide whether `/results/[week]` and the standings distinguish playoff weeks**,
-      or whether week 15 just appears as another row. Currently it would 404.
+- [x] **Wire up weeks 15–16** *(14 Aug)* — no new routes; the existing jobs reach the
+      bracket weeks now that `LAST_LEAGUE_WEEK` is the single bound.
+- [x] **Rehearsed against 2025** *(14 Aug, $0.80)* — `scripts/playoff-rehearsal.ts`,
+      split into `--fast-forward` (deterministic, free, builds a week-14 standings table)
+      and `--playoffs`. Season hardcoded to 2025 with no flag, for the same reason
+      `backtest.ts` cannot write 2026.
+- [x] **`/results/[week]` distinguishes playoff weeks** *(14 Aug)* — round labels and
+      seeds, and the title banner belongs to the week it was won in rather than sitting on
+      top of the semifinal it spoils.
+- [x] **Cron slack now covers weeks 15–16** *(16 Aug)* — `weekly-dry-run.ts --crons` was
+      still filtering `week <= regularSeasonWeeks` long after every job started reaching
+      the bracket, so the two weeks that decide the title were the only ones the standing
+      kickoff check never looked at. Both clear at 8.3h for `lineups`.
 
-> Worth doing before **late November**, not before the draft. Putting it here so it is a
-> decision with a date on it rather than a surprise in the middle of a final.
+> The original note said this was worth doing before **late November, not before the
+> draft**. That was wrong, and cheaply so — see the box at the top of this section.
 
 ---
 
@@ -526,8 +572,13 @@ real weeks than before watching any. The regular season is unaffected and comple
 - [x] **Apply migration `0006_recap_publishing.sql`** *(6 Aug, applied)* — verified via
       `weekly-dry-run.ts --status`, and the wrap route's exact upsert exercised against
       the real schema.
-- [ ] **Apply migration `0007_social_posts.sql`** — the outbound post queue. Nothing
-      reads it yet, so this degrades rather than breaking.
+- [x] **Migration `0007_social_posts.sql`** — it was already applied; the 10 Aug entry
+      claiming otherwise was wrong, verified 14 Aug. The outbound queue is live, X is
+      connected as **@PlayATW**, and posts are text-only with "link in bio" because X
+      charges $0.20 for a post carrying a URL against $0.015 without — which takes the
+      season from about $8 to about $0.60. **`social_posts` is still empty**: the queue
+      runs daily and has had nothing to announce, so the auto-release path is the one
+      piece of the machine never exercised end to end.
 - [x] **Guard `weekend-guide` against running weeks early** *(6 Aug)* — and `lineups`
       with it, which has the same trap. `src/lib/cron/upcoming.ts` refuses any
       forward-looking job whose week does not kick off within 7 days, reported as a
@@ -606,20 +657,27 @@ real weeks than before watching any. The regular season is unaffected and comple
 
 ---
 
-## Suggested order for the week of 10 August
+## What is actually left, 16 August
 
-The three routes that filled Mon–Wed of this plan shipped early, on 6 August. What is
-left is the running, which is the part that finds things.
+Every item on the week-of-10-August plan is done, including the two it did not contain —
+the playoff phase and the social queue. **The list is now one line long.**
 
-| Day | Work |
-|---|---|
-| **Mon** | Apply `0006`. Backfill the 2025 schedule and week-5 projections. |
-| **Tue** | The live weekly rehearsal on 2025 week 5, in cron order. ~17 calls, ~$0.50. |
-| **Wed** | Fix what the rehearsal finds. Homepage standings and weekly results pages. |
-| **Thu** | Verify the kickoff guard against the real 2026 schedule and the 1 Nov DST shift. Findings 005 if there is room. |
-| **Fri** | **Run the real auction and draft**, once the weekly cycle has been rehearsed. |
+| Left | Blocked on | When |
+|---|---|---|
+| **Run the auction and the draft** | nothing | any time; it is the only buildable work left |
+| A weekly cycle running unattended | rosters, and a week of football | Week 1, **9 Sept** |
+| A queued post auto-releasing | a result worth announcing | first scored week |
 
-> **Sequencing that still holds: do not run the real draft until the weekly cycle has
-> been rehearsed end to end.** Every bug found on 4–5 August was found by running the
-> thing, not by reading it — the `CCRON_SECRET` typo, the 300s ceiling, and the seven
-> unfiltered projection queries were all invisible until something actually executed.
+The sequencing condition that governed this whole file — **do not run the real draft
+until the weekly cycle has been rehearsed end to end** — is satisfied. Two regular-season
+weeks and the full postseason have been rehearsed against 2025, sixteen bugs found and
+fixed for about eight dollars.
+
+> **What that leaves is uncomfortable in a specific way.** Of sixteen bugs, not one was
+> found by reading the code; four would have ended the season and all four sat in code
+> that had been read, reviewed and covered by passing tests. The draft is **120 model
+> calls, one shot, irreversible**, and it is the last major component never run against
+> data that counts. Four locks stand between an invocation and a write, the seed is
+> verified against the published commitment, and the whole thing has been rehearsed on
+> 2025. On the evidence of this file, that rehearsal is worth considerably more than the
+> review was.
