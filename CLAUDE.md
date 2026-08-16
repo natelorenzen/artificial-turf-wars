@@ -50,6 +50,14 @@ client in server-side routes.
    `RULEBOOK_VERSION` and disclosing it on `/methodology`.
 3. **Never read Sleeper's `pts_ppr`.** Our interception value differs. Compute from
    raw stat fields via `src/lib/scoring/engine.ts`.
+3b. **Never sum `player_stats.computed_pts` without resolving status.** §5.5 never
+   overwrites a published score, so a re-scored week keeps BOTH its `provisional` and
+   its `final` row — `unique (player_id, season, week, status)` exists so it can. A
+   blind sum double-counts every corrected week: it had Josh Allen's 2025 at 626.6
+   against a true 374.6, unevenly across players, one dry run from reaching eight
+   models as `last_season_points`. Use `seasonPointsByPlayer` in
+   `src/lib/scoring/week.ts`, which takes final where it exists and provisional where
+   it does not.
 4. **Every stat read defaults to 0.** Sleeper omits keys instead of returning zero;
    `stats.safe * 2` on a defense with no safety yields `NaN` and silently poisons a
    score. Use `n(stats, key)` — never index raw stats directly.
@@ -105,11 +113,21 @@ client in server-side routes.
   `fgm_50_59` and `fgm_50p` together — `fgm_50p` already includes 50–59.
 - **`st_td` vs `def_st_td`.** A special-teams TD is owned by the DEF/ST unit only.
   Scoring both would pay 12 points for one return. There is a test asserting 6.
-- **The preseason schedule endpoint is shifted by one and missing its first week.**
+- **The preseason endpoints are shifted by one and missing their first week.**
   `/schedule/nfl/pre/{season}` omits the opening week entirely, and its `week` numbers
-  are off: Sleeper's `pre` week N is the real preseason week N+1. Verified 5 Aug 2026.
-  Harmless today because nothing reads preseason data — a trap the first time anything
-  does. `regular` is not affected.
+  are off: Sleeper's `pre` week N is the real preseason week N+1. Verified 5 Aug 2026,
+  re-verified 16 Aug against `stats/nfl/{season}/{week}?season_type=pre`, whose `pre`
+  week 1 returns games dated 2026-08-13 — really the SECOND week of the preseason.
+  `regular` is not affected. **This is why `ingestPreseasonStats` reads the season-long
+  aggregate and never the per-week endpoint**: the aggregate carries no week number and
+  cannot inherit the bug.
+- **Preseason points are not a draft signal, and shipping them bare would be a trap.**
+  Established starters barely play, so the preseason scoring leaderboard is backups and
+  camp bodies — checked 16 Aug 2026, the top six RBs were Amar Johnson, Corey Kiner,
+  Dean Connors, Salvon Ahmed, J'Mari Taylor and Kaytron Allen. The signal is ROLE:
+  `off_snp` over `tm_off_snp`. The dossier says so in four explicit notes, because a
+  model that misread an unlabelled number would be failing our presentation rather than
+  its own reasoning.
 
 ---
 
@@ -143,6 +161,16 @@ npm run dev       # next dev
 npm run build     # next build
 npm test          # vitest run
 npm run typecheck # tsc --noEmit
+```
+
+Before the draft, in this order — the dossier is a stored snapshot and the draft reads
+whatever is stored, so a stale one ships silently:
+
+```bash
+npm run ingest -- --preseason-stats --season 2026   # manual: not in the daily cron
+npx tsx --env-file=.env.local scripts/dossier.ts    # rebuild + store, prints coverage
+npx tsx --env-file=.env.local scripts/draft.ts --auction   # dry run
+npx tsx --env-file=.env.local scripts/draft.ts --draft     # dry run
 ```
 
 ## Env vars
@@ -195,7 +223,7 @@ each was closed. When any of the three disagree about status, believe `GO-LIVE.m
 
 | Phase | State |
 |---|---|
-| 0 — scaffold, schema, cron config | **done** — migrations `0001`–`0009` all applied |
+| 0 — scaffold, schema, cron config | **done** — migrations `0001`–`0010` all applied, 32/32 tables |
 | 1 — Sleeper ingest + snapshots | **done** — 2026 holds 273 games, 32 byes, 3,236 season-long projections with no duplication |
 | Scoring engine | **done** — incl. the return-TD and absent-key traps |
 | Rulebook / prompt assembly | **done** — `rulebook-v3`, split base/overlay hashing |
@@ -205,7 +233,9 @@ each was closed. When any of the three disagree about status, believe `GO-LIVE.m
 | 5 — rules comprehension check | **done** — 19 questions, 8/8 first attempt under v3 *(14 Aug)* |
 | Cron guard | **done** — auth, kickoff/DST refusal, lead-time refusal, irreversible lock, `job_runs` ledger. Every week of 2026 clears, **including the playoff weeks** |
 | 4 — 2025 backtest | **done** — draft, two weekly cycles and the full postseason rehearsed. 16 bugs found |
-| 6 — auction + draft run | 🔴 **not started — the only thing left to build the league.** One irreversible step, four locks, rehearsed on 2025 |
+| 6 — auction + draft run | 🔴 **not started — scheduled 24 Aug.** The only thing left to build the league. One irreversible step, four locks, rehearsed on 2025, both stages dry-run clean |
+| Dossier delivery | **done** *(16 Aug)* — it had never been sent to anyone. Auction gets it whole; each pick gets curves + a scouting line per player shown |
+| Preseason data | **done** *(16 Aug)* — `preseason_stats`, manual stage, labelled in the briefing for what it is worth |
 | 7 — weekly jobs | **all 8 routes exist and have run on rehearsal data**; none has fired on a week that counts |
 | 8–12 — site, standings, share card | **done** — findings, weekend guide, standings, `/results/[week]` incl. playoff rounds, `/ratings`, OG cards, methodology |
 | Playoffs (§14.5, weeks 15–16) | **done and rehearsed** *(14 Aug)* — bracket, pool, champion |
