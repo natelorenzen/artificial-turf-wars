@@ -189,27 +189,32 @@ will need an idempotency key before that job ships.
 
 ## Build status against SPEC §9
 
-Current as of **6 August 2026**. `TODO.md` is the live version of this table; when the
-two disagree, believe `TODO.md`.
+Current as of **16 August 2026**, verified against the database. `GO-LIVE.md` defines
+*done* as five checkable gates and is re-verified; `TODO.md` is the working log of how
+each was closed. When any of the three disagree about status, believe `GO-LIVE.md`.
 
 | Phase | State |
 |---|---|
-| 0 — scaffold, schema, cron config | **done** — migrations `0001`–`0005` applied; `0006` outstanding |
-| 1 — Sleeper ingest + snapshots | **done** — 2026 holds 273 games, 32 byes, week-1 projections |
-| Scoring engine | **done** — 14 tests incl. the return-TD and absent-key traps |
-| Rulebook / prompt assembly | **done** — `rulebook-v2`, split base/overlay hashing |
-| 2/3 — OpenRouter adapter | **done and proven in production** — the weekend guide ran 33 calls end to end |
+| 0 — scaffold, schema, cron config | **done** — migrations `0001`–`0009` all applied |
+| 1 — Sleeper ingest + snapshots | **done** — 2026 holds 273 games, 32 byes, 3,236 season-long projections with no duplication |
+| Scoring engine | **done** — incl. the return-TD and absent-key traps |
+| Rulebook / prompt assembly | **done** — `rulebook-v3`, split base/overlay hashing |
+| 2/3 — OpenRouter adapter | **done and proven** — 188 decisions, 1 malformed response |
 | League engine | **done** — auction, snake draft, H2H ranking, all-play, FAAB, lineup/optimal |
-| v3 — labels, opponent context, playoff pool | **done** — 19 tests |
-| 5 — rules comprehension check | **done** — 17 questions, 8/8 passed for 2026 |
-| Cron guard | **done** — auth, kickoff/DST refusal, lead-time refusal, irreversible lock, `job_runs` ledger |
-| 4 — 2025 backtest | **draft rehearsed** — 120 picks, $4.99, three gates met. **No weekly cycle has run against it** |
-| 6 — auction + draft run | **not started** — the one irreversible step, gated on the weekly rehearsal |
-| 7 — weekly jobs | **all 8 cron routes exist** *(6 Aug)*; the three newest have never fired on a real week |
-| 8–12 — site, standings, share card | **partial** — site live with findings, weekend guide, methodology; no standings or weekly results pages yet |
+| v3 — labels, opponent context, playoff pool | **done** |
+| 5 — rules comprehension check | **done** — 19 questions, 8/8 first attempt under v3 *(14 Aug)* |
+| Cron guard | **done** — auth, kickoff/DST refusal, lead-time refusal, irreversible lock, `job_runs` ledger. Every week of 2026 clears, **including the playoff weeks** |
+| 4 — 2025 backtest | **done** — draft, two weekly cycles and the full postseason rehearsed. 16 bugs found |
+| 6 — auction + draft run | 🔴 **not started — the only thing left to build the league.** One irreversible step, four locks, rehearsed on 2025 |
+| 7 — weekly jobs | **all 8 routes exist and have run on rehearsal data**; none has fired on a week that counts |
+| 8–12 — site, standings, share card | **done** — findings, weekend guide, standings, `/results/[week]` incl. playoff rounds, `/ratings`, OG cards, methodology |
+| Playoffs (§14.5, weeks 15–16) | **done and rehearsed** *(14 Aug)* — bracket, pool, champion |
+| Social | **built** — X live as @PlayATW; the auto-release path has never had a post to release |
 
 The remaining spec open items are unchanged except: the §4.1b comprehension question
 set is now written (`src/lib/preseason/rules-check.ts`).
+
+**What is left is not code.** The draft, then a week of real football. See `GO-LIVE.md`.
 
 ### Weekly job layout
 

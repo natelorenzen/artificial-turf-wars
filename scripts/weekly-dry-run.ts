@@ -25,6 +25,7 @@ import { COHORT, LEAGUE } from '@/lib/config/league';
 import { assemblePrompt } from '@/lib/prompt/assemble';
 import { REQUIRED_SLACK_HOURS } from '@/lib/cron/guard';
 import { LINEUP_FIRINGS, WEEKEND_GUIDE_FIRINGS } from '@/lib/cron/upcoming';
+import { isPlayoffWeek, LAST_LEAGUE_WEEK } from '@/lib/engine/bracket';
 import { assertNoLabelLeak } from '@/lib/engine/labels';
 import { buildWeeklyContext, type WeeklyContext } from '@/lib/weekly/context';
 import { assertLineupContexts, buildLineupContext, deterministicLineup, lineupRoster } from '@/lib/weekly/lineups';
@@ -147,7 +148,10 @@ async function stageCrons(season: number) {
     .select('week, kickoff_at')
     .eq('season', season)
     .eq('season_type', 'regular')
-    .lte('week', LEAGUE.regularSeasonWeeks)
+    // LAST_LEAGUE_WEEK, not regularSeasonWeeks: every forward-looking job now reaches the
+    // bracket weeks, so stopping at 14 would leave the two weeks that decide the title as
+    // the only ones this check never looks at.
+    .lte('week', LAST_LEAGUE_WEEK)
     .not('kickoff_at', 'is', null)
     .order('kickoff_at', { ascending: true });
   if (error) fail(`nfl_games: ${error.message}`);
@@ -193,7 +197,8 @@ async function stageCrons(season: number) {
 
     console.log(
       `  ${String(week).padStart(2)}  ${kickoff.toISOString().slice(0, 16).replace('T', ' ')}      ` +
-        `${et.padEnd(10)} ${cells.map((c) => c.padStart(8)).join('  ')}`,
+        `${et.padEnd(10)} ${cells.map((c) => c.padStart(8)).join('  ')}` +
+        `${isPlayoffWeek(week) ? '   ← playoffs' : ''}`,
     );
   }
 
