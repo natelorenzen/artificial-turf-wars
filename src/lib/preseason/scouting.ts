@@ -46,6 +46,13 @@ export interface StoredDossier {
   dossier: Dossier;
   hash: string;
   tokenCount: number | null;
+  /**
+   * When it was built. Load-bearing rather than informational: the dossier is a
+   * snapshot and callers serve whatever is stored, so a rebuild that never happened
+   * is invisible without this. `scripts/draft.ts` refuses to commit a draft from a
+   * briefing older than its limit.
+   */
+  builtAt: string | null;
 }
 
 /**
@@ -75,6 +82,7 @@ export async function loadStoredDossier(
     dossier: content as Dossier,
     hash: row.content_hash as string,
     tokenCount: row.token_count === null ? null : Number(row.token_count),
+    builtAt: (row.built_at as string | null) ?? null,
   };
 }
 
@@ -146,6 +154,36 @@ export function buildScoutingIndex(stored: StoredDossier): ScoutingIndex {
 export function lookupScouting(index: ScoutingIndex | null, playerId: string): ScoutingLine {
   if (!index) return UNSCOUTED;
   return index.byPlayerId.get(playerId) ?? UNSCOUTED;
+}
+
+/**
+ * How old a stored dossier is, in hours.
+ *
+ * A missing or unparseable `built_at` returns Infinity rather than 0. The safe default
+ * for "how stale is this?" is "unusably", because the alternative reads a broken
+ * timestamp as a brand-new briefing — which is the failure this measurement exists to
+ * catch, arriving through the measurement itself.
+ */
+export function dossierAgeHours(builtAt: string | null, now: Date = new Date()): number {
+  if (!builtAt) return Number.POSITIVE_INFINITY;
+  const built = new Date(builtAt).getTime();
+  if (!Number.isFinite(built)) return Number.POSITIVE_INFINITY;
+  return (now.getTime() - built) / 3_600_000;
+}
+
+/**
+ * Whether a dossier is too old to decide a draft from.
+ *
+ * A dossier built in the future is NOT stale — clock skew between this machine and
+ * Postgres would otherwise refuse a briefing built seconds ago, which turns a safety
+ * guard into an outage on the one day it must not fail.
+ */
+export function isDossierStale(
+  builtAt: string | null,
+  maxAgeHours: number,
+  now: Date = new Date(),
+): boolean {
+  return dossierAgeHours(builtAt, now) > maxAgeHours;
 }
 
 /**

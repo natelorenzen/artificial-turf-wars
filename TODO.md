@@ -743,6 +743,14 @@ the playoff phase and the social queue. **The list is now one line long.**
 > npm run ingest -- --preseason-stats --season 2026
 > npx tsx --env-file=.env.local scripts/dossier.ts
 > ```
+>
+> **Enforced in code, not left to the checklist** *(16 Aug)*. `requireScouting` only ever
+> aborted on a MISSING dossier, so a skipped rebuild would silently serve the previous one
+> and the draft would look entirely normal — the same shape as every other bug on this
+> list. Neither stage now commits from a briefing older than 48 hours; a dry run warns, a
+> commit refuses, `--stale-dossier-ok` overrides. Six tests, including that a missing or
+> unparseable timestamp reads as unusably old rather than brand new, and that clock skew
+> against Postgres cannot refuse a briefing built seconds ago.
 
 The sequencing condition that governed this whole file — **do not run the real draft
 until the weekly cycle has been rehearsed end to end** — is satisfied. Two regular-season

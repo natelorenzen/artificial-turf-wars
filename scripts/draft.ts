@@ -30,6 +30,20 @@
  * before the auction. A seed that does not match means either the wrong .env or a
  * seed chosen after seeing something it should not have — both are aborts, because
  * the tiebreak commitment is the thing that makes the auction checkable (SPEC §8.3).
+ *
+ * ---------------------------------------------------------------------------
+ * And the briefing must be current
+ * ---------------------------------------------------------------------------
+ * Neither stage will COMMIT from a dossier older than 48 hours. The dossier is a
+ * stored snapshot and this reads whatever is stored, so a rebuild that was skipped
+ * does not fail — it silently serves the previous one, and the draft proceeds from an
+ * injury and depth-chart picture that has already moved. A dry run only warns.
+ *
+ *   npm run ingest -- --preseason-stats --season 2026
+ *   npx tsx --env-file=.env.local scripts/dossier.ts
+ *
+ * `--stale-dossier-ok` overrides it, for when drafting from an older briefing is the
+ * actual intention rather than an oversight.
  */
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
@@ -41,7 +55,12 @@ import { auctionSchema } from '@/lib/schemas/decisions';
 import { commitHash, seededTiebreakOrder } from '@/lib/engine/rng';
 import { assertNoLabelLeak, buildLabelMap } from '@/lib/engine/labels';
 import { runDecision } from '@/lib/decisions/run';
-import { buildScoutingIndex, loadStoredDossier } from '@/lib/preseason/scouting';
+import {
+  buildScoutingIndex,
+  dossierAgeHours,
+  isDossierStale,
+  loadStoredDossier,
+} from '@/lib/preseason/scouting';
 import {
   availableFor,
   buildPickContext,
@@ -81,6 +100,15 @@ function argValue(name: string): string | null {
 // ---------------------------------------------------------------------------
 // The locks
 // ---------------------------------------------------------------------------
+
+/**
+ * An explicit "yes, this briefing, deliberately". Kept separate from the commit locks:
+ * those establish that you mean to write the season, this one establishes that you mean
+ * to write it from data you already know is old.
+ */
+function staleDossierAccepted(): boolean {
+  return flag('stale-dossier-ok');
+}
 
 /**
  * Returns true only if all three operator locks are open. Called once, up front, so
@@ -240,7 +268,7 @@ async function loadPool(supabase: SupabaseClient, limit: number): Promise<DraftS
 }
 
 /**
- * `provisionalSlots` exists so the draft dry run is worth running BEFORE the auction.
+ * The provisional-slot path exists so the draft dry run is worth running BEFORE the auction.
  * Without it the most valuable thing a dry run can check — that the pick DATA block
  * builds, fits the context ceiling and leaks no lab name against real 2026 data — is
  * unreachable until after the one irreversible step it is meant to de-risk.
@@ -249,15 +277,18 @@ async function loadPool(supabase: SupabaseClient, limit: number): Promise<DraftS
  * checked by the caller before this is ever passed true, so a committing run always
  * uses the slots the auction actually awarded.
  */
-async function loadDraftState(
-  supabase: SupabaseClient,
-  provisionalSlots = false,
-): Promise<DraftState> {
+/**
+ * `dryRun` drives two things that both follow from it: provisional seed-ordered slots
+ * when the auction has not run yet, and whether a stale dossier warns or refuses. They
+ * are named as one parameter because they are one question — is this invocation going
+ * to write the season — and passing them separately would let them disagree.
+ */
+async function loadDraftState(supabase: SupabaseClient, dryRun = false): Promise<DraftState> {
   const { seasonId, teams, rulebookVersion } = await seasonAndTeams(supabase);
   assertRulebookMatches(rulebookVersion);
   const unassigned = teams.some((t) => t.draft_slot === null);
 
-  if (unassigned && !provisionalSlots) {
+  if (unassigned && !dryRun) {
     fail('draft slots are unassigned. Run --auction first.');
   }
   if (unassigned) {
@@ -289,7 +320,7 @@ async function loadDraftState(
     season: SEASON,
     teams: draftTeams,
     pool: await loadPool(supabase, POOL_SIZE),
-    scouting: await requireScouting(supabase, seasonId),
+    scouting: await requireScouting(supabase, seasonId, { dryRun }),
     picks: (picks ?? []).map((row) => {
       const p = row.players as unknown as { name: string; position: Position };
       return {
@@ -305,30 +336,90 @@ async function loadDraftState(
 }
 
 /**
- * The dossier, or an abort.
+ * How old the briefing may be at the moment it decides a draft.
  *
- * Deliberately fatal rather than a warning. The failure this guards against is not a
- * crash — it is a draft that completes, looks entirely normal, and was made from raw
+ * Generous enough for the realistic workflow — rebuild the evening before, draft the
+ * next morning — and tight enough to catch the failure this exists for, which is
+ * forgetting to rebuild at all and silently drafting from a picture that is days old.
+ */
+const MAX_DOSSIER_AGE_HOURS = 48;
+
+/**
+ * The stored dossier, or an abort. Used by BOTH stages.
+ *
+ * Deliberately fatal rather than a warning. The failure guarded against is not a crash
+ * — it is a draft that completes, looks entirely normal, and was made from raw
  * projections with no scarcity baseline. That is precisely what happened in the 2025
  * rehearsal, where five of the first eight picks were quarterbacks in a league that
  * starts one, and `/backtest` names the missing dossier as the cause. A draft is one
  * shot; "it ran, but without the briefing" is not a recoverable state.
+ *
+ * STALENESS is the second half of the same problem, and the likelier half now the first
+ * is fixed. The dossier is a STORED snapshot and this loads whatever is stored, so a
+ * rebuild that never happened does not fail — it silently serves the previous one.
+ * Between 29 July and 16 August, 23 of the 119 players inside ADP 120 changed injury
+ * status, and final roster cuts land the week of the draft. A week-old briefing is
+ * wrong about the thing it is most needed for.
+ *
+ * The asymmetry is on purpose: a dry run WARNS, because exploring with yesterday's
+ * briefing is reasonable and being blocked from it is not. A commit REFUSES, because
+ * that is the invocation that cannot be taken back.
+ *
+ * Shared by the auction and the draft because the auction is the IRREVERSIBLE half —
+ * it fixes the anonymous rival labels for the whole season — and a guard that covered
+ * only the resumable stage would be protecting the wrong one.
  */
-async function requireScouting(supabase: SupabaseClient, seasonId: string) {
+async function loadDossierOrFail(
+  supabase: SupabaseClient,
+  seasonId: string,
+  { dryRun }: { dryRun: boolean },
+) {
+  const rebuild =
+    `    npm run ingest -- --preseason-stats --season ${SEASON}\n` +
+    '    npx tsx --env-file=.env.local scripts/dossier.ts\n';
+
   const stored = await loadStoredDossier(supabase, seasonId);
   if (!stored) {
     fail(
       `no dossier has been built for ${SEASON}.\n\n` +
-        '  The draft reads scouting — last season, byes, depth chart, injuries and this\n' +
-        "  year's preseason role — from the stored dossier. Build it first:\n\n" +
-        '    npx tsx --env-file=.env.local scripts/dossier.ts\n',
+        '  The models draft from the stored briefing — scarcity curves, last season, byes,\n' +
+        "  depth chart, injuries and this year's preseason role. Build it first:\n\n" +
+        rebuild,
     );
   }
-  const index = buildScoutingIndex(stored!);
-  if (index.covered === 0) {
-    fail(`the stored ${SEASON} dossier contains no players. Rebuild it with scripts/dossier.ts.`);
+  if ((stored!.dossier.players ?? []).length === 0) {
+    fail(`the stored ${SEASON} dossier contains no players. Rebuild it:\n\n` + rebuild);
   }
-  return index;
+
+  if (isDossierStale(stored!.builtAt, MAX_DOSSIER_AGE_HOURS)) {
+    const hours = dossierAgeHours(stored!.builtAt);
+    const age = Number.isFinite(hours) ? `${(hours / 24).toFixed(1)} days old` : 'of unknown age';
+
+    if (dryRun) {
+      console.log(`\n  WARNING: the stored dossier is ${age}. Rebuild before committing:\n`);
+      console.log(rebuild);
+    } else if (staleDossierAccepted()) {
+      console.log(`\n  NOTE: dossier is ${age}, accepted via --stale-dossier-ok.\n`);
+    } else {
+      fail(
+        `the stored ${SEASON} dossier is ${age}, over the ${MAX_DOSSIER_AGE_HOURS}h limit.\n\n` +
+          '  It is a snapshot, and this would decide the season from an injury and depth-chart\n' +
+          '  picture that has already moved. Rebuild it:\n\n' +
+          rebuild +
+          '\n  Or pass --stale-dossier-ok if drafting from this exact briefing is deliberate.\n',
+      );
+    }
+  }
+
+  return stored!;
+}
+
+async function requireScouting(
+  supabase: SupabaseClient,
+  seasonId: string,
+  opts: { dryRun: boolean },
+) {
+  return buildScoutingIndex(await loadDossierOrFail(supabase, seasonId, opts));
 }
 
 // ---------------------------------------------------------------------------
@@ -442,13 +533,7 @@ async function stageAuction(commit: boolean) {
   // The auction gets the dossier WHOLE. It is eight calls, and the question in front
   // of a model here — what a draft slot is worth for a whole season — is precisely a
   // question about scarcity across every position at once.
-  const stored = await loadStoredDossier(supabase, seasonId);
-  if (!stored) {
-    fail(
-      `no dossier has been built for ${SEASON}. Build it before the auction:\n\n` +
-        '    npx tsx --env-file=.env.local scripts/dossier.ts\n',
-    );
-  }
+  const stored = await loadDossierOrFail(supabase, seasonId, { dryRun: !commit });
 
   const data = {
     budget_total: LEAGUE.budgetTotal,
@@ -459,7 +544,7 @@ async function stageAuction(commit: boolean) {
     top_available: topAvailable,
     budget_rule:
       'Whatever you do not spend here is your entire FAAB budget for all 14 weeks, and for the playoff free-agent auction.',
-    dossier: stored!.dossier,
+    dossier: stored.dossier,
   };
 
   assertNoLabelLeak(JSON.stringify(data), FORBIDDEN_NAMES);
@@ -468,13 +553,13 @@ async function stageAuction(commit: boolean) {
   // a dossier that was built, stored, published as sent, and never actually put in a
   // prompt — a dry run that does not SAY the dossier is in the block cannot tell you
   // it is missing, which is how it went unnoticed in the first place.
-  const scouted = stored!.dossier.players ?? [];
+  const scouted = stored.dossier.players ?? [];
   const withPreseason = scouted.filter((p) => p.preseason !== null).length;
 
   console.log(`\n  PLAN — slot auction, season ${SEASON}\n`);
   console.log(`    board          ${topAvailable.length} players, ADP ${topAvailable[0].adp} to ${topAvailable[topAvailable.length - 1].adp}`);
-  console.log(`    dossier        ${scouted.length} players, ${withPreseason} with a preseason line, ${stored!.dossier.scarcity_curves?.length ?? 0} scarcity curves`);
-  console.log(`    dossier hash   ${stored!.hash.slice(0, 24)}…`);
+  console.log(`    dossier        ${scouted.length} players, ${withPreseason} with a preseason line, ${stored.dossier.scarcity_curves?.length ?? 0} scarcity curves`);
+  console.log(`    dossier hash   ${stored.hash.slice(0, 24)}…`);
   console.log(`    DATA size      ${JSON.stringify(data).length.toLocaleString()} chars`);
   console.log(`    model calls    ${teams.length}`);
   console.log(`    writes         auction_bids ×${teams.length}, teams.draft_slot ×${teams.length}, decisions ×${teams.length}`);
@@ -500,7 +585,7 @@ async function stageAuction(commit: boolean) {
         openrouterId: team.models.openrouter_id,
         type: 'auction',
         data,
-        dossierHash: stored!.hash,
+        dossierHash: stored.hash,
         task: AUCTION_TASK,
         outputExample: AUCTION_OUTPUT_EXAMPLE,
         schema: auctionSchema,
