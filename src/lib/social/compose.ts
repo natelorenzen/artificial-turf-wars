@@ -277,8 +277,19 @@ export function composeDraft(input: {
     dedupeKey: `draft:${input.season}`,
     body: trimToFit(body, null),
     link: null,
-    autoEligible: true,
-    holdReason: null,
+    // Held on purpose, unlike every other kind here.
+    //
+    // The other posts are recurring: a weekly results post is one of fourteen, and a
+    // wrong one is embarrassing but correctable in the next. This one announces a
+    // one-shot event, it is the FIRST thing this account will ever say unprompted, and
+    // the auto-release path has never run end to end — so its debut would be an
+    // unattended post about an irreversible event. The queue exists to make sending a
+    // separate decision from composing; this is the post that most deserves it.
+    //
+    // Release it by setting `auto_eligible = true` once the text has been read; the
+    // next daily run picks it up. See DRAFT-DAY.md.
+    autoEligible: false,
+    holdReason: 'the draft post is released by hand — read it first (DRAFT-DAY.md)',
   });
 }
 

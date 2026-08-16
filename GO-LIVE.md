@@ -73,23 +73,16 @@ npx tsx --env-file=.env.local scripts/weekly-dry-run.ts --crons --season 2026
 > the briefing now carries. The cost is a week of buffer before the 9 September opener,
 > which the rehearsals have earned.
 >
-> **Rebuild the dossier on the day.** It is a stored snapshot, and the injury picture
-> moves: between 29 July and 16 August, 23 of the 119 players inside ADP 120 changed
-> injury status. Final roster cuts land ~25 August, so the 24th is close to the freshest
-> the picture gets before it matters.
+> **`DRAFT-DAY.md` is the runbook — follow it rather than this summary.** Refresh
+> preseason data, rebuild the briefing, dry-run both stages, then commit.
 >
-> ```bash
-> npm run ingest -- --preseason-stats --season 2026
-> npx tsx --env-file=.env.local scripts/dossier.ts
-> ```
->
-> **This is now enforced, not just written down** *(16 Aug)*. Neither stage will commit
-> from a dossier older than 48 hours — a dry run warns, a commit refuses, and
-> `--stale-dossier-ok` overrides it when that is deliberate. The failure it guards is
-> not forgetting the rebuild but forgetting it *invisibly*: `requireScouting` only ever
-> aborted on a MISSING dossier, so a skipped rebuild silently served the previous one
-> and the draft looked entirely normal. Verified against the real stored dossiers — the
-> 29 July one classifies as refused at 18.2 days, today's as accepted.
+> **Rebuilding the dossier is enforced, not just written down** *(16 Aug)*. Neither stage
+> will commit from one older than 48 hours — a dry run warns, a commit refuses, and
+> `--stale-dossier-ok` overrides when that is deliberate. The failure it guards is not
+> forgetting the rebuild but forgetting it *invisibly*: `requireScouting` only ever
+> aborted on a MISSING dossier, so a skipped rebuild silently served the previous one and
+> the draft looked entirely normal. Verified against the real stored rows — the 29 July
+> dossier classifies as refused at 18.2 days, 16 August's as accepted.
 
 ```bash
 npx tsx --env-file=.env.local scripts/draft.ts --status
@@ -137,6 +130,13 @@ from job_runs where week = 1 order by started_at;
 ---
 
 ## Gate 3 — It publishes itself 🟡
+
+> **The draft-completion post is held by hand on purpose** *(16 Aug)*. Every other kind
+> in the queue is `auto_eligible`; this one is not. It announces a one-shot event, it is
+> the first thing the account will say unprompted, and the auto-release path has never
+> run end to end — its debut should not be an unattended post about something
+> irreversible. Release it with a one-line update once the text has been read; see
+> `DRAFT-DAY.md` §6.
 
 - [x] Migration `0007_social_posts.sql` applied *(it already was — the 10 Aug entry was
       wrong; `social_posts` is present, verified 14 Aug)*
