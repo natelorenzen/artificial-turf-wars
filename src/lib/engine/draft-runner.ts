@@ -16,6 +16,11 @@ import { recordEngineRejection, runDecision } from '@/lib/decisions/run';
 import { draftPickSchema } from '@/lib/schemas/decisions';
 import { buildDraftBoard, draftBoardNeeds, type DraftBoardPick } from '@/lib/prompt/context';
 import {
+  lookupScouting,
+  scoutingCoverageNote,
+  type ScoutingIndex,
+} from '@/lib/preseason/scouting';
+import {
   fallbackPick,
   narrowAvailable,
   rosterNeeds,
@@ -49,6 +54,12 @@ export interface DraftState {
     position: Position;
   }[];
   pool: AvailablePlayer[];
+  /**
+   * The stored dossier, indexed by player. Optional in the type so a rehearsal season
+   * with no dossier still runs, but `scripts/draft.ts` refuses to draft 2026 without
+   * one — see the header of `src/lib/preseason/scouting.ts`.
+   */
+  scouting?: ScoutingIndex | null;
 }
 
 const OUTPUT_EXAMPLE = {
@@ -100,13 +111,27 @@ export function buildPickContext(state: DraftState, team: DraftTeam, round: numb
         ? `From round ${LEAGUE.softCapRound} your pool is limited to positions you still need: ${missing.join(', ')}`
         : null,
       // Ordered by projection, identically for everyone (SPEC §8.2 list-order bias).
+      //
+      // Each entry carries its scouting line — last season, bye, depth chart, injury
+      // and this year's preseason role. The dossier is not shipped whole into all 120
+      // pick prompts; it is merged onto the players actually on the board, which is
+      // where a drafter would be looking anyway.
       available: topPerPosition(pool, 8).map((p) => ({
         player_id: p.playerId,
         name: p.name,
         position: p.position,
         proj_season_points: p.projSeasonPoints,
         adp: p.adp ?? null,
+        ...lookupScouting(state.scouting ?? null, p.playerId),
       })),
+      // Constant across the draft and small — six positions — but it is the fact that
+      // stopped five of the first eight 2025 picks being quarterbacks, so it belongs in
+      // front of the model at the moment of the pick rather than only in a briefing it
+      // read a hundred picks ago.
+      scarcity_curves: state.scouting?.curves ?? [],
+      data_notes: state.scouting
+        ? [...state.scouting.notes, scoutingCoverageNote(state.scouting)]
+        : [],
     },
     narrowed,
     legalPool: pool,
@@ -152,6 +177,9 @@ export async function runPick(
       round,
       pickOverall,
       data: context.data,
+      // Recorded so a published pick can always answer "scouted from what?". It was
+      // null on every draft decision until the dossier was actually wired in.
+      dossierHash: state.scouting?.hash ?? null,
       task:
         `You are ${team.label}, picking at ${pickOverall} overall in round ${round}. ` +
         'Choose exactly one player_id from `available`.',

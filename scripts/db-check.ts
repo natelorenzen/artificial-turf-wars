@@ -18,6 +18,9 @@ const TABLES = [
   'rosters', 'lineups', 'lineup_scores', 'waiver_bids', 'h2h_schedule', 'standings',
   'move_evaluations', 'win_prob', 'allplay_proj', 'pos_strength', 'recaps',
   'job_runs', // 0003
+  'social_posts', // 0007
+  'playoff_seeds', // 0009
+  'preseason_stats', // 0010
 ];
 
 async function main() {

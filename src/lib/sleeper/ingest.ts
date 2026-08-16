@@ -12,6 +12,7 @@ import {
   cleanAdp,
   fetchAdp,
   fetchPlayerPool,
+  fetchPreseasonStats,
   fetchSchedule,
   fetchSeasonProjections,
   fetchSeasonStats,
@@ -30,7 +31,7 @@ import {
   type ProjectionCalibration,
 } from './normalize';
 import { earliestKickoffIso } from './kickoff';
-import { scorePlayerWeek } from '@/lib/scoring/engine';
+import { n, scorePlayerWeek } from '@/lib/scoring/engine';
 import { supabaseServer } from '@/lib/supabase-server';
 
 const CHUNK = 500;
@@ -575,4 +576,74 @@ function countByWeek(byes: Record<string, number>): Record<number, number> {
   const counts: Record<number, number> = {};
   for (const week of Object.values(byes)) counts[week] = (counts[week] ?? 0) + 1;
   return counts;
+}
+
+// ---------------------------------------------------------------------------
+// Preseason
+// ---------------------------------------------------------------------------
+
+/**
+ * The season-long preseason aggregate, for draft context only.
+ *
+ * This is the one ingest stage whose output is never scored. Preseason points do not
+ * count in this league; what the models get from it is ROLE — who is on the field with
+ * the starters, and who has not played at all. See `0010_preseason_stats.sql`.
+ *
+ * Deliberately NOT wired into the daily cron. It is a preseason-only concept with a
+ * natural end date, and a daily job that quietly returns nothing from September onward
+ * is the shape of failure this project has already been bitten by twice. Run it by
+ * hand before the draft:
+ *
+ *   npm run ingest -- --preseason-stats --season 2026
+ */
+export async function ingestPreseasonStats(season: number, db = supabaseServer()) {
+  const rows: Record<string, unknown>[] = [];
+  const known = await fetchAllPlayerIds(db);
+  const perPosition: Record<string, { records: number; withSnaps: number }> = {};
+  let backfilled = 0;
+
+  for (const position of FANTASY_POSITIONS) {
+    const result = await fetchPreseasonStats(season, position);
+    const snapshotId = await recordSnapshot(db, result, {
+      source: 'preseason-stats',
+      season,
+      position,
+      rowCount: result.data.length,
+    });
+
+    backfilled += await backfillMissingPlayers(db, result.data, known, position);
+
+    let withSnaps = 0;
+    for (const rec of result.data) {
+      const stats = rec.stats ?? {};
+      if (Object.keys(stats).length === 0) continue;
+
+      // Every read defaults to 0 — Sleeper omits keys rather than returning zero, and
+      // `gp` in particular is absent on plenty of real lines (hard rule 4).
+      const offSnaps = n(stats, 'off_snp');
+      const teamOffSnaps = n(stats, 'tm_off_snp');
+      if (teamOffSnaps > 0) withSnaps++;
+
+      rows.push({
+        player_id: rec.player_id,
+        season,
+        games_played: n(stats, 'gp'),
+        off_snaps: offSnaps,
+        team_off_snaps: teamOffSnaps,
+        raw_stats: stats,
+        snapshot_id: snapshotId,
+      });
+    }
+
+    perPosition[position] = { records: result.data.length, withSnaps };
+  }
+
+  // Delete-then-insert rather than upsert, for the reason migration 0008 exists: this
+  // table's key is `(player_id, season)` and re-running the stage must replace the
+  // aggregate rather than accumulate copies of it.
+  await replaceChunked(db, 'preseason_stats', rows, (q) =>
+    (q as never as { eq: (c: string, v: unknown) => unknown }).eq('season', season),
+  );
+
+  return { season, rows: rows.length, backfilled, perPosition };
 }

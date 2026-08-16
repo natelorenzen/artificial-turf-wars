@@ -41,6 +41,7 @@ import { auctionSchema } from '@/lib/schemas/decisions';
 import { commitHash, seededTiebreakOrder } from '@/lib/engine/rng';
 import { assertNoLabelLeak, buildLabelMap } from '@/lib/engine/labels';
 import { runDecision } from '@/lib/decisions/run';
+import { buildScoutingIndex, loadStoredDossier } from '@/lib/preseason/scouting';
 import {
   availableFor,
   buildPickContext,
@@ -288,6 +289,7 @@ async function loadDraftState(
     season: SEASON,
     teams: draftTeams,
     pool: await loadPool(supabase, POOL_SIZE),
+    scouting: await requireScouting(supabase, seasonId),
     picks: (picks ?? []).map((row) => {
       const p = row.players as unknown as { name: string; position: Position };
       return {
@@ -300,6 +302,33 @@ async function loadDraftState(
       };
     }),
   };
+}
+
+/**
+ * The dossier, or an abort.
+ *
+ * Deliberately fatal rather than a warning. The failure this guards against is not a
+ * crash — it is a draft that completes, looks entirely normal, and was made from raw
+ * projections with no scarcity baseline. That is precisely what happened in the 2025
+ * rehearsal, where five of the first eight picks were quarterbacks in a league that
+ * starts one, and `/backtest` names the missing dossier as the cause. A draft is one
+ * shot; "it ran, but without the briefing" is not a recoverable state.
+ */
+async function requireScouting(supabase: SupabaseClient, seasonId: string) {
+  const stored = await loadStoredDossier(supabase, seasonId);
+  if (!stored) {
+    fail(
+      `no dossier has been built for ${SEASON}.\n\n` +
+        '  The draft reads scouting — last season, byes, depth chart, injuries and this\n' +
+        "  year's preseason role — from the stored dossier. Build it first:\n\n" +
+        '    npx tsx --env-file=.env.local scripts/dossier.ts\n',
+    );
+  }
+  const index = buildScoutingIndex(stored!);
+  if (index.covered === 0) {
+    fail(`the stored ${SEASON} dossier contains no players. Rebuild it with scripts/dossier.ts.`);
+  }
+  return index;
 }
 
 // ---------------------------------------------------------------------------
@@ -410,6 +439,17 @@ async function stageAuction(commit: boolean) {
     fail(`only ${topAvailable.length} players have ADP for ${SEASON}. Run the ingest before the auction.`);
   }
 
+  // The auction gets the dossier WHOLE. It is eight calls, and the question in front
+  // of a model here — what a draft slot is worth for a whole season — is precisely a
+  // question about scarcity across every position at once.
+  const stored = await loadStoredDossier(supabase, seasonId);
+  if (!stored) {
+    fail(
+      `no dossier has been built for ${SEASON}. Build it before the auction:\n\n` +
+        '    npx tsx --env-file=.env.local scripts/dossier.ts\n',
+    );
+  }
+
   const data = {
     budget_total: LEAGUE.budgetTotal,
     teams: LEAGUE.teams,
@@ -419,6 +459,7 @@ async function stageAuction(commit: boolean) {
     top_available: topAvailable,
     budget_rule:
       'Whatever you do not spend here is your entire FAAB budget for all 14 weeks, and for the playoff free-agent auction.',
+    dossier: stored!.dossier,
   };
 
   assertNoLabelLeak(JSON.stringify(data), FORBIDDEN_NAMES);
@@ -449,6 +490,7 @@ async function stageAuction(commit: boolean) {
         openrouterId: team.models.openrouter_id,
         type: 'auction',
         data,
+        dossierHash: stored!.hash,
         task: AUCTION_TASK,
         outputExample: AUCTION_OUTPUT_EXAMPLE,
         schema: auctionSchema,

@@ -13,12 +13,24 @@ async function main() {
   const dryRun = process.argv.includes('--dry-run');
 
   const db = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, { auth: { persistSession: false } });
-  const { dossier, hash, tokenCount } = await buildDossier(db, { season });
+  const { dossier, hash, tokenCount, withPreseason } = await buildDossier(db, { season });
+
+  const injured = dossier.players.filter((p) => p.injury_status).length;
 
   console.log(`Dossier for ${season}`);
   console.log(`  players       ${dossier.players.length}`);
+  console.log(`  preseason     ${withPreseason} of ${dossier.players.length} carry a preseason line`);
+  console.log(`  injury flags  ${injured}`);
   console.log(`  tokens        ~${tokenCount.toLocaleString()} (ceiling 150,000)`);
   console.log(`  hash          ${hash}`);
+
+  // Loud, because a dossier with no preseason coverage is indistinguishable from a
+  // good one once it is stored, and the draft reads whatever is stored.
+  if (withPreseason === 0) {
+    console.log('\n  WARNING: not one player has a preseason line.');
+    console.log('  If this is the live season, the preseason ingest has not run:');
+    console.log(`    npm run ingest -- --preseason-stats --season ${season}`);
+  }
   console.log('\n  Positional scarcity — the number the backtest showed was missing:\n');
   console.log('    pos   best   replacement (rank)   spread over replacement');
   for (const c of dossier.scarcity_curves) {
