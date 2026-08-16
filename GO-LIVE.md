@@ -82,6 +82,14 @@ npx tsx --env-file=.env.local scripts/weekly-dry-run.ts --crons --season 2026
 > npm run ingest -- --preseason-stats --season 2026
 > npx tsx --env-file=.env.local scripts/dossier.ts
 > ```
+>
+> **This is now enforced, not just written down** *(16 Aug)*. Neither stage will commit
+> from a dossier older than 48 hours — a dry run warns, a commit refuses, and
+> `--stale-dossier-ok` overrides it when that is deliberate. The failure it guards is
+> not forgetting the rebuild but forgetting it *invisibly*: `requireScouting` only ever
+> aborted on a MISSING dossier, so a skipped rebuild silently served the previous one
+> and the draft looked entirely normal. Verified against the real stored dossiers — the
+> 29 July one classifies as refused at 18.2 days, today's as accepted.
 
 ```bash
 npx tsx --env-file=.env.local scripts/draft.ts --status

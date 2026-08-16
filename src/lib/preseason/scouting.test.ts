@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildScoutingIndex,
+  dossierAgeHours,
+  isDossierStale,
   lookupScouting,
   scoutingCoverageNote,
   UNSCOUTED,
@@ -30,6 +32,7 @@ function stored(players: DossierPlayer[]): StoredDossier {
   return {
     hash: 'abc123',
     tokenCount: 100,
+    builtAt: new Date().toISOString(),
     dossier: {
       season: 2026,
       league: {} as Dossier['league'],
@@ -156,5 +159,50 @@ describe('the pick DATA block carries the dossier', () => {
     expect(context.data.available[0]).toMatchObject({ scouted: false });
     expect(context.data.scarcity_curves).toEqual([]);
     expect(context.data.data_notes).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Staleness — the second half of "the dossier never reached anyone"
+// ---------------------------------------------------------------------------
+
+describe('dossier staleness', () => {
+  const now = new Date('2026-08-24T15:00:00Z');
+  const hoursAgo = (h: number) => new Date(now.getTime() - h * 3_600_000).toISOString();
+
+  it('measures age in hours', () => {
+    expect(dossierAgeHours(hoursAgo(6), now)).toBeCloseTo(6);
+    expect(dossierAgeHours(hoursAgo(48), now)).toBeCloseTo(48);
+  });
+
+  it('passes a briefing rebuilt the morning of the draft', () => {
+    expect(isDossierStale(hoursAgo(4), 48, now)).toBe(false);
+  });
+
+  it('passes a briefing rebuilt the evening before', () => {
+    // The realistic workflow. A guard that blocks this would just get overridden by
+    // habit, and an override used by habit is not a guard.
+    expect(isDossierStale(hoursAgo(20), 48, now)).toBe(false);
+  });
+
+  it('refuses the failure it exists for: a rebuild that never happened', () => {
+    // 16 Aug's dossier against a 24 Aug draft. Between 29 July and 16 Aug, 23 of the
+    // 119 players inside ADP 120 changed injury status; final cuts land the same week.
+    expect(isDossierStale(hoursAgo(8 * 24), 48, now)).toBe(true);
+  });
+
+  it('treats a missing or unparseable timestamp as unusably old, not brand new', () => {
+    // The dangerous default. Reading a broken timestamp as age 0 would let the guard
+    // wave through exactly the case it cannot evaluate.
+    expect(isDossierStale(null, 48, now)).toBe(true);
+    expect(isDossierStale('not a date', 48, now)).toBe(true);
+    expect(dossierAgeHours(null, now)).toBe(Number.POSITIVE_INFINITY);
+  });
+
+  it('does not call a future-dated dossier stale', () => {
+    // Clock skew between this machine and Postgres must not refuse a briefing built
+    // seconds ago — that turns a safety guard into an outage on the one day it must
+    // not fail.
+    expect(isDossierStale(new Date(now.getTime() + 30_000).toISOString(), 48, now)).toBe(false);
   });
 });
