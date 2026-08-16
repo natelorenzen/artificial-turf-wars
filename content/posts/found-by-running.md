@@ -1,6 +1,6 @@
 ---
-title: "Sixteen bugs in nineteen days. Not one was found by reading the code."
-summary: "The league is built: eight cron jobs, a draft runner, a playoff bracket, 381 tests. Getting here surfaced sixteen bugs, four of which would have ended the season outright. Every one of them was invisible until something actually executed — and the four worst were all in code that had been read, reviewed, and tested."
+title: "Eighteen bugs in nineteen days. Not one was found by reading the code."
+summary: "The league is built: eight cron jobs, a draft runner, a playoff bracket, 393 tests. Getting here surfaced eighteen bugs, four of which would have ended the season outright and two more of which would have corrupted the one-shot draft. Every one was invisible until something executed — and the worst were all in code that had been read, reviewed, and tested. Two of the eighteen were found on the day this post went up, hours after it argued they would be."
 date: 2026-08-16
 kicker: Findings 008
 evidence: "Every bug below is in the commit history with the fix and the test that pins it. The two rehearsed seasons are in the public decision log — `scripts/weekly-rehearsal.ts`, `scripts/playoff-rehearsal.ts` — with every prompt and every raw response."
@@ -8,17 +8,22 @@ evidence: "Every bug below is in the commit history with the fix and the test th
 
 Eight frontier models are about to draft a fantasy football team each. The machine that
 will run their season is finished: eight cron jobs, a guarded draft runner, a playoff
-bracket, a beat writer, 381 tests across 28 files. It has never played a down.
+bracket, a beat writer, 393 tests across 29 files. It has never played a down.
 
-Nineteen days of building produced sixteen bugs. This post is about where they were
+Nineteen days of building produced eighteen bugs. This post is about where they were
 found, because the distribution is lopsided enough to be worth reporting on its own.
+
+> **Updated the evening it was published.** This post went up saying sixteen. Two more
+> were found hours later, in the course of asking a question the post should have
+> prompted sooner — and both are the strongest evidence for the argument below. They are
+> the last section.
 
 **None of them were found by reading the code.** Not in review, not in a type error, not
 in a test written in advance. Every single one surfaced when something ran — and the four
 that would have ended the season were all sitting in code that had already been read,
 reviewed, and covered by passing tests.
 
-## Where sixteen bugs came from
+## Where eighteen bugs came from
 
 | What was running | Bugs | Date |
 |---|---|---|
@@ -26,9 +31,11 @@ reviewed, and covered by passing tests.
 | Two rehearsed weekly cycles against 2025 | 8 | 6 Aug |
 | Writing a post about the draft board | 1 | 10 Aug |
 | A rehearsed postseason against 2025 | 3 | 14 Aug |
+| Asking what the models actually see when they draft | 2 | 16 Aug |
 
 The rehearsals cost $2.83 in model calls. The draft rehearsal cost $4.99. Call it eight
-dollars to find sixteen bugs, four of which were season-ending.
+dollars to find eighteen bugs, four of which were season-ending and two more of which
+would have corrupted a draft that only happens once.
 
 ## The four that would have ended it
 
@@ -125,9 +132,57 @@ somebody else. Writing the post was the closest thing to a code review that work
 engine — and as of the sweep above, three of those four turned out to be our fault, not
 the model's.
 
+## The two found after this was published
+
+The post went up in the morning. By the evening the count was wrong, and the way it went
+wrong is worth more than the original sixteen.
+
+**The briefing was never being sent.** Every model is supposed to get one shared data
+pack before the draft — projections, ADP, byes, depth charts, injuries, and the
+positional scarcity curves. It was built. It was hashed. It was published on our own
+preseason page under the words *"sent byte-identically to all eight."*
+
+It was sent to nobody. The function that builds it had exactly one caller: the script
+that stores it in the database. Nothing ever read it back into a prompt.
+
+The sharpest part is that we had already diagnosed the consequence. Our backtest page
+says the 2025 rehearsal draft took quarterbacks with five of the first eight picks, in a
+league that starts one, and concludes: *"the fix is not a better model. It is the dossier
+we had not built yet."* It had been built. It was not connected. The real draft would
+have reproduced the exact failure that page blames, with the fix sitting in the database
+the whole time.
+
+Nobody found this by reading `draft.ts`. It was found by someone asking what information
+the models actually have when they pick.
+
+**A season total that was counted twice.** Wiring the briefing in meant rebuilding it,
+and the rebuild put a number in front of us: Josh Allen's 2025 season, 626.6 points.
+
+Quarterbacks do not score 626 points. The true figure was 374.6.
+
+Our scoring publishes provisional numbers on Tuesday and final ones on Thursday, and
+never overwrites the first with the second — the whole point is that corrections are
+visible. So a corrected week leaves two rows behind, and the briefing was adding both.
+Eleven of Allen's seventeen weeks had been re-scored. Christian McCaffrey came out at
+697.4 against a real 416.6.
+
+Worse than the inflation is its unevenness: it depends on how many of a player's weeks
+happened to get corrected, so it distorted the comparisons *between* players rather than
+just the scale. A model reasoning carefully from those numbers would have reasoned its
+way somewhere wrong.
+
+And it was self-inflicted. That number was correct on 29 July. **The rehearsals created
+it** — the practice runs meant to de-risk the draft wrote the second set of rows, and the
+fix meant to inform the draft would have delivered the damage.
+
+It was caught because a dry run printed one player in full. Every count in that dry run
+was already correct: 48 of 51 players scouted, six scarcity curves, the right hash. The
+sample was added to check the *shape* of the data, and the wrong number happened to be
+sitting inside it. A count can be right while the value is nonsense.
+
 ## What is left
 
-The draft. That is the whole list.
+The draft, on 24 August. That is the whole list.
 
 Everything else is either built and rehearsed, or is waiting on real football: a week
 cannot run unattended until there are rosters, and the post queue has nothing to announce
@@ -140,3 +195,15 @@ major component that has never run against data that counts. It has been rehears
 against 2025 — 120 picks, four locks between an invocation and a write, a seed verified
 against a published commitment. On the evidence above, that rehearsal is worth
 considerably more than the review was.
+
+The date moved for a reason that only exists because of the two bugs above. Now that the
+briefing actually reaches the models and carries preseason data, *when* we draft changes
+what they know: only one preseason week had been played when this was written, and the
+week where starters actually play falls on 20–22 August. So the draft waits until the
+24th, and the briefing gets rebuilt that morning — because it is a stored snapshot, and
+between 29 July and 16 August, 23 of the 119 players inside the top 120 by ADP changed
+injury status.
+
+Which is its own small argument for running things. Two of these bugs were found in a
+single afternoon, by wiring up a component and looking at what came out. Neither would
+have been found by reading the file that contained them.

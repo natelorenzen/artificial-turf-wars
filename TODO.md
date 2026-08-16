@@ -657,6 +657,69 @@ real weeks than before watching any. The regular season is unaffected and comple
 
 ---
 
+## The dossier was never being sent — fixed 16 August
+
+Found by asking what data the models actually see when they draft. `buildDossier` had
+exactly one caller: the script that builds and stores it. **Nothing ever read it back into
+a prompt.** The briefing was built, hashed, published on `/preseason` as "sent
+byte-identically to all eight", and sent to nobody. `dossier_hash` would have been null on
+all 120 draft decisions.
+
+`/backtest` had already blamed the missing dossier for the 2025 draft taking five
+quarterbacks in the first eight picks, in a league that starts one, and said so in as many
+words: *"the fix is not a better model. It is the dossier we had not built yet."* It had
+been built. It was not wired in.
+
+- [x] **Auction carries the dossier whole** — 126,505 chars. Slot value is a scarcity
+      question across every position at once.
+- [x] **Each pick carries the scouting** — curves plus a scouting line merged onto the
+      players on that board: 22,887 chars, 48 lines, 6 curves, 10 reading notes. Shipping
+      all 332 players into 120 prompts would be ~2.3M tokens of irrelevant names.
+- [x] **`draft.ts` refuses either stage without a stored dossier.** The failure guarded
+      against is not a crash but a draft that completes, looks normal, and was made from
+      raw projections.
+- [x] **Preseason data ingested** — new table and stage, kept OUT of `player_stats`
+      because its key would collide preseason week 1 with regular week 1. Season-long
+      aggregate only, which sidesteps the documented off-by-one in Sleeper's `pre` weeks.
+
+> **The preseason trap, checked before shipping it.** The top six preseason RBs by PPR are
+> Amar Johnson, Corey Kiner, Dean Connors, Salvon Ahmed, J'Mari Taylor and Kaytron Allen —
+> not one a player these models should draft early. Starters barely play, so preseason
+> POINTS are close to worthless and actively misleading presented bare. The signal is
+> ROLE: `off_snp` against `tm_off_snp`. The dossier ships four notes saying exactly that,
+> because handing a model a misleading number without saying it is misleading measures our
+> framing rather than its reasoning.
+
+### Bug 18 — a doubled season total, caught by printing one player
+
+`last_season_points` was ~1.7× reality. Josh Allen 626.6 against a true 374.6; McCaffrey
+697.4 against 416.6; Gibbs 628.1 against 366.9.
+
+SPEC §5.5 never overwrites a published score, so a re-scored week keeps BOTH its
+`provisional` and its `final` row — `unique (player_id, season, week, status)` exists
+precisely so it can. The dossier summed `computed_pts` for the prior season with no status
+filter. Allen had 28 rows across 17 weeks.
+
+Two things make it worse than a wrong number. The inflation is **uneven**, depending on how
+many of a player's weeks happened to be re-scored, so it distorted comparisons BETWEEN
+players rather than just the scale. And **it was not there on 29 July — the rehearsals
+created it**, by writing `final` rows over weeks that already had `provisional` ones. The
+runs meant to de-risk the draft introduced it, and the fix meant to inform the draft would
+have delivered it.
+
+**Found by printing one player.** Every count in the dry run was correct — 48/51 scouted,
+6 curves, hash present. A sample player was added to the output purely to check the shape,
+and 626.6 was sitting in it. A count can be right while the value is nonsense.
+
+Fixed with one shared `seasonPointsByPlayer` (final wins per week; provisional stands where
+there is no final, because filtering to `final` would silently drop weeks never re-scored).
+Swept the other nine `player_stats` readers: **`site/team.ts` summed blind too, and that is
+a published number on every team page** — now correct. Two more key by week so a duplicate
+overwrites rather than adds; not doubled, but order-dependent, and left alone rather than
+changed silently during draft prep.
+
+---
+
 ## What is actually left, 16 August
 
 Every item on the week-of-10-August plan is done, including the two it did not contain —
@@ -664,9 +727,22 @@ the playoff phase and the social queue. **The list is now one line long.**
 
 | Left | Blocked on | When |
 |---|---|---|
-| **Run the auction and the draft** | nothing | any time; it is the only buildable work left |
+| **Run the auction and the draft** | nothing — it is armed | **24 Aug** |
 | A weekly cycle running unattended | rosters, and a week of football | Week 1, **9 Sept** |
 | A queued post auto-releasing | a result worth announcing | first scored week |
+
+> **Why the 24th and not today.** Only one preseason week had been played on 16 August.
+> Preseason week 3, around 20–22 August, is the week starters actually play, and drafting
+> before it would halve the signal the briefing now carries. Final roster cuts land ~25
+> August, so the 24th is close to the freshest the picture gets before it matters.
+>
+> **Rebuild the dossier on the day** — it is a stored snapshot and the injury picture moves.
+> Between 29 July and 16 August, 23 of the 119 players inside ADP 120 changed injury status.
+>
+> ```bash
+> npm run ingest -- --preseason-stats --season 2026
+> npx tsx --env-file=.env.local scripts/dossier.ts
+> ```
 
 The sequencing condition that governed this whole file — **do not run the real draft
 until the weekly cycle has been rehearsed end to end** — is satisfied. Two regular-season

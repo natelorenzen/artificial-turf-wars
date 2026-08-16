@@ -57,8 +57,31 @@ npx tsx --env-file=.env.local scripts/weekly-dry-run.ts --crons --season 2026
 - [x] **Comprehension check re-sat under v3** *(14 Aug, $0.17)* — **8/8 at 19/19, every
       one on the first attempt**, including the four models pinned that morning and both
       new playoff questions. Shared context hash `c69d1c8d…`.
+- [x] Migration `0010_preseason_stats.sql` applied *(16 Aug)*
+- [x] **The dossier actually reaches the models** *(16 Aug)* — it never had. `buildDossier`
+      was called only by the script that stores it, so the briefing was built, hashed,
+      published as "sent byte-identically to all eight", and sent to nobody. The auction
+      now carries it whole; each pick carries the scarcity curves plus a scouting line on
+      the players actually on its board.
+- [x] **Preseason data ingested and in the briefing** *(16 Aug)* — 3,300 rows, all 332
+      dossier players carrying a preseason line, labelled with what it is worth.
 - [ ] Auction run — 8 slots assigned, seed verified against the published commitment
 - [ ] Draft run — 120 picks, 8 rosters of 15
+
+> **Scheduled for 24 August.** Deliberately after preseason week 3 (~20–22 Aug), which is
+> the week starters actually play — drafting before it would halve the preseason signal
+> the briefing now carries. The cost is a week of buffer before the 9 September opener,
+> which the rehearsals have earned.
+>
+> **Rebuild the dossier on the day.** It is a stored snapshot, and the injury picture
+> moves: between 29 July and 16 August, 23 of the 119 players inside ADP 120 changed
+> injury status. Final roster cuts land ~25 August, so the 24th is close to the freshest
+> the picture gets before it matters.
+>
+> ```bash
+> npm run ingest -- --preseason-stats --season 2026
+> npx tsx --env-file=.env.local scripts/dossier.ts
+> ```
 
 ```bash
 npx tsx --env-file=.env.local scripts/draft.ts --status
@@ -192,7 +215,8 @@ This is the part worth re-reading in October.
 ## Honest status, 16 August 2026
 
 Verified against the database rather than against this file — `draft.ts --status`,
-`weekly-dry-run.ts --status --crons`, and `db-check.ts`, all re-run on 16 August.
+`weekly-dry-run.ts --status --crons`, `db-check.ts` (now 32/32) and both draft dry runs,
+all re-run on 16 August.
 
 | Gate | State |
 |---|---|
@@ -203,7 +227,7 @@ Verified against the database rather than against this file — `draft.ts --stat
 | 4 — It finishes itself | ✅ built and rehearsed 14 Aug, champion declared |
 
 **Three full cycles have now been rehearsed** against 2025 — two regular-season weeks and
-the whole postseason — for $2.83. **Sixteen bugs found and fixed**, four of which would
+the whole postseason — for $2.83. **Eighteen bugs found and fixed**, four of which would
 have ended the season. The machine works. It has never been asked to run a week that
 counts.
 
@@ -212,8 +236,9 @@ counts.
 Outside the draft, there is nothing left to build. What is left needs either the draft or
 real football to exist:
 
-| Left | Needs | Earliest |
+| Left | Needs | When |
 |---|---|---|
+| The auction and draft | nothing — it is armed | **24 Aug** |
 | Gate 2 — an unattended weekly cycle | rosters, and a week to run | Week 1, **9 Sept** |
 | Gate 3 — a post auto-releasing | a result worth announcing | first scored week |
 
