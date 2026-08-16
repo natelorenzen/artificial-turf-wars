@@ -10,6 +10,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { COHORT, type Position } from '@/lib/config/league';
 import { SUPABASE_CONFIGURED } from '@/lib/supabase';
+import { seasonPointsByPlayer } from '@/lib/scoring/week';
 
 export interface TeamRosterEntry {
   playerId: string;
@@ -206,16 +207,13 @@ async function loadSeason(
       .in('player_id', playerIds);
     for (const row of projRows ?? []) projections.set(row.player_id as string, Number(row.proj_pts));
 
-    const { data: statRows } = await db
-      .from('player_stats')
-      .select('player_id, computed_pts')
-      .eq('season', season)
-      .in('player_id', playerIds);
-    for (const row of statRows ?? []) {
-      actuals.set(
-        row.player_id as string,
-        (actuals.get(row.player_id as string) ?? 0) + Number(row.computed_pts),
-      );
+    // Same provisional/final trap as the dossier: a week that has been re-scored has
+    // two rows, and summing them without resolving status inflates every published
+    // season total. On a team page that is a number a reader can check against the
+    // weekly results, so it would have been visibly, checkably wrong.
+    const wanted = new Set(playerIds);
+    for (const [playerId, points] of await seasonPointsByPlayer(db, season)) {
+      if (wanted.has(playerId)) actuals.set(playerId, points);
     }
   }
 

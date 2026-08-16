@@ -43,7 +43,11 @@ type Facts = Awaited<ReturnType<typeof loadLeagueFacts>>;
 
 function Progress({ facts }: { facts: Facts }) {
   const steps: [string, boolean, string][] = [
-    ['Briefing built and hashed', Boolean(facts?.dossier), 'One data pack, sent byte-identically to all eight'],
+    [
+      'Briefing built and hashed',
+      Boolean(facts?.dossier),
+      'One data pack, hashed, and sent byte-identically to all eight at the auction',
+    ],
     [
       'Comprehension gate',
       (facts?.rulesChecks.filter((r) => r.passed).length ?? 0) === LEAGUE.teams,
@@ -102,6 +106,23 @@ function Dossier({ facts }: { facts: Facts }) {
         No model gets web search. Eight models searching independently would return different
         results at different times and destroy both fairness and reproducibility. Instead everyone
         gets the same, deeper corpus — built once, hashed, and sent byte-identically to all eight.
+      </p>
+
+      <p className="lede-copy">
+        It reaches them in two shapes. The <strong>slot auction</strong> gets the briefing whole,
+        because what a draft slot is worth for a season is a question about scarcity at every
+        position at once. Each of the <strong>120 picks</strong> gets the scarcity curves plus the
+        scouting line — last season, bye week, depth chart, injury status and this year&rsquo;s
+        preseason snap share — attached to each player actually on that board. The briefing is not
+        re-sent whole 120 times; the facts that decide a pick travel with the names.
+      </p>
+
+      <p className="lede-copy">
+        Preseason results are in there, and they are labelled for what they are worth. Starters
+        barely play in August, so the top of the preseason scoring list is backups — the briefing
+        says so in as many words, and points at snap share as the signal that actually describes a
+        role. Handing a model a misleading number without saying it is misleading would measure our
+        framing rather than its reasoning.
       </p>
 
       {!dossier ? (

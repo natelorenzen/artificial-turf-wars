@@ -27,6 +27,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { FLEX_ELIGIBLE, LEAGUE, SLOTS, type Position } from '@/lib/config/league';
 import { estimateTokens } from '@/lib/prompt/assemble';
 import { stableHash, stableStringify } from '@/lib/util/hash';
+import { seasonPointsByPlayer } from '@/lib/scoring/week';
 
 export interface DossierPlayer {
   player_id: string;
@@ -40,6 +41,29 @@ export interface DossierPlayer {
   bye_week: number | null;
   depth_chart_order: number | null;
   injury_status: string | null;
+  /**
+   * What the player has actually done in this year's preseason. Null when he has no
+   * preseason line at all, which is itself information — for an established starter it
+   * usually means rest, and for a fringe player it usually means he is not playing.
+   * The two readings are opposite and only the surrounding fields separate them, which
+   * is exactly why this ships as facts rather than as a rating.
+   */
+  preseason: PreseasonLine | null;
+}
+
+export interface PreseasonLine {
+  games_played: number;
+  off_snaps: number;
+  team_off_snaps: number;
+  /**
+   * Offensive snap share as a percentage, or null when the team snap count is absent.
+   * Sleeper does not report team snaps on every line, and a share computed against a
+   * zero denominator would read as 0% — indistinguishable from a healthy scratch.
+   */
+  snap_share_pct: number | null;
+  rush_att: number;
+  targets: number;
+  points_ppr: number;
 }
 
 export interface ScarcityCurve {
@@ -111,7 +135,7 @@ export interface BuildDossierOptions {
 export async function buildDossier(
   db: SupabaseClient,
   options: BuildDossierOptions,
-): Promise<{ dossier: Dossier; hash: string; tokenCount: number }> {
+): Promise<{ dossier: Dossier; hash: string; tokenCount: number; withPreseason: number }> {
   const { season, perPosition = 60 } = options;
 
   const { data: byeRows } = await db.from('team_byes').select('nfl_team, week').eq('season', season);
@@ -119,16 +143,52 @@ export async function buildDossier(
   for (const row of byeRows ?? []) byes[row.nfl_team as string] = row.week as number;
 
   // Prior-season actual points, summed from our own scored stats.
-  const prior = new Map<string, number>();
+  //
+  // Via `seasonPointsByPlayer`, which resolves the provisional/final overlap. Summing
+  // the rows directly double-counts every re-scored week — it had Josh Allen's 2025 at
+  // 626.6 against a true 374.6, and that number was one dry run away from being sent to
+  // eight models as `last_season_points`.
+  const prior = await seasonPointsByPlayer(db, season - 1);
+
+  // This year's preseason, keyed by player. Absent entirely for a rehearsal season that
+  // predates the table, which is why every read below tolerates a miss rather than
+  // assuming a row: a 2025 replay must still build.
+  const preseason = new Map<string, PreseasonLine>();
   for (let from = 0; ; from += 1000) {
-    const { data } = await db
-      .from('player_stats')
-      .select('player_id, computed_pts')
-      .eq('season', season - 1)
+    const { data, error } = await db
+      .from('preseason_stats')
+      .select('player_id, games_played, off_snaps, team_off_snaps, raw_stats')
+      .eq('season', season)
       .range(from, from + 999);
+    // Do NOT swallow this. If the table is missing, ignoring the error would produce a
+    // perfectly valid-looking dossier with every preseason field null, and nothing
+    // anywhere would say so — the same silent-degrade that let `db-check.ts` report
+    // "28/28 tables present" against a completely unapplied schema. An empty RESULT is
+    // legitimate (a rehearsal season, or the stage not yet run); an ERROR is not.
+    if (error) {
+      throw new Error(
+        `dossier preseason: ${error.message}. ` +
+          'If this is a missing relation, apply supabase/migrations/0010_preseason_stats.sql.',
+      );
+    }
     if (!data || data.length === 0) break;
     for (const row of data) {
-      prior.set(row.player_id as string, (prior.get(row.player_id as string) ?? 0) + Number(row.computed_pts));
+      const raw = (row.raw_stats ?? {}) as Record<string, unknown>;
+      const num = (key: string) => {
+        const v = raw[key];
+        return typeof v === 'number' && Number.isFinite(v) ? v : 0;
+      };
+      const offSnaps = Number(row.off_snaps ?? 0);
+      const teamSnaps = Number(row.team_off_snaps ?? 0);
+      preseason.set(row.player_id as string, {
+        games_played: Number(row.games_played ?? 0),
+        off_snaps: offSnaps,
+        team_off_snaps: teamSnaps,
+        snap_share_pct: teamSnaps > 0 ? Number(((offSnaps / teamSnaps) * 100).toFixed(1)) : null,
+        rush_att: num('rush_att'),
+        targets: num('rec_tgt'),
+        points_ppr: Number(num('pts_ppr').toFixed(1)),
+      });
     }
     if (data.length < 1000) break;
   }
@@ -169,6 +229,7 @@ export async function buildDossier(
         bye_week: p.nfl_team ? (byes[p.nfl_team] ?? null) : null,
         depth_chart_order: p.depth_chart_order,
         injury_status: p.injury_status,
+        preseason: preseason.get(row.player_id as string) ?? null,
       } satisfies DossierPlayer;
     });
 
@@ -195,6 +256,13 @@ export async function buildDossier(
       'A position\'s raw projection and its value over replacement are different numbers. Both are derivable from what is here.',
       'adp is null for kickers and defenses — no ADP is published for them.',
       'last_season_points is scored under this league\'s rules from actual results, and is null for players with no prior-season data.',
+      // The four notes below exist because preseason data is the most easily misread
+      // input in this pack, and a model that misreads it would be penalised for our
+      // presentation rather than its reasoning. State the trap explicitly.
+      'preseason covers THIS season\'s preseason games and is null for players with no preseason line. Preseason results do not count toward any score in this league.',
+      'Preseason points are a poor predictor of regular-season production, because established starters play very few preseason snaps. The players at the top of the preseason scoring list are mostly backups and roster hopefuls.',
+      'The useful signal in preseason is ROLE, not production: snap_share_pct shows how much of his team\'s offence a player was on the field for, which is informative for rookies and for unsettled depth charts, and close to meaningless for established starters who are being rested.',
+      'A null preseason line or a low snap share means opposite things for different players — rest for a proven starter, and a lost job or an injury for a fringe one. depth_chart_order, injury_status and last_season_points are what separate those two readings.',
     ],
   };
 
@@ -210,5 +278,11 @@ export async function buildDossier(
     );
   }
 
-  return { dossier, hash: stableHash(dossier), tokenCount };
+  // Reported, not asserted. Zero is legitimate for a rehearsal season and before the
+  // preseason ingest has run, so this must not throw — but a 2026 dossier built with
+  // no preseason coverage at all is something the operator has to SEE before the
+  // draft, not discover in the published prompts afterwards.
+  const withPreseason = players.filter((p) => p.preseason !== null).length;
+
+  return { dossier, hash: stableHash(dossier), tokenCount, withPreseason };
 }

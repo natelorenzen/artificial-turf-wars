@@ -41,6 +41,7 @@ import { auctionSchema } from '@/lib/schemas/decisions';
 import { commitHash, seededTiebreakOrder } from '@/lib/engine/rng';
 import { assertNoLabelLeak, buildLabelMap } from '@/lib/engine/labels';
 import { runDecision } from '@/lib/decisions/run';
+import { buildScoutingIndex, loadStoredDossier } from '@/lib/preseason/scouting';
 import {
   availableFor,
   buildPickContext,
@@ -288,6 +289,7 @@ async function loadDraftState(
     season: SEASON,
     teams: draftTeams,
     pool: await loadPool(supabase, POOL_SIZE),
+    scouting: await requireScouting(supabase, seasonId),
     picks: (picks ?? []).map((row) => {
       const p = row.players as unknown as { name: string; position: Position };
       return {
@@ -300,6 +302,33 @@ async function loadDraftState(
       };
     }),
   };
+}
+
+/**
+ * The dossier, or an abort.
+ *
+ * Deliberately fatal rather than a warning. The failure this guards against is not a
+ * crash — it is a draft that completes, looks entirely normal, and was made from raw
+ * projections with no scarcity baseline. That is precisely what happened in the 2025
+ * rehearsal, where five of the first eight picks were quarterbacks in a league that
+ * starts one, and `/backtest` names the missing dossier as the cause. A draft is one
+ * shot; "it ran, but without the briefing" is not a recoverable state.
+ */
+async function requireScouting(supabase: SupabaseClient, seasonId: string) {
+  const stored = await loadStoredDossier(supabase, seasonId);
+  if (!stored) {
+    fail(
+      `no dossier has been built for ${SEASON}.\n\n` +
+        '  The draft reads scouting — last season, byes, depth chart, injuries and this\n' +
+        "  year's preseason role — from the stored dossier. Build it first:\n\n" +
+        '    npx tsx --env-file=.env.local scripts/dossier.ts\n',
+    );
+  }
+  const index = buildScoutingIndex(stored!);
+  if (index.covered === 0) {
+    fail(`the stored ${SEASON} dossier contains no players. Rebuild it with scripts/dossier.ts.`);
+  }
+  return index;
 }
 
 // ---------------------------------------------------------------------------
@@ -410,6 +439,17 @@ async function stageAuction(commit: boolean) {
     fail(`only ${topAvailable.length} players have ADP for ${SEASON}. Run the ingest before the auction.`);
   }
 
+  // The auction gets the dossier WHOLE. It is eight calls, and the question in front
+  // of a model here — what a draft slot is worth for a whole season — is precisely a
+  // question about scarcity across every position at once.
+  const stored = await loadStoredDossier(supabase, seasonId);
+  if (!stored) {
+    fail(
+      `no dossier has been built for ${SEASON}. Build it before the auction:\n\n` +
+        '    npx tsx --env-file=.env.local scripts/dossier.ts\n',
+    );
+  }
+
   const data = {
     budget_total: LEAGUE.budgetTotal,
     teams: LEAGUE.teams,
@@ -419,12 +459,23 @@ async function stageAuction(commit: boolean) {
     top_available: topAvailable,
     budget_rule:
       'Whatever you do not spend here is your entire FAAB budget for all 14 weeks, and for the playoff free-agent auction.',
+    dossier: stored!.dossier,
   };
 
   assertNoLabelLeak(JSON.stringify(data), FORBIDDEN_NAMES);
 
+  // Report the briefing explicitly. The bug this stage was shipped with for weeks was
+  // a dossier that was built, stored, published as sent, and never actually put in a
+  // prompt — a dry run that does not SAY the dossier is in the block cannot tell you
+  // it is missing, which is how it went unnoticed in the first place.
+  const scouted = stored!.dossier.players ?? [];
+  const withPreseason = scouted.filter((p) => p.preseason !== null).length;
+
   console.log(`\n  PLAN — slot auction, season ${SEASON}\n`);
   console.log(`    board          ${topAvailable.length} players, ADP ${topAvailable[0].adp} to ${topAvailable[topAvailable.length - 1].adp}`);
+  console.log(`    dossier        ${scouted.length} players, ${withPreseason} with a preseason line, ${stored!.dossier.scarcity_curves?.length ?? 0} scarcity curves`);
+  console.log(`    dossier hash   ${stored!.hash.slice(0, 24)}…`);
+  console.log(`    DATA size      ${JSON.stringify(data).length.toLocaleString()} chars`);
   console.log(`    model calls    ${teams.length}`);
   console.log(`    writes         auction_bids ×${teams.length}, teams.draft_slot ×${teams.length}, decisions ×${teams.length}`);
   console.log(`    seed           verified against the published commitment`);
@@ -449,6 +500,7 @@ async function stageAuction(commit: boolean) {
         openrouterId: team.models.openrouter_id,
         type: 'auction',
         data,
+        dossierHash: stored!.hash,
         task: AUCTION_TASK,
         outputExample: AUCTION_OUTPUT_EXAMPLE,
         schema: auctionSchema,
@@ -567,11 +619,27 @@ async function stageDraft(commit: boolean) {
     const serialized = JSON.stringify(context.data);
     assertNoLabelLeak(serialized, FORBIDDEN_NAMES);
 
+    const shown = context.data.available;
+    const scoutedShown = shown.filter((p) => p.scouted).length;
+    const withPre = shown.filter((p) => p.preseason !== null).length;
+
     console.log(`\n    dry-run context for pick ${next}:`);
     console.log(`      legal pool     ${context.legalPool.length}${context.narrowed ? ' (narrowed by the soft cap)' : ''}`);
-    console.log(`      shown          ${context.data.available.length} players`);
-    console.log(`      DATA size      ${serialized.length} chars`);
+    console.log(`      shown          ${shown.length} players`);
+    console.log(`      scouted        ${scoutedShown}/${shown.length} carry a scouting line, ${withPre} with preseason`);
+    console.log(`      curves         ${context.data.scarcity_curves.length} scarcity curves, ${context.data.data_notes.length} reading notes`);
+    console.log(`      dossier hash   ${state.scouting?.hash.slice(0, 24) ?? 'NONE'}…`);
+    console.log(`      DATA size      ${serialized.length.toLocaleString()} chars`);
     console.log(`      label leak     none (checked against ${FORBIDDEN_NAMES.length} lab and model names)`);
+
+    // One real entry, printed whole. A count can be right while the shape is wrong.
+    console.log(`\n      sample player as the model will receive it:`);
+    console.log(
+      JSON.stringify(shown[0], null, 2)
+        .split('\n')
+        .map((l) => `        ${l}`)
+        .join('\n'),
+    );
     console.log('\n    Re-run with --commit --i-understand=2026 and ALLOW_IRREVERSIBLE=1 to fire it.\n');
     return;
   }

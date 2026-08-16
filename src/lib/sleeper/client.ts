@@ -188,6 +188,26 @@ export function fetchSeasonStats(season: number, position: SleeperPosition) {
   );
 }
 
+/**
+ * The SEASON-LONG preseason aggregate — deliberately not the per-week endpoint.
+ *
+ * `/stats/nfl/{season}/{week}?season_type=pre` is shifted by one and missing its
+ * opening week: its `pre` week 1 returns games dated 2026-08-13, which is really the
+ * SECOND week of the preseason (verified 5 Aug 2026, re-verified 16 Aug). Anything
+ * built on those week numbers is wrong by one and the error is invisible, because the
+ * response is perfectly well-formed. The aggregate carries no week number at all and
+ * therefore cannot inherit the bug.
+ *
+ * Used for draft context only. Preseason points are not scored in this league and the
+ * scoring engine never reads this — see `0010_preseason_stats.sql` on why the useful
+ * signal here is snap share rather than the box score.
+ */
+export function fetchPreseasonStats(season: number, position: SleeperPosition) {
+  return sleeperFetch<SleeperStatRecord[]>(
+    `${STATS_HOST}/stats/nfl/${season}?season_type=pre&position[]=${position}&order_by=pts_ppr`,
+  );
+}
+
 /** 1000.0 is Sleeper's "unranked" sentinel, not a real ADP. */
 export function cleanAdp(value: unknown): number | null {
   if (typeof value !== 'number' || !Number.isFinite(value)) return null;

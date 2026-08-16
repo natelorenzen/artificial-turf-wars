@@ -357,6 +357,58 @@ async function loadPoints(
   return new Map([...provisional, ...final]);
 }
 
+/**
+ * Season-to-date points per player, resolving the provisional/final overlap.
+ *
+ * SPEC §5.5 never overwrites a published score: Tuesday writes `provisional`,
+ * Thursday writes `final`, and BOTH rows survive — `unique (player_id, season, week,
+ * status)` exists precisely so they can, and the diff between them is published. So a
+ * week that has been re-scored has two rows, and summing `computed_pts` across a season
+ * without resolving that counts every corrected week twice.
+ *
+ * Found 16 August 2026 in the dossier, which had inflated Josh Allen's 2025 total from
+ * 374.6 to 626.6 — eleven of his seventeen weeks carried both rows. It was about to be
+ * sent to eight models as `last_season_points` at the draft, alongside a projection
+ * computed on a completely different basis, and the inflation is UNEVEN across players,
+ * so it would have distorted the comparisons rather than just the absolute numbers.
+ *
+ * Precedence matches `loadWeekPoints`: final wins where it exists, provisional stands
+ * where it does not — a week only ever scored provisionally is still a real week.
+ */
+export async function seasonPointsByPlayer(
+  db: SupabaseClient,
+  season: number,
+): Promise<Map<string, number>> {
+  const provisional = new Map<string, number>();
+  const final = new Map<string, number>();
+
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await db
+      .from('player_stats')
+      .select('player_id, week, computed_pts, status')
+      .eq('season', season)
+      .range(from, from + 999);
+    if (error) throw new Error(`player_stats: ${error.message}`);
+    if (!data || data.length === 0) break;
+    for (const row of data) {
+      // Keyed per player AND week, so the two statuses of one week collapse into one
+      // value instead of accumulating.
+      const key = `${row.player_id}:${row.week}`;
+      const target = row.status === 'final' ? final : provisional;
+      target.set(key, Number(row.computed_pts));
+    }
+    if (data.length < 1000) break;
+  }
+
+  const resolved = new Map([...provisional, ...final]);
+  const totals = new Map<string, number>();
+  for (const [key, points] of resolved) {
+    const playerId = key.slice(0, key.lastIndexOf(':'));
+    totals.set(playerId, (totals.get(playerId) ?? 0) + points);
+  }
+  return totals;
+}
+
 async function loadByeTeams(db: SupabaseClient, season: number, week: number): Promise<Set<string>> {
   const { data, error } = await db
     .from('team_byes')

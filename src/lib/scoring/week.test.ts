@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { accumulateStandings, standingsThroughWeek, type WeeklyTotal } from './week';
+import {
+  accumulateStandings,
+  seasonPointsByPlayer,
+  standingsThroughWeek,
+  type WeeklyTotal,
+} from './week';
 import { LEAGUE } from '@/lib/config/league';
 import { FINAL_WEEK, SEMIFINAL_WEEK } from '@/lib/engine/bracket';
 
@@ -191,5 +196,84 @@ describe('the standings freeze at the end of the regular season', () => {
     expect(leader(regular)).toBe('t3');
     expect(leader(withPlayoffWeek)).toBe('t1');
     // Which is why the call site passes `standingsThroughWeek(week)` and never `week`.
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The provisional/final overlap
+// ---------------------------------------------------------------------------
+
+interface StatRow {
+  player_id: string;
+  week: number;
+  computed_pts: number;
+  status: 'provisional' | 'final';
+}
+
+/** Just enough of the client for `seasonPointsByPlayer`'s one query chain. */
+function fakeDb(rows: StatRow[]) {
+  return {
+    from: () => ({
+      select: () => ({
+        eq: () => ({
+          range: async (from: number, to: number) => ({
+            data: rows.slice(from, to + 1),
+            error: null,
+          }),
+        }),
+      }),
+    }),
+  } as unknown as Parameters<typeof seasonPointsByPlayer>[0];
+}
+
+describe('season totals across the provisional/final overlap', () => {
+  it('counts a re-scored week once, not twice', async () => {
+    // The real shape of the bug: SPEC §5.5 never overwrites a published score, so a
+    // corrected week leaves BOTH rows in place and a naive sum doubles it.
+    const totals = await seasonPointsByPlayer(
+      fakeDb([
+        { player_id: 'p1', week: 1, computed_pts: 20, status: 'provisional' },
+        { player_id: 'p1', week: 1, computed_pts: 22, status: 'final' },
+        { player_id: 'p1', week: 2, computed_pts: 10, status: 'provisional' },
+      ]),
+      2025,
+    );
+    // 22 (final beats provisional) + 10, NOT 20 + 22 + 10.
+    expect(totals.get('p1')).toBe(32);
+  });
+
+  it('keeps a week that was only ever scored provisionally', async () => {
+    // Filtering to `status = final` would silently drop it, which is the obvious fix
+    // and the wrong one.
+    const totals = await seasonPointsByPlayer(
+      fakeDb([{ player_id: 'p1', week: 3, computed_pts: 14, status: 'provisional' }]),
+      2025,
+    );
+    expect(totals.get('p1')).toBe(14);
+  });
+
+  it('does not let one player\'s weeks leak into another\'s total', async () => {
+    // The key is `player:week`; a naive `week`-only key would collapse every player.
+    const totals = await seasonPointsByPlayer(
+      fakeDb([
+        { player_id: 'p1', week: 1, computed_pts: 20, status: 'final' },
+        { player_id: 'p2', week: 1, computed_pts: 30, status: 'final' },
+      ]),
+      2025,
+    );
+    expect(totals.get('p1')).toBe(20);
+    expect(totals.get('p2')).toBe(30);
+  });
+
+  it('reproduces the Josh Allen case that was about to ship to eight models', async () => {
+    // 17 weeks, 11 of them re-scored. Naive sum ≈ 1.6× the truth.
+    const rows: StatRow[] = [];
+    for (let week = 1; week <= 17; week++) {
+      rows.push({ player_id: 'allen', week, computed_pts: 22, status: 'provisional' });
+      if (week <= 11) rows.push({ player_id: 'allen', week, computed_pts: 22, status: 'final' });
+    }
+    const totals = await seasonPointsByPlayer(fakeDb(rows), 2025);
+    expect(totals.get('allen')).toBe(17 * 22);
+    expect(totals.get('allen')).not.toBe(rows.reduce((s, r) => s + r.computed_pts, 0));
   });
 });

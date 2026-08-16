@@ -5,11 +5,13 @@
  *   npm run ingest -- --players --schedule       # needs .env.local
  *   npm run ingest -- --stats --week 3 --status provisional
  *   npm run ingest -- --week-projections --week 5 --season 2025
+ *   npm run ingest -- --preseason-stats --season 2026
  */
 
 import {
   dryRunSleeper,
   ingestPlayers,
+  ingestPreseasonStats,
   ingestProjections,
   ingestSchedule,
   ingestWeekProjections,
@@ -34,11 +36,15 @@ async function main() {
     return;
   }
 
+  // `--preseason-stats` is excluded from `all` on purpose: it is a preseason-only
+  // concept, it is never scored, and folding it into the default run would put it in
+  // the daily cron path where it would return nothing from September onward.
   const all =
     !flag('players') &&
     !flag('schedule') &&
     !flag('projections') &&
     !flag('week-projections') &&
+    !flag('preseason-stats') &&
     !flag('stats');
 
   if (all || flag('players')) console.log('players:', await ingestPlayers());
@@ -54,6 +60,9 @@ async function main() {
     const week = Number(value('week'));
     if (!week) throw new Error('--week-projections requires --week');
     console.log(`week ${week} projections:`, await ingestWeekProjections(season, week));
+  }
+  if (flag('preseason-stats')) {
+    console.log(`preseason stats:`, await ingestPreseasonStats(season));
   }
   if (flag('stats')) {
     const week = Number(value('week'));
