@@ -727,7 +727,7 @@ the playoff phase and the social queue. **The list is now one line long.**
 
 | Left | Blocked on | When |
 |---|---|---|
-| **Run the auction and the draft** | nothing — it is armed | **24 Aug** |
+| **Run the auction and the draft** — follow `DRAFT-DAY.md` | nothing — it is armed | **24 Aug** |
 | A weekly cycle running unattended | rosters, and a week of football | Week 1, **9 Sept** |
 | A queued post auto-releasing | a result worth announcing | first scored week |
 

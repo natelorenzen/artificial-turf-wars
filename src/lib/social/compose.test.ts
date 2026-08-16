@@ -206,6 +206,15 @@ describe('findings and the draft', () => {
     expect(post.body).toContain('120 picks, $4.97 of inference, 0 fallbacks');
     expect(fits(post.body, post.link)).toBe(true);
   });
+
+  it('holds the draft post for a human, unlike every other kind', () => {
+    // It announces a one-shot event, it is the first thing this account says
+    // unprompted, and the auto-release path has never run end to end. Its debut
+    // should not be an unattended post about something irreversible.
+    const post = composeDraft({ season: 2026, picks: 120, costUsd: 4.97, fallbacks: 0 });
+    expect(post.autoEligible).toBe(false);
+    expect(post.holdReason).toBeTruthy();
+  });
 });
 
 describe('cost', () => {

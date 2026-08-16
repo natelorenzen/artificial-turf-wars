@@ -7,6 +7,28 @@ Real Sleeper results score them. Every prompt and every raw response is publishe
 anything — it is the reconciled build spec and it is authoritative. Section numbers
 below refer to it.
 
+> ## 🔴 Running the draft? Read `DRAFT-DAY.md` and follow it exactly.
+>
+> **24 August 2026.** The auction and draft are the only irreversible actions in this
+> project, and everything else is already built and rehearsed. `DRAFT-DAY.md` is the
+> step-by-step runbook: refresh preseason data, rebuild the briefing, dry-run both
+> stages, then commit. Do not improvise a shorter path — the draft refuses to run from
+> a briefing more than 48 hours old, and that guard exists because a skipped rebuild
+> fails silently rather than loudly.
+
+### Which document to believe
+
+| File | Answers |
+|---|---|
+| `DRAFT-DAY.md` | How to run the draft on the day, in order |
+| `GO-LIVE.md` | What "done" means — five gates with checkable conditions |
+| `TODO.md` | What is left, and the log of how each gate was closed |
+| `SPEC.md` | What was specified. Authoritative on intent, out of date in places noted below |
+| `CLAUDE.md` | This file — stack, hard rules, API gotchas, current build state |
+
+When they disagree about **status**, believe `GO-LIVE.md`; it is re-verified against the
+database rather than edited from memory.
+
 **⚠️ SPEC §14 (v3, 2026-07-28) supersedes parts of §3.3, §4.3–§4.5, §6.1 and the
 §4.1-iii rulebook.** The goal is exposing model reasoning under *bounded chaos*, so:
 head-to-head now ranks (all-play is published but does not), models see their

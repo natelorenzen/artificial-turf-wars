@@ -1,0 +1,218 @@
+# Draft day — 24 August 2026
+
+**The one irreversible day in this project.** Everything else can be re-run; this cannot.
+Follow it top to bottom. Every step prints something you can check, and nothing writes
+until step 5.
+
+Written 16 August 2026, from a session that verified each command against live data. If a
+step behaves differently from what is written here, that difference is the finding —
+stop and look at it rather than pressing on.
+
+> **Read `CLAUDE.md` first** if you are starting cold. This file assumes the hard rules,
+> particularly: the commissioner is code, no lab name may reach a DATA block, and
+> decision-time code reads only from our own snapshots.
+
+---
+
+## Before you start
+
+| Thing | Expected |
+|---|---|
+| Branch | `main`, clean, synced |
+| Tests | `npm test` — 400 passing |
+| Season | 2026, `rulebook-v3`, 8 teams, **0 auction slots, 0 picks** |
+| Schema | 32/32 tables |
+| Money | OpenRouter funded; the draft costs ~$5 |
+
+```bash
+npm test && npm run typecheck
+npx tsx --env-file=.env.local scripts/db-check.ts
+npx tsx --env-file=.env.local scripts/draft.ts --status
+```
+
+`--status` must say `auction not run` and `draft 0/120 picks`. **If it says anything
+else, stop** — either the draft has already started or you are pointed at the wrong
+database.
+
+---
+
+## 1. Refresh the data the draft reads
+
+The daily ingest keeps projections and injuries current on its own, but the **preseason
+stage is manual on purpose** — it is a preseason-only concept and a daily job returning
+nothing from September onward is a failure shape this project has been bitten by twice.
+
+```bash
+npm run ingest -- --preseason-stats --season 2026
+```
+
+Expect roughly 3,000–3,500 rows across six positions. On 16 August it was 3,300.
+
+Then confirm the daily ingest is actually alive — it is the input to everything, and it
+has failed silently before (`CCRON_SECRET`, and again when migration `0008` landed):
+
+```bash
+npx tsx --env-file=.env.local scripts/db-check.ts
+```
+
+`player_projections` should be in the tens of thousands and `players` around 4,300.
+
+---
+
+## 2. Rebuild the briefing
+
+**This is not optional and the draft will refuse without it.** The dossier is a stored
+snapshot; the draft reads whatever is stored. Between 29 July and 16 August, 23 of the
+119 players inside ADP 120 changed injury status, and final roster cuts land the week of
+the 24th.
+
+```bash
+npx tsx --env-file=.env.local scripts/dossier.ts
+```
+
+Expect:
+
+```
+  players       332
+  preseason     332 of 332 carry a preseason line
+  injury flags  ~35-45
+  tokens        ~34,000 (ceiling 150,000)
+  hash          <new hash — note it, it should appear in both dry runs below>
+```
+
+**A `WARNING: not one player has a preseason line` means step 1 did not run.** Go back.
+
+By the 24th there should be more preseason coverage than on 16 August, when only the
+13 August slate had been played — preseason week 3 falls on 20–22 August and is the week
+starters actually appear.
+
+---
+
+## 3. Dry-run both stages
+
+Free, no model calls, no writes. This is the step that has caught something every single
+time it has been run.
+
+```bash
+npx tsx --env-file=.env.local scripts/draft.ts --auction
+npx tsx --env-file=.env.local scripts/draft.ts --draft
+```
+
+Check, in the auction output:
+
+- `dossier` — 332 players, **332 with a preseason line**, 6 scarcity curves
+- `dossier hash` — matches step 2
+- `seed verified against the published commitment`
+- **no `WARNING: the stored dossier is N days old`** — if you see it, step 2 did not run
+
+And in the draft output:
+
+- `scouted 48/51 carry a scouting line` (a few outside the scouted set is normal and
+  labelled `scouted: false`)
+- `label leak none`
+- the **sample player printed in full** — read it. Every count in a dry run was correct
+  on 16 August while `last_season_points` was nearly double reality, and printing one
+  player is what caught it. Sanity-check the numbers: a top QB or RB season is roughly
+  **250–420 points**, not 600.
+
+---
+
+## 4. The point of no return
+
+Two stages. **The auction is the irreversible one** — it assigns draft slots, and the
+anonymous rival labels `Team A` … `Team H` that every model sees for fourteen weeks are
+derived from those slots. Once it commits, that mapping is fixed.
+
+The draft itself is resumable: it writes a row per pick and continues where it stopped.
+
+Four locks stand between an invocation and a write, plus the seed check and the
+48-hour dossier freshness guard.
+
+```bash
+ALLOW_IRREVERSIBLE=1 npx tsx --env-file=.env.local scripts/draft.ts \
+  --auction --commit --i-understand=2026
+```
+
+8 model calls, ~$0.50. Then:
+
+```bash
+ALLOW_IRREVERSIBLE=1 npx tsx --env-file=.env.local scripts/draft.ts \
+  --draft --commit --i-understand=2026
+```
+
+120 model calls, ~$4.50, roughly 20–40 minutes. It prints each pick as it lands.
+
+> **If it stops partway, just run the same command again.** It resumes from the last
+> committed pick. Do not pass `--picks` to "catch up" — the default is the remainder.
+
+> **`[FALLBACK]` on a pick** means the model's answer was unusable and code chose
+> instead. One or two is survivable and is published as such. A run of them means
+> something is wrong with the DATA block — stop and look.
+
+---
+
+## 5. Verify what happened
+
+```bash
+npx tsx --env-file=.env.local scripts/draft.ts --status
+```
+
+Expect `auction 8/8 slots assigned` and `draft 120/120 picks`.
+
+Then look at the league on the site — `/preseason`, `/teams`, and the draft board. Every
+prompt and raw response is public at `/decisions/[id]`; spot-check one pick and confirm
+its **dossier hash is attached** rather than null. That field was null on every draft
+decision until 16 August, because the briefing was never actually being sent.
+
+---
+
+## 6. The announcement, which is held on purpose
+
+A post is composed for @PlayATW when the draft completes, and it is **deliberately not
+auto-released** — unlike every other kind in the queue. It announces a one-shot event, it
+is the first thing the account will say unprompted, and the auto-release path has never
+run end to end.
+
+Read it first:
+
+```sql
+select id, body, hold_reason from social_posts where kind = 'draft';
+```
+
+To send it, make it eligible; the next daily run (20:00 UTC) picks it up:
+
+```sql
+update social_posts set auto_eligible = true where kind = 'draft' and status = 'draft';
+```
+
+To not send it, do nothing. It stays a draft row and nothing goes out.
+
+---
+
+## After the draft
+
+Nothing further is required until football starts. The weekly jobs stay silent — the
+lead-time guard refuses any week that does not kick off within 7 days — so the only job
+doing real work between the draft and **2 September** is the daily ingest.
+
+**Week 1 kicks off Wednesday 9 September, 19:00 ET.** It is one of only two Wednesday
+openers in 2026, so the Wednesday `lineups` cron is the one that counts and the Thursday
+one must stand down. It also carries the tightest margin of the season — 4.0h for the
+weekend guide, exactly the required minimum. Worth watching live rather than reading in
+the scores afterwards. See `GO-LIVE.md` Gate 2.
+
+---
+
+## If something goes wrong
+
+| Symptom | What it means |
+|---|---|
+| `REFUSING TO RUN … no dossier has been built` | Step 2 did not run |
+| `REFUSING TO RUN … dossier is N days old` | Step 2 did not run today. Rebuild; `--stale-dossier-ok` only if the stale briefing is genuinely what you want |
+| `DRAFT_SEED does not match the published commitment` | Wrong `.env` loaded. **Fix the environment; never edit the row** — the commitment is what makes the tiebreak checkable |
+| `the 2026 auction has already run` | The auction is done. Move to the draft stage |
+| Auction committed, draft failed | Fine. Slots are assigned; re-run the draft command |
+| A model call fails | It retries, then falls back deterministically and records the rejection. The draft continues |
+
+**The one thing not to do is re-run the auction.** It refuses once slots exist, and that
+refusal is correct — draft slots are the basis of every anonymous label for the season.
