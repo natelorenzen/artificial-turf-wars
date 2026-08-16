@@ -464,8 +464,18 @@ async function stageAuction(commit: boolean) {
 
   assertNoLabelLeak(JSON.stringify(data), FORBIDDEN_NAMES);
 
+  // Report the briefing explicitly. The bug this stage was shipped with for weeks was
+  // a dossier that was built, stored, published as sent, and never actually put in a
+  // prompt — a dry run that does not SAY the dossier is in the block cannot tell you
+  // it is missing, which is how it went unnoticed in the first place.
+  const scouted = stored!.dossier.players ?? [];
+  const withPreseason = scouted.filter((p) => p.preseason !== null).length;
+
   console.log(`\n  PLAN — slot auction, season ${SEASON}\n`);
   console.log(`    board          ${topAvailable.length} players, ADP ${topAvailable[0].adp} to ${topAvailable[topAvailable.length - 1].adp}`);
+  console.log(`    dossier        ${scouted.length} players, ${withPreseason} with a preseason line, ${stored!.dossier.scarcity_curves?.length ?? 0} scarcity curves`);
+  console.log(`    dossier hash   ${stored!.hash.slice(0, 24)}…`);
+  console.log(`    DATA size      ${JSON.stringify(data).length.toLocaleString()} chars`);
   console.log(`    model calls    ${teams.length}`);
   console.log(`    writes         auction_bids ×${teams.length}, teams.draft_slot ×${teams.length}, decisions ×${teams.length}`);
   console.log(`    seed           verified against the published commitment`);
@@ -609,11 +619,27 @@ async function stageDraft(commit: boolean) {
     const serialized = JSON.stringify(context.data);
     assertNoLabelLeak(serialized, FORBIDDEN_NAMES);
 
+    const shown = context.data.available;
+    const scoutedShown = shown.filter((p) => p.scouted).length;
+    const withPre = shown.filter((p) => p.preseason !== null).length;
+
     console.log(`\n    dry-run context for pick ${next}:`);
     console.log(`      legal pool     ${context.legalPool.length}${context.narrowed ? ' (narrowed by the soft cap)' : ''}`);
-    console.log(`      shown          ${context.data.available.length} players`);
-    console.log(`      DATA size      ${serialized.length} chars`);
+    console.log(`      shown          ${shown.length} players`);
+    console.log(`      scouted        ${scoutedShown}/${shown.length} carry a scouting line, ${withPre} with preseason`);
+    console.log(`      curves         ${context.data.scarcity_curves.length} scarcity curves, ${context.data.data_notes.length} reading notes`);
+    console.log(`      dossier hash   ${state.scouting?.hash.slice(0, 24) ?? 'NONE'}…`);
+    console.log(`      DATA size      ${serialized.length.toLocaleString()} chars`);
     console.log(`      label leak     none (checked against ${FORBIDDEN_NAMES.length} lab and model names)`);
+
+    // One real entry, printed whole. A count can be right while the shape is wrong.
+    console.log(`\n      sample player as the model will receive it:`);
+    console.log(
+      JSON.stringify(shown[0], null, 2)
+        .split('\n')
+        .map((l) => `        ${l}`)
+        .join('\n'),
+    );
     console.log('\n    Re-run with --commit --i-understand=2026 and ALLOW_IRREVERSIBLE=1 to fire it.\n');
     return;
   }

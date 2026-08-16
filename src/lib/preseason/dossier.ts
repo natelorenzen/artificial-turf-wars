@@ -27,6 +27,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { FLEX_ELIGIBLE, LEAGUE, SLOTS, type Position } from '@/lib/config/league';
 import { estimateTokens } from '@/lib/prompt/assemble';
 import { stableHash, stableStringify } from '@/lib/util/hash';
+import { seasonPointsByPlayer } from '@/lib/scoring/week';
 
 export interface DossierPlayer {
   player_id: string;
@@ -142,19 +143,12 @@ export async function buildDossier(
   for (const row of byeRows ?? []) byes[row.nfl_team as string] = row.week as number;
 
   // Prior-season actual points, summed from our own scored stats.
-  const prior = new Map<string, number>();
-  for (let from = 0; ; from += 1000) {
-    const { data } = await db
-      .from('player_stats')
-      .select('player_id, computed_pts')
-      .eq('season', season - 1)
-      .range(from, from + 999);
-    if (!data || data.length === 0) break;
-    for (const row of data) {
-      prior.set(row.player_id as string, (prior.get(row.player_id as string) ?? 0) + Number(row.computed_pts));
-    }
-    if (data.length < 1000) break;
-  }
+  //
+  // Via `seasonPointsByPlayer`, which resolves the provisional/final overlap. Summing
+  // the rows directly double-counts every re-scored week — it had Josh Allen's 2025 at
+  // 626.6 against a true 374.6, and that number was one dry run away from being sent to
+  // eight models as `last_season_points`.
+  const prior = await seasonPointsByPlayer(db, season - 1);
 
   // This year's preseason, keyed by player. Absent entirely for a rehearsal season that
   // predates the table, which is why every read below tolerates a miss rather than
