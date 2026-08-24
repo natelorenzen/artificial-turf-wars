@@ -252,12 +252,19 @@ export interface CohortModel {
 }
 
 export const COHORT: readonly CohortModel[] = [
-  { key: 'gpt-5-6-sol', displayName: 'GPT-5.6 Sol', openrouterId: 'openai/gpt-5.6-sol', lab: 'OpenAI', contextWindow: 1_050_000, priceIn: 5.0, priceOut: 30.0 },
+  // Repriced by OpenAI since the pin: $5.00/$30.00 → $2.00/$10.00. Caught by
+  // scripts/cohort-check.ts on draft morning, 24 August 2026. These numbers are
+  // published — the cohort table and the "not price-matched" span on /methodology and
+  // /teams are computed from them — and they are the fallback when OpenRouter does not
+  // return a cost on a call. The MODEL is unchanged; only its price moved.
+  { key: 'gpt-5-6-sol', displayName: 'GPT-5.6 Sol', openrouterId: 'openai/gpt-5.6-sol', lab: 'OpenAI', contextWindow: 1_050_000, priceIn: 2.0, priceOut: 10.0 },
   { key: 'claude-opus-5', displayName: 'Claude Opus 5', openrouterId: 'anthropic/claude-opus-5', lab: 'Anthropic', contextWindow: 1_000_000, priceIn: 5.0, priceOut: 25.0 },
   { key: 'grok-4-6', displayName: 'Grok 4.6', openrouterId: 'x-ai/grok-4.6', lab: 'xAI', contextWindow: 500_000, priceIn: 2.0, priceOut: 6.0 },
   { key: 'gemini-3-1-pro', displayName: 'Gemini 3.1 Pro', openrouterId: 'google/gemini-3.1-pro-preview', lab: 'Google', contextWindow: 1_048_576, priceIn: 2.0, priceOut: 12.0 },
   { key: 'muse-spark-1-2', displayName: 'Muse Spark 1.2', openrouterId: 'meta/muse-spark-1.2', lab: 'Meta', contextWindow: 1_048_576, priceIn: 1.25, priceOut: 4.25 },
-  { key: 'deepseek-v4-pro-0813', displayName: 'DeepSeek V4 Pro 0813', openrouterId: 'deepseek/deepseek-v4-pro-0813', lab: 'DeepSeek', contextWindow: 1_048_576, priceIn: 0.43, priceOut: 0.87 },
+  // Also repriced since the pin, and by more than 2x: $0.43/$0.87 → $1.12/$3.37, same
+  // check, same morning. The old figures were the pre-GA preview price.
+  { key: 'deepseek-v4-pro-0813', displayName: 'DeepSeek V4 Pro 0813', openrouterId: 'deepseek/deepseek-v4-pro-0813', lab: 'DeepSeek', contextWindow: 1_048_576, priceIn: 1.12, priceOut: 3.37 },
   { key: 'kimi-k3', displayName: 'Kimi K3', openrouterId: 'moonshotai/kimi-k3', lab: 'Moonshot', contextWindow: 1_048_576, priceIn: 3.0, priceOut: 15.0 },
   // priceOut was null here, which the cohort table rendered as "—" — implying Qwen
   // charged nothing for output. It charges $1.28/M. Corrected against the OpenRouter

@@ -2,7 +2,7 @@
 
 **The one irreversible day in this project.** Everything else can be re-run; this cannot.
 Follow it top to bottom. Every step prints something you can check, and nothing writes
-until step 5.
+until step 6.
 
 Written 16 August 2026, from a session that verified each command against live data. If a
 step behaves differently from what is written here, that difference is the finding —
@@ -36,7 +36,55 @@ database.
 
 ---
 
-## 1. Refresh the data the draft reads
+## 1. Confirm the cohort you are about to lock
+
+**The freeze date is today.** `COHORT_FROZEN_AT` is `2026-08-24`, so this is the last day
+a seat may move; from tomorrow only a provider withdrawing a model justifies a change, and
+after the first pick even that is too late. Whatever `COHORT` says this morning is what
+plays fourteen weeks of football.
+
+This runs first because a seat that moves creates work downstream — a re-pin has to be
+re-gated on the rulebook before it drafts — and because it is free.
+
+```bash
+npx tsx --env-file=.env.local scripts/cohort-check.ts
+```
+
+Read-only: the OpenRouter catalogue and our own rows, no model calls, no writes. It looks
+for the three ways the cohort can be wrong on draft morning:
+
+- **a pinned model is gone or going** — an ID OpenRouter no longer serves fails the draft
+  eight calls in; an `expiration_date` inside the season means the withdrawal lands in
+  October instead, which is the `teams.frozen` path and strictly worse than moving today
+- **a lab shipped something since the last re-pin** (14 August, four seats) — candidates
+  are printed with their descriptions, serving variants and same-day siblings filtered out
+- **the database disagrees with the config** — the silent failure `scripts/repin-cohort.ts`
+  exists to prevent: a re-pin changes a model's *key*, so a plain seed upsert inserts a new
+  row, leaves `teams.model_id` on the old one, reports success, and the league quietly
+  plays last month's cohort while the site shows this month's
+
+Passing looks like `The eight pinned models are live, current, and correctly seated.`
+Anything under **MUST BE RESOLVED BEFORE THE DRAFT** exits non-zero — resolve it. Anything
+under **For a human to decide** does not; it is there to be read.
+
+**Keeping all eight is a decision, and it needs no command.** The rule is *top-tier
+generally available*, not newest: a cheaper tier of the same generation, an open-weight
+sibling, or a specialist is correctly declined, and Google looking eighteen months stale
+is that rule working rather than failing. If a seat genuinely should move, it is three
+things and not one:
+
+```bash
+npx tsx --env-file=.env.local scripts/repin-cohort.ts            # dry run, then --commit
+npx tsx --env-file=.env.local scripts/preseason-rules-check.ts   # the new model re-sits it
+```
+
+...and then the cohort table on `/methodology` and the `COHORT FREEZE` comment in
+`src/lib/config/league.ts` record what moved and why. A model drafting under a rulebook it
+has never been gated on is the thing this ordering exists to prevent.
+
+---
+
+## 2. Refresh the data the draft reads
 
 The daily ingest keeps projections and injuries current on its own, but the **preseason
 stage is manual on purpose** — it is a preseason-only concept and a daily job returning
@@ -59,7 +107,7 @@ npx tsx --env-file=.env.local scripts/db-check.ts
 
 ---
 
-## 2. Rebuild the briefing
+## 3. Rebuild the briefing
 
 **This is not optional and the draft will refuse without it.** The dossier is a stored
 snapshot; the draft reads whatever is stored. Between 29 July and 16 August, 23 of the
@@ -80,7 +128,7 @@ Expect:
   hash          <new hash — note it, it should appear in both dry runs below>
 ```
 
-**A `WARNING: not one player has a preseason line` means step 1 did not run.** Go back.
+**A `WARNING: not one player has a preseason line` means step 2 did not run.** Go back.
 
 By the 24th there should be more preseason coverage than on 16 August, when only the
 13 August slate had been played — preseason week 3 falls on 20–22 August and is the week
@@ -88,7 +136,7 @@ starters actually appear.
 
 ---
 
-## 3. Dry-run both stages
+## 4. Dry-run both stages
 
 Free, no model calls, no writes. This is the step that has caught something every single
 time it has been run.
@@ -101,9 +149,9 @@ npx tsx --env-file=.env.local scripts/draft.ts --draft
 Check, in the auction output:
 
 - `dossier` — 332 players, **332 with a preseason line**, 6 scarcity curves
-- `dossier hash` — matches step 2
+- `dossier hash` — matches step 3
 - `seed verified against the published commitment`
-- **no `WARNING: the stored dossier is N days old`** — if you see it, step 2 did not run
+- **no `WARNING: the stored dossier is N days old`** — if you see it, step 3 did not run
 
 And in the draft output:
 
@@ -117,7 +165,7 @@ And in the draft output:
 
 ---
 
-## 4. The point of no return
+## 5. The point of no return
 
 Two stages. **The auction is the irreversible one** — it assigns draft slots, and the
 anonymous rival labels `Team A` … `Team H` that every model sees for fourteen weeks are
@@ -151,7 +199,7 @@ ALLOW_IRREVERSIBLE=1 npx tsx --env-file=.env.local scripts/draft.ts \
 
 ---
 
-## 5. Verify what happened
+## 6. Verify what happened
 
 ```bash
 npx tsx --env-file=.env.local scripts/draft.ts --status
@@ -166,7 +214,7 @@ decision until 16 August, because the briefing was never actually being sent.
 
 ---
 
-## 6. The announcement, which is held on purpose
+## 7. The announcement, which is held on purpose
 
 A post is composed for @PlayATW when the draft completes, and it is **deliberately not
 auto-released** — unlike every other kind in the queue. It announces a one-shot event, it
@@ -207,8 +255,10 @@ the scores afterwards. See `GO-LIVE.md` Gate 2.
 
 | Symptom | What it means |
 |---|---|
-| `REFUSING TO RUN … no dossier has been built` | Step 2 did not run |
-| `REFUSING TO RUN … dossier is N days old` | Step 2 did not run today. Rebuild; `--stale-dossier-ok` only if the stale briefing is genuinely what you want |
+| `cohort-check: NOT IN THE CATALOGUE` | OpenRouter withdrew a pinned model. The one condition the freeze permits a change for — re-pin, re-gate, disclose |
+| `cohort-check: IN COHORT, NO TEAM PLAYS IT` | Config and database disagree. Use `repin-cohort.ts`, never `seed.ts` |
+| `REFUSING TO RUN … no dossier has been built` | Step 3 did not run |
+| `REFUSING TO RUN … dossier is N days old` | Step 3 did not run today. Rebuild; `--stale-dossier-ok` only if the stale briefing is genuinely what you want |
 | `DRAFT_SEED does not match the published commitment` | Wrong `.env` loaded. **Fix the environment; never edit the row** — the commitment is what makes the tiebreak checkable |
 | `the 2026 auction has already run` | The auction is done. Move to the draft stage |
 | Auction committed, draft failed | Fine. Slots are assigned; re-run the draft command |
