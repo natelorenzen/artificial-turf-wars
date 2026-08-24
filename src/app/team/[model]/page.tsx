@@ -127,6 +127,128 @@ function LiveSeason({ season }: { season: TeamSeason }) {
         </table>
       </div>
 
+      {season.picks.length > 0 && (
+        <div className="tiles" style={{ marginTop: 16 }}>
+          <div className="tile">
+            <div className="k">Drafted</div>
+            <div className="v">{season.roster.length}</div>
+            <div className="n">
+              Every pick below is this model&rsquo;s own choice — none was made by fallback code.
+            </div>
+          </div>
+          <div className="tile">
+            <div className="k">Decisions logged</div>
+            <div className="v">{season.decisions.count}</div>
+            <div className="n">
+              ${season.decisions.costUsd} total
+              {season.decisions.meanConfidence !== null && (
+                <> · mean stated confidence {season.decisions.meanConfidence}</>
+              )}
+            </div>
+          </div>
+          <div className="tile">
+            <div className="k">Claims flagged</div>
+            <div className="v">{season.decisions.flagged}</div>
+            <div className="n">
+              Decisions with a stated reason our checker could not tie to the data or the rulebook
+            </div>
+          </div>
+        </div>
+      )}
+
+      {season.auctionHeadline && (
+        <div className="telestrator" style={{ marginTop: 16 }}>
+          <div className="tel-hd">
+            <b>On the auction</b>
+            <span>
+              bid ${season.auctionBid} · took slot {season.draftSlot}
+            </span>
+            {season.auctionDecisionId && (
+              <span>
+                <Link className="record-link" href={`/decisions/${season.auctionDecisionId}`}>
+                  full record
+                </Link>
+              </span>
+            )}
+          </div>
+          <p className="lede">&ldquo;{season.auctionHeadline}&rdquo;</p>
+        </div>
+      )}
+
+      {season.roster.length > 0 && (
+        <>
+          <h3 style={{ marginTop: 26 }}>The roster it drafted</h3>
+          <div className="scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th className="l">Rd</th>
+                  <th className="l">Player</th>
+                  <th>Pos</th>
+                  <th>Pick</th>
+                  <th>Projected</th>
+                </tr>
+              </thead>
+              <tbody>
+                {season.roster.map((p) => (
+                  <tr key={p.playerId}>
+                    <td className="l rank">{p.round ?? '—'}</td>
+                    <td className="l tname">{p.name}</td>
+                    <td className="muted">{p.position}</td>
+                    <td className="muted">{p.pickOverall ?? '—'}</td>
+                    <td className="muted">{p.projSeasonPoints?.toFixed(1) ?? '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="lede-copy" style={{ marginTop: 12 }}>
+            Projected is this league&rsquo;s own season projection under its own scoring rules. No
+            actual points yet — the season has not kicked off.
+          </p>
+        </>
+      )}
+
+      {season.picks.length > 0 && (
+        <>
+          <h3 style={{ marginTop: 26 }}>Every pick, and why</h3>
+          <div className="quotes">
+            {season.picks.map((pick) => (
+              <div className="quote" key={pick.pickOverall}>
+                <div className="who">
+                  {pick.player}
+                  <small>
+                    R{pick.round} · #{pick.pickOverall} · {pick.position}
+                    {pick.confidence !== null && ` · conf ${pick.confidence.toFixed(2)}`}
+                    {pick.decisionId && (
+                      <Link className="record-link" href={`/decisions/${pick.decisionId}`}>
+                        full record
+                      </Link>
+                    )}
+                  </small>
+                </div>
+                <div className="said">
+                  {pick.fallbackApplied && <span className="tag">fallback</span>}
+                  {pick.poolNarrowed && <span className="tag">pool narrowed</span>}
+                  {pick.headline ?? <span className="muted">no reason recorded</span>}
+                  {pick.closestCall && (
+                    <div style={{ marginTop: 6, color: 'var(--chalk-dim)', fontSize: 14 }}>
+                      <em>Closest call:</em> {pick.closestCall}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
+      {/*
+        Waivers and lineups land here as the season runs. They are the same shape as the
+        picks above — a decision with a headline, a confidence and a full record — so they
+        slot in as further sections rather than as a redesign.
+      */}
+
       {season.gameplan && (
         <div className="telestrator" style={{ marginTop: 16 }}>
           <div className="tel-hd">
