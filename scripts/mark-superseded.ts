@@ -69,10 +69,19 @@ async function main() {
   console.log(`    ${orphans.length} to mark\n`);
 
   for (const d of orphans) {
+    /*
+     * A superseded decision that was VALID is a different statement from one that
+     * failed, and these strings are published. Pick 5 is the case: GPT-5.6 Sol answered
+     * it perfectly well, and it was re-run only because correcting pick 4 changed the
+     * board it had been answering. Filing that under "a defect" would read as Sol
+     * having done something wrong.
+     */
     const reason =
       d.type === 'auction'
         ? 'duplicate run of the auction stage — the league used the other response'
-        : `pick ${d.pick_overall} was re-run after a defect in our own code; this attempt did not become the pick`;
+        : d.valid
+          ? `pick ${d.pick_overall} was re-run because correcting an earlier pick changed the board this answered — the response itself was valid`
+          : `pick ${d.pick_overall} was re-run after a defect in our own code; this attempt did not become the pick`;
     const already = d.superseded_reason ? '  [already marked]' : '';
     console.log(`    ${String(d.type).padEnd(11)} ${String(d.pick_overall ?? '—').padStart(3)}  ${String(name.get(d.model_id as string)).padEnd(21)}${already}`);
     console.log(`      → ${reason}`);
