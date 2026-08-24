@@ -727,7 +727,7 @@ the playoff phase and the social queue. **The list is now one line long.**
 
 | Left | Blocked on | When |
 |---|---|---|
-| **Run the auction and the draft** — follow `DRAFT-DAY.md` | nothing — it is armed | **24 Aug** |
+| ~~**Run the auction and the draft**~~ | ✅ **done 24 Aug** — 120/120 picks, 0 fallbacks, $10.05. Three defects found and fixed on the day; see Findings 009 | — |
 | A weekly cycle running unattended | rosters, and a week of football | Week 1, **9 Sept** |
 | A queued post auto-releasing | a result worth announcing | first scored week |
 

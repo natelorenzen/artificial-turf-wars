@@ -7,15 +7,22 @@ Real Sleeper results score them. Every prompt and every raw response is publishe
 anything — it is the reconciled build spec and it is authoritative. Section numbers
 below refer to it.
 
-> ## 🔴 Running the draft? Read `DRAFT-DAY.md` and follow it exactly.
+> ## ✅ The draft is done. 24 August 2026.
 >
-> **24 August 2026.** The auction and draft are the only irreversible actions in this
-> project, and everything else is already built and rehearsed. `DRAFT-DAY.md` is the
-> step-by-step runbook: confirm the cohort — today is `COHORT_FROZEN_AT`, the last day a
-> seat can move — refresh preseason data, rebuild the briefing, dry-run both stages, then
-> commit. Do not improvise a shorter path — the draft refuses to run from
-> a briefing more than 48 hours old, and that guard exists because a skipped rebuild
-> fails silently rather than loudly.
+> **120/120 picks, zero fallbacks** — every pick a model's own decision. The seed that
+> broke three tied auction bids was published before any pick was made. `DRAFT-DAY.md`
+> remains the runbook and is now corrected against what actually happened, including the
+> costs and the five hours it really took.
+>
+> Getting to zero fallbacks took three fixes on the day, all the same shape: a limit we
+> imposed, breached by a model reasoning fine, recorded against the model. See
+> [Findings 009](https://www.artificialturfwar.com/findings/thinking-until-there-was-no-room-to-answer).
+> The one that matters for everything still to come: **`max_tokens` is a single pool**, so
+> reasoning can starve the answer. `LEAGUE.reasoningMaxTokens` now reserves room, on every
+> call, for every model.
+>
+> Next milestone is **Wednesday 9 September, 19:00 ET** — week 1, and the first time the
+> weekly jobs fire on a week that counts.
 
 ### Which document to believe
 
@@ -261,7 +268,7 @@ each was closed. When any of the three disagree about status, believe `GO-LIVE.m
 | 5 — rules comprehension check | **done** — 19 questions, 8/8 first attempt under v3 *(14 Aug)* |
 | Cron guard | **done** — auth, kickoff/DST refusal, lead-time refusal, irreversible lock, `job_runs` ledger. Every week of 2026 clears, **including the playoff weeks** |
 | 4 — 2025 backtest | **done** — draft, two weekly cycles and the full postseason rehearsed. 16 bugs found |
-| 6 — auction + draft run | 🔴 **not started — scheduled 24 Aug.** The only thing left to build the league. One irreversible step, four locks, rehearsed on 2025, both stages dry-run clean |
+| 6 — auction + draft run | **done** *(24 Aug)* — 8/8 slots, 120/120 picks, **0 fallbacks**, $10.05. Seed revealed at 0 picks. Four picks re-run after defects in our own code; seven superseded decisions retained and marked |
 | Dossier delivery | **done** *(16 Aug)* — it had never been sent to anyone. Auction gets it whole; each pick gets curves + a scouting line per player shown |
 | Preseason data | **done** *(16 Aug)* — `preseason_stats`, manual stage, labelled in the briefing for what it is worth |
 | 7 — weekly jobs | **all 8 routes exist and have run on rehearsal data**; none has fired on a week that counts |
