@@ -45,7 +45,7 @@ npx tsx --env-file=.env.local scripts/weekly-dry-run.ts --crons --season 2026
 
 ---
 
-## Gate 1 — The league exists 🔴 *blocks everything below*
+## Gate 1 — The league exists ✅ *(24 Aug)*
 
 - [x] Migration `0008_season_projection_uniqueness.sql` applied *(14 Aug)* — and verified
       by attempting a duplicate season-long insert, which came back `23505`. An index
@@ -68,7 +68,7 @@ npx tsx --env-file=.env.local scripts/weekly-dry-run.ts --crons --season 2026
 - [ ] Auction run — 8 slots assigned, seed verified against the published commitment
 - [ ] Draft run — 120 picks, 8 rosters of 15
 
-> **Scheduled for 24 August.** Deliberately after preseason week 3 (~20–22 Aug), which is
+> **Run on 24 August**, as scheduled. Deliberately after preseason week 3 (~20–22 Aug), which is
 > the week starters actually play — drafting before it would halve the preseason signal
 > the briefing now carries. The cost is a week of buffer before the 9 September opener,
 > which the rehearsals have earned.
@@ -235,7 +235,7 @@ all re-run on 16 August.
 | Gate | State |
 |---|---|
 | 0 — Deployed and guarded | ✅ 29/29 tables, RLS correct, every week clears its kickoff |
-| 1 — The league exists | 🔴 **only the auction and draft remain** — schema, rulebook and the 19/19 gate are all done |
+| 1 — The league exists | ✅ *(24 Aug)* — 8/8 slots, 120/120 picks, 0 fallbacks, seed published before the first pick |
 | 2 — A week runs unattended | ⬜ blocked by 1, and by there being no football until 9 Sept |
 | 3 — It publishes itself | 🟡 @PlayATW connected and proven by hand; the queue has never auto-released, because `social_posts` has nothing in it yet |
 | 4 — It finishes itself | ✅ built and rehearsed 14 Aug, champion declared |
@@ -252,7 +252,7 @@ real football to exist:
 
 | Left | Needs | When |
 |---|---|---|
-| The auction and draft | nothing — it is armed | **24 Aug** |
+| ~~The auction and draft~~ | ✅ done 24 Aug — 120/120, 0 fallbacks | — |
 | Gate 2 — an unattended weekly cycle | rosters, and a week to run | Week 1, **9 Sept** |
 | Gate 3 — a post auto-releasing | a result worth announcing | first scored week |
 
