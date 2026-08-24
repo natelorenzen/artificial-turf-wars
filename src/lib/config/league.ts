@@ -181,8 +181,40 @@ export const LEAGUE = {
    * board; the real board is sixty.
    *
    * Costs nothing to raise: providers bill tokens generated, not the ceiling.
+   *
+   * RAISED AGAIN to 20,000 on draft day, at pick 52, alongside `reasoningMaxTokens`
+   * below. The 4000 -> 16000 fix above treated the size of the pool; it did not treat
+   * the fact that it is ONE pool. Reasoning and answer are drawn from the same
+   * allowance, so a model can spend all of it thinking and emit nothing — which is
+   * precisely what happened twice, and no ceiling alone prevents it.
    */
-  maxOutputTokens: 16_000,
+  maxOutputTokens: 20_000,
+
+  /**
+   * The share of `maxOutputTokens` a model may spend on internal reasoning, leaving
+   * the remainder RESERVED for the answer. Identical for all eight.
+   *
+   * Draft day made the case in numbers. Qwen3.8 Max's five successful picks used
+   * 9,891 / 10,256 / 12,703 / 13,456 / 14,864 reasoning tokens. Its two failures used
+   * 15,663 and 16,000 — the second returning zero characters after 941 seconds, having
+   * thought its way through the entire budget without writing anything. The working
+   * picks and the runaways are cleanly separable, and 14,000 is the line between them:
+   * four of the five successes pass under it untouched.
+   *
+   * The 6,000 left over is 3.5x the largest answer any model has produced (Kimi's
+   * 1,697 tokens). This is not a limit on thinking so much as a floor under answering.
+   *
+   * It is not Qwen-specific and was not chosen for Qwen. As the board gets harder every
+   * model spends more: Claude Opus 5 used 187 reasoning tokens on pick 2 and 13,387 on
+   * pick 47, and DeepSeek 12,435 on pick 49. Both still fit under this cap. Without it,
+   * the back half of a draft fills with fallbacks exactly where the decisions are most
+   * interesting.
+   *
+   * THE DRAFT IS SPLIT HERE. Picks 1-51 ran with no reasoning cap, 52-120 with this
+   * one. The boundary is checkable rather than asserted: no decision after pick 51
+   * exceeds 14,000 reasoning tokens, and that is visible in the published data.
+   */
+  reasoningMaxTokens: 14_000,
   /** Below Grok 4.5's 500K window so no model truncates first (SPEC §8.1 #11). */
   contextCeilingTokens: 400_000,
   /** SPEC §4.1b: dossier must be asserted under this. */

@@ -35,8 +35,12 @@ const ENDPOINT = 'https://openrouter.ai/api/v1/chat/completions';
  * picks already made — picks 1, 2, 3 and 5 completed in 21-105s, so a higher ceiling
  * cannot retroactively change what they did. That is not true of retry counts or
  * scoring, which is why only this moved.
+ *
+ * Raised again to 1,500s at pick 52, because `maxOutputTokens` went to 20,000 and
+ * 20,000 tokens at the ~20 tok/s Qwen sustains is about 17 minutes. A ceiling that
+ * cannot accommodate the budget underneath it is the same bug in a different place.
  */
-const REQUEST_TIMEOUT_MS = 900_000;
+const REQUEST_TIMEOUT_MS = 1_500_000;
 
 /**
  * Total wall clock for ONE `callModel`, across every retry.
@@ -50,7 +54,7 @@ const REQUEST_TIMEOUT_MS = 900_000;
  * Checked before each retry, never mid-flight: an answer already being generated is
  * always allowed to land.
  */
-const CALL_BUDGET_MS = 1_200_000;
+const CALL_BUDGET_MS = 2_400_000;
 
 export interface CallUsage {
   tokensIn: number | null;
@@ -167,6 +171,9 @@ async function postOnce(
         // Identical for all eight (SPEC §8.1 #3, #12).
         temperature: LEAGUE.temperature,
         max_tokens: maxOutputTokens,
+        // Reserves answer space out of the shared allowance so no model can think its
+        // way past the point of being able to reply. See LEAGUE.reasoningMaxTokens.
+        reasoning: { max_tokens: LEAGUE.reasoningMaxTokens },
         // No tools, no web search, no function calling for anyone (SPEC §8.1 #4).
         tools: undefined,
         usage: { include: true },
