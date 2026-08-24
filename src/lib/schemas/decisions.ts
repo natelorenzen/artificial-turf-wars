@@ -312,3 +312,58 @@ export const draftPickSalvageSchema = z.object({
   what_would_change_it: z.string().min(1).optional(),
   confidence: z.number().min(0).max(1).optional(),
 });
+
+/**
+ * Salvage schemas for the two weekly decisions, same policy as `draftPickSalvageSchema`:
+ * strict on everything that changes the outcome, absent-tolerant on the reasoning.
+ *
+ * These matter more than the draft one, not less. A draft pick is one of fifteen and a
+ * bad one is survivable; a truncated LINEUP hands a whole week to deterministic code,
+ * and week 12 with playoff seeding live is exactly the hard decision that drives a model
+ * to spend its budget thinking. The draft proved the failure is not hypothetical and not
+ * confined to one model — Claude Opus 5 used 187 reasoning tokens on pick 2 and 12,130
+ * later in the same draft.
+ *
+ * The lineup slots stay STRICT, including the array lengths: a lineup missing its second
+ * receiver is not a lineup, and starting a partial one would silently forfeit points. If
+ * a lineup truncates before the slots are complete, the fallback is correct.
+ */
+export const lineupSalvageSchema = z.object({
+  qb: lineupSlot,
+  rb: z.array(lineupSlot).length(LEAGUE.slots.RB),
+  wr: z.array(lineupSlot).length(LEAGUE.slots.WR),
+  te: lineupSlot,
+  flex: lineupSlot,
+  k: lineupSlot,
+  def: lineupSlot,
+  headline: z.string().min(1).optional(),
+  key_factors: z.array(z.string().min(1)).optional(),
+  closest_call: z.string().min(1).optional(),
+  what_would_change_it: z.string().min(1).optional(),
+  confidence: z.number().min(0).max(1).optional(),
+});
+
+/**
+ * Waivers salvage with one deliberate difference: `claims` is REQUIRED even though an
+ * empty array is a valid answer.
+ *
+ * Absent and empty are not the same statement here. An empty array means "I looked and I
+ * am standing pat"; an absent one means we cut the model off before it said anything at
+ * all, and silently recording that as standing pat would put words in its mouth on a
+ * decision that spends money.
+ */
+export const waiverSalvageSchema = z.object({
+  claims: z.array(
+    z.object({
+      add_player_id: z.string().min(1),
+      drop_player_id: z.string().min(1),
+      bid: z.number().int().min(0).max(LEAGUE.budgetTotal),
+      reasoning: z.string().min(1),
+    }),
+  ),
+  headline: z.string().min(1).optional(),
+  key_factors: z.array(z.string().min(1)).optional(),
+  closest_call: z.string().min(1).optional(),
+  what_would_change_it: z.string().min(1).optional(),
+  confidence: z.number().min(0).max(1).optional(),
+});

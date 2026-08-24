@@ -2,7 +2,7 @@
 
 **The one irreversible day in this project.** Everything else can be re-run; this cannot.
 Follow it top to bottom. Every step prints something you can check, and nothing writes
-until step 6.
+until step 5.
 
 Written 16 August 2026, from a session that verified each command against live data. If a
 step behaves differently from what is written here, that difference is the finding —
@@ -181,14 +181,23 @@ ALLOW_IRREVERSIBLE=1 npx tsx --env-file=.env.local scripts/draft.ts \
   --auction --commit --i-understand=2026
 ```
 
-8 model calls, ~$0.50. Then:
+8 model calls. **Budget ~$1.20, not the ~$0.50 this once said** — the estimate predated the
+16 August change that sends the auction the whole dossier, which makes each DATA block
+~127,000 characters. Actual on 24 August 2026: $1.20.
 
 ```bash
 ALLOW_IRREVERSIBLE=1 npx tsx --env-file=.env.local scripts/draft.ts \
   --draft --commit --i-understand=2026
 ```
 
-120 model calls, ~$4.50, roughly 20–40 minutes. It prints each pick as it lands.
+120 model calls. **Budget ~$9 and a whole afternoon, not the ~$4.50 and 20–40 minutes this
+once said.** Actual on 24 August 2026: $8.85 and about five hours, and it was five rather
+than two because reasoning-tier models spend real time on a hard board — Qwen3.8 Max
+averaged 325 seconds a pick against GPT-5.6 Sol's 23. It prints each pick as it lands.
+
+> **It only runs while the machine is awake.** Everything executes locally; only the model
+> calls are remote. A laptop that sleeps stops the draft. Nothing is lost — every pick
+> commits its own row — but re-run the same command to continue.
 
 > **If it stops partway, just run the same command again.** It resumes from the last
 > committed pick. Do not pass `--picks` to "catch up" — the default is the remainder.
@@ -199,13 +208,37 @@ ALLOW_IRREVERSIBLE=1 npx tsx --env-file=.env.local scripts/draft.ts \
 
 ---
 
-## 6. Verify what happened
+## 6. Publish the seed
+
+**Between the auction and the first pick, and not after.** The commitment is half a proof;
+the reveal is the other half. In 2026 the seed decided a real outcome — three teams bid $0
+and it alone put them in slots 4, 7 and 8.
+
+```bash
+ALLOW_IRREVERSIBLE=1 npx tsx --env-file=.env.local scripts/draft.ts \
+  --reveal-seed --commit --i-understand=2026
+```
+
+Revealed after the draft, a seed can always be accused of having been chosen to suit the
+picks. Revealed now, the slots are already fixed and it cannot have been shopped for. The
+dry run deliberately does not print the seed; only the commit does.
+
+---
+
+## 7. Verify what happened
 
 ```bash
 npx tsx --env-file=.env.local scripts/draft.ts --status
 ```
 
-Expect `auction 8/8 slots assigned` and `draft 120/120 picks`.
+Expect `auction 8/8 slots assigned` and `draft 120/120 picks`. Re-running the draft
+command once more is harmless and stamps `seasons.draft_completed_at`, which `/preseason`
+reads to report the draft as done.
+
+**Check the fallback count, not just the pick count.** A `[FALLBACK]` means our code chose
+and the model did not. In 2026 the first three attempts at a clean board each produced
+fallbacks that were *our* fault — a timeout, a parser, and an output budget a model could
+spend entirely on thinking. Zero is achievable and is what the board should show.
 
 Then look at the league on the site — `/preseason`, `/teams`, and the draft board. Every
 prompt and raw response is public at `/decisions/[id]`; spot-check one pick and confirm
@@ -214,14 +247,24 @@ decision until 16 August, because the briefing was never actually being sent.
 
 ---
 
-## 7. The announcement, which is held on purpose
+## 8. The announcement, which is held on purpose
 
 A post is composed for @PlayATW when the draft completes, and it is **deliberately not
 auto-released** — unlike every other kind in the queue. It announces a one-shot event, it
 is the first thing the account will say unprompted, and the auto-release path has never
 run end to end.
 
-Read it first:
+**It does not exist until you compose it.** Nothing composes this post automatically —
+`social_posts` has no `draft` row until you make one, and the query below returns nothing
+before you do. The numbers come from the database rather than from you: picks, fallbacks,
+and the spend across the decisions that actually produced the board.
+
+```bash
+npx tsx --env-file=.env.local scripts/compose-draft-post.ts            # dry run, prints it
+npx tsx --env-file=.env.local scripts/compose-draft-post.ts --commit   # queue it, HELD
+```
+
+Then read it:
 
 ```sql
 select id, body, hold_reason from social_posts where kind = 'draft';
