@@ -761,12 +761,90 @@ async function stageDraft(commit: boolean) {
   }
 }
 
+/**
+ * Publish the seed (SPEC §8.3).
+ *
+ * The commitment is one half of a proof and the reveal is the other. `seed_commit_hash`
+ * was published before anyone bid; until the raw seed is out, nobody outside this
+ * machine can replay the tiebreak it decided — and in 2026 it decided a real outcome,
+ * because three teams bid $0 and the seed alone put them in slots 4, 7 and 8.
+ *
+ * Order matters, and it is the whole reason this is a separate stage rather than a line
+ * inside the auction. Revealed AFTER the draft, a seed can always be accused of having
+ * been chosen to suit the picks. Revealed between the auction and the first pick, the
+ * slots are already fixed and the seed cannot have been shopped for. This project was
+ * built by Claude and Claude Opus 5 competes in it, so a checkable tiebreak is not a
+ * nicety — it is the disclosure.
+ *
+ * Refuses before the auction (there is nothing to prove yet) and refuses to overwrite a
+ * reveal that already happened (a second, different seed would void the first).
+ */
+async function stageRevealSeed(commit: boolean) {
+  const supabase = db();
+  const { seasonId, teams } = await seasonAndTeams(supabase);
+
+  const slotted = teams.filter((t) => t.draft_slot !== null).length;
+  if (slotted !== teams.length) {
+    fail(
+      `the auction has not run — ${slotted}/${teams.length} slots assigned.\n` +
+        '  There is no tiebreak to prove yet. Run --auction first.',
+    );
+  }
+
+  const { data: season, error } = await supabase
+    .from('seasons')
+    .select('seed_commit_hash, seed_revealed_at, draft_seed')
+    .eq('id', seasonId)
+    .single();
+  if (error) fail(`seasons read: ${error.message}`);
+
+  if (season.seed_revealed_at !== null) {
+    fail(
+      `the ${SEASON} seed was already revealed at ${season.seed_revealed_at}.\n` +
+        '  Revealing a second, different seed would void the first. Nothing to do.',
+    );
+  }
+
+  // Re-verifies against the published hash and refuses on a mismatch.
+  const seed = await verifiedSeed(supabase, seasonId);
+
+  const { count: picks } = await supabase
+    .from('draft_picks')
+    .select('*', { count: 'exact', head: true })
+    .eq('season_id', seasonId);
+
+  console.log(`\n  SEED REVEAL — season ${SEASON}\n`);
+  console.log(`    commitment    ${season.seed_commit_hash}`);
+  console.log(`    this seed     ${commitHash(seed)}  ✓ matches`);
+  // Deliberately NOT the seed itself — a dry run must not put it on a terminal before
+  // the commit that publishes it. This names the namespace the tiebreak is derived from.
+  console.log('    tiebroken     slots decided by <seed>:auction');
+  console.log(`    draft         ${picks ?? 0}/${TOTAL_PICKS} picks made`);
+  if ((picks ?? 0) > 0) {
+    console.log('    ⚠ picks already exist — revealing now is weaker than revealing before them.');
+  }
+  console.log(`    mode          ${commit ? '*** COMMIT — this publishes the seed ***' : 'DRY RUN — nothing published'}`);
+
+  if (!commit) {
+    console.log('\n    Re-run with --commit --i-understand=2026 and ALLOW_IRREVERSIBLE=1 to publish.\n');
+    return;
+  }
+
+  const { error: writeError } = await supabase
+    .from('seasons')
+    .update({ draft_seed: seed, seed_revealed_at: new Date().toISOString() })
+    .eq('id', seasonId);
+  if (writeError) fail(`seed reveal: ${writeError.message}`);
+
+  console.log('\n    Published. The auction tiebreak is now replayable by anyone.\n');
+}
+
 // ---------------------------------------------------------------------------
 
 async function main() {
-  const stages = ['status', 'auction', 'draft'].filter(flag);
+  const stages = ['status', 'auction', 'draft', 'reveal-seed'].filter(flag);
   if (stages.length === 0) {
-    console.log('Pick a stage: --status, --auction, --draft');
+    console.log('Pick a stage: --status, --auction, --reveal-seed, --draft');
     console.log('Add --commit --i-understand=2026 (with ALLOW_IRREVERSIBLE=1) to write. Default is a dry run.');
     return;
   }
@@ -778,6 +856,7 @@ async function main() {
 
   if (flag('status')) await stageStatus();
   if (flag('auction')) await stageAuction(commit);
+  if (flag('reveal-seed')) await stageRevealSeed(commit);
   if (flag('draft')) await stageDraft(commit);
 }
 
