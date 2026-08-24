@@ -351,7 +351,7 @@ function Rehearsal({ season, name }: { season: TeamSeason; name: string }) {
 
       {season.roster.length > 0 && (
         <>
-          <h3 style={{ marginTop: 26 }}>The roster it built</h3>
+          <h3 style={{ marginTop: 26 }}>The roster it built in the rehearsal</h3>
           <div className="scroll">
             <table>
               <thead>
@@ -399,8 +399,11 @@ function Rehearsal({ season, name }: { season: TeamSeason; name: string }) {
 
       {season.picks.length > 0 && (
         <>
-          <h3 style={{ marginTop: 26 }}>Every pick, and why</h3>
-          <div className="quotes">
+          <details style={{ marginTop: 26 }}>
+            <summary style={{ cursor: 'pointer', color: 'var(--amber)' }}>
+              Every rehearsal pick, and why ({season.picks.length} from {season.season})
+            </summary>
+          <div className="quotes" style={{ marginTop: 12 }}>
             {season.picks.map((pick) => (
               <div className="quote" key={pick.pickOverall}>
                 <div className="who">
@@ -435,6 +438,7 @@ function Rehearsal({ season, name }: { season: TeamSeason; name: string }) {
               </div>
             ))}
           </div>
+          </details>
         </>
       )}
     </>
