@@ -40,6 +40,11 @@ export interface RunDecisionInput<T> extends DecisionContext {
   // Same shape `callModel` takes. The lineup schema preprocesses empty-slot spellings,
   // which makes its INPUT type `unknown` while its output stays strict.
   schema: ZodType<T, ZodTypeDef, unknown>;
+  /**
+   * Optional relaxed schema applied ONLY when our own output ceiling truncated the
+   * response mid-write. Strict on anything that changes the outcome.
+   */
+  salvageSchema?: ZodType<unknown>;
 }
 
 export interface DecisionRecord<T> {
@@ -93,6 +98,7 @@ export async function runDecision<T>(
     systemPrompt: prompt.systemPrompt,
     userPrompt: prompt.userPrompt,
     schema: input.schema,
+    salvageSchema: input.salvageSchema,
   });
 
   const reasoning = extractReasoning(call.parsed);
@@ -101,6 +107,18 @@ export async function runDecision<T>(
       ? checkCitations(reasoning.keyFactors, input.data, rulebook())
       : { citedFields: [], unsupportedClaims: [] };
   const softViolations = call.parsed ? safeSoftViolations(call.parsed) : [];
+  if (call.salvagedFromTruncation) {
+    // Recorded against OUR ceiling, not the model. Shown publicly alongside the pick so
+    // a reader can see exactly which fields the truncation cost.
+    const p = (call.parsed ?? {}) as Record<string, unknown>;
+    const missing = ['headline', 'key_factors', 'closest_call', 'what_would_change_it', 'confidence'].filter(
+      (f) => p[f] === undefined,
+    );
+    softViolations.push(
+      `response hit our output ceiling and was closed at the last complete field` +
+        (missing.length > 0 ? `; missing ${missing.join(', ')}` : ''),
+    );
+  }
 
   const row = {
     season_id: input.seasonId,

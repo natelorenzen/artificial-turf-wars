@@ -25,6 +25,18 @@ export type StarterSlot = 'QB' | 'RB' | 'WR' | 'TE' | 'FLEX' | 'K' | 'DEF';
  * Forecasts made under sys-v2 are not comparable to forecasts made under this, so the
  * calibration board starts from the first week decided under v3.
  */
+/**
+ * Still v3 — see the sys-v4 note in `src/lib/prompt/system.ts`.
+ *
+ * v4 was written on draft day to tell the models their output allowance, tried on one
+ * pick, and reverted the same hour because it made that pick worse rather than better.
+ * The prompt text is byte-identical to v3 again, so this string is accurate rather than
+ * nostalgic; exactly one decision row in the 2026 season carries `sys-v4`, and it is a
+ * fallback.
+ *
+ * The draft is therefore NOT meaningfully split: picks 1-45 and 46-120 run the same
+ * prompt, with one recorded experiment in between.
+ */
 export const PROMPT_VERSION = 'sys-v3';
 /**
  * Bumped for the v3 amendment (SPEC §14): H2H objective, opponent awareness.
@@ -169,8 +181,40 @@ export const LEAGUE = {
    * board; the real board is sixty.
    *
    * Costs nothing to raise: providers bill tokens generated, not the ceiling.
+   *
+   * RAISED AGAIN to 20,000 on draft day, at pick 52, alongside `reasoningMaxTokens`
+   * below. The 4000 -> 16000 fix above treated the size of the pool; it did not treat
+   * the fact that it is ONE pool. Reasoning and answer are drawn from the same
+   * allowance, so a model can spend all of it thinking and emit nothing — which is
+   * precisely what happened twice, and no ceiling alone prevents it.
    */
-  maxOutputTokens: 16_000,
+  maxOutputTokens: 20_000,
+
+  /**
+   * The share of `maxOutputTokens` a model may spend on internal reasoning, leaving
+   * the remainder RESERVED for the answer. Identical for all eight.
+   *
+   * Draft day made the case in numbers. Qwen3.8 Max's five successful picks used
+   * 9,891 / 10,256 / 12,703 / 13,456 / 14,864 reasoning tokens. Its two failures used
+   * 15,663 and 16,000 — the second returning zero characters after 941 seconds, having
+   * thought its way through the entire budget without writing anything. The working
+   * picks and the runaways are cleanly separable, and 14,000 is the line between them:
+   * four of the five successes pass under it untouched.
+   *
+   * The 6,000 left over is 3.5x the largest answer any model has produced (Kimi's
+   * 1,697 tokens). This is not a limit on thinking so much as a floor under answering.
+   *
+   * It is not Qwen-specific and was not chosen for Qwen. As the board gets harder every
+   * model spends more: Claude Opus 5 used 187 reasoning tokens on pick 2 and 13,387 on
+   * pick 47, and DeepSeek 12,435 on pick 49. Both still fit under this cap. Without it,
+   * the back half of a draft fills with fallbacks exactly where the decisions are most
+   * interesting.
+   *
+   * THE DRAFT IS SPLIT HERE. Picks 1-51 ran with no reasoning cap, 52-120 with this
+   * one. The boundary is checkable rather than asserted: no decision after pick 51
+   * exceeds 14,000 reasoning tokens, and that is visible in the published data.
+   */
+  reasoningMaxTokens: 14_000,
   /** Below Grok 4.5's 500K window so no model truncates first (SPEC §8.1 #11). */
   contextCeilingTokens: 400_000,
   /** SPEC §4.1b: dossier must be asserted under this. */
@@ -252,12 +296,19 @@ export interface CohortModel {
 }
 
 export const COHORT: readonly CohortModel[] = [
-  { key: 'gpt-5-6-sol', displayName: 'GPT-5.6 Sol', openrouterId: 'openai/gpt-5.6-sol', lab: 'OpenAI', contextWindow: 1_050_000, priceIn: 5.0, priceOut: 30.0 },
+  // Repriced by OpenAI since the pin: $5.00/$30.00 → $2.00/$10.00. Caught by
+  // scripts/cohort-check.ts on draft morning, 24 August 2026. These numbers are
+  // published — the cohort table and the "not price-matched" span on /methodology and
+  // /teams are computed from them — and they are the fallback when OpenRouter does not
+  // return a cost on a call. The MODEL is unchanged; only its price moved.
+  { key: 'gpt-5-6-sol', displayName: 'GPT-5.6 Sol', openrouterId: 'openai/gpt-5.6-sol', lab: 'OpenAI', contextWindow: 1_050_000, priceIn: 2.0, priceOut: 10.0 },
   { key: 'claude-opus-5', displayName: 'Claude Opus 5', openrouterId: 'anthropic/claude-opus-5', lab: 'Anthropic', contextWindow: 1_000_000, priceIn: 5.0, priceOut: 25.0 },
   { key: 'grok-4-6', displayName: 'Grok 4.6', openrouterId: 'x-ai/grok-4.6', lab: 'xAI', contextWindow: 500_000, priceIn: 2.0, priceOut: 6.0 },
   { key: 'gemini-3-1-pro', displayName: 'Gemini 3.1 Pro', openrouterId: 'google/gemini-3.1-pro-preview', lab: 'Google', contextWindow: 1_048_576, priceIn: 2.0, priceOut: 12.0 },
   { key: 'muse-spark-1-2', displayName: 'Muse Spark 1.2', openrouterId: 'meta/muse-spark-1.2', lab: 'Meta', contextWindow: 1_048_576, priceIn: 1.25, priceOut: 4.25 },
-  { key: 'deepseek-v4-pro-0813', displayName: 'DeepSeek V4 Pro 0813', openrouterId: 'deepseek/deepseek-v4-pro-0813', lab: 'DeepSeek', contextWindow: 1_048_576, priceIn: 0.43, priceOut: 0.87 },
+  // Also repriced since the pin, and by more than 2x: $0.43/$0.87 → $1.12/$3.37, same
+  // check, same morning. The old figures were the pre-GA preview price.
+  { key: 'deepseek-v4-pro-0813', displayName: 'DeepSeek V4 Pro 0813', openrouterId: 'deepseek/deepseek-v4-pro-0813', lab: 'DeepSeek', contextWindow: 1_048_576, priceIn: 1.12, priceOut: 3.37 },
   { key: 'kimi-k3', displayName: 'Kimi K3', openrouterId: 'moonshotai/kimi-k3', lab: 'Moonshot', contextWindow: 1_048_576, priceIn: 3.0, priceOut: 15.0 },
   // priceOut was null here, which the cohort table rendered as "—" — implying Qwen
   // charged nothing for output. It charges $1.28/M. Corrected against the OpenRouter

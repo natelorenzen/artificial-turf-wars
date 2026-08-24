@@ -221,3 +221,149 @@ export function extractJson(raw: string): unknown {
     throw new Error('no JSON object found in response');
   }
 }
+
+// ---------------------------------------------------------------------------
+// Salvage: a response WE cut off, not one the model got wrong
+// ---------------------------------------------------------------------------
+
+/**
+ * Close a JSON object that our own output ceiling truncated mid-write.
+ *
+ * This is the same principle as normalising `null` vs `"null"` above, and it is not
+ * repair in the sense §4.1a forbids. The decision is unchanged — the model named its
+ * pick and we cut the message off afterwards. What differs is only whether the closing
+ * brace arrived, and grading a model on whether our token budget outlasted its sentence
+ * measures our budget rather than its reasoning.
+ *
+ * It earned its place on draft day. Qwen3.8 Max, pick 45: `"pick": "LAR"` with all four
+ * key_factors, the closest_call and the what_would_change_it present, cut off inside the
+ * word `"confidence`. The deterministic fallback then handed it Jayden Daniels — the
+ * exact player whose 5.30 points over replacement its own key_factors had rejected in
+ * favour of the Rams' 22.94. A complete argument was discarded over a missing float.
+ *
+ * Deliberately conservative. It never invents a value and never completes a partial one:
+ * it rewinds to the last property that finished cleanly and closes the object there, so
+ * a half-written field is dropped rather than guessed. Returns null when there is no
+ * complete property to rewind to — an empty or barely-started response is a real
+ * failure and still gets the fallback.
+ */
+export function salvageTruncatedJson(raw: string): unknown | null {
+  const text = raw.trim();
+  const start = text.indexOf('{');
+  if (start < 0) return null;
+
+  let inString = false;
+  let escaped = false;
+  const depth: string[] = [];
+  /** Index to cut at: the end of the last property that completed at the top level. */
+  let lastComplete = -1;
+
+  for (let i = start; i < text.length; i++) {
+    const ch = text[i];
+
+    if (escaped) {
+      escaped = false;
+      continue;
+    }
+    if (ch === '\\') {
+      if (inString) escaped = true;
+      continue;
+    }
+    if (ch === '"') {
+      inString = !inString;
+      continue;
+    }
+    if (inString) continue;
+
+    if (ch === '{' || ch === '[') {
+      depth.push(ch);
+    } else if (ch === '}' || ch === ']') {
+      depth.pop();
+      // A nested value (an array of key_factors, say) just closed at the top level.
+      if (depth.length === 1) lastComplete = i + 1;
+    } else if (ch === ',' && depth.length === 1) {
+      // A scalar property just ended. Cut BEFORE the comma so nothing dangles.
+      lastComplete = i;
+    }
+  }
+
+  if (lastComplete < 0) return null;
+  try {
+    return JSON.parse(text.slice(start, lastComplete) + '}');
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * What a truncated draft pick must STILL contain to be honoured.
+ *
+ * Strict on the outcome, absent-tolerant on the reasoning — the policy stated at the
+ * top of this file, applied to a case it did not anticipate. `pick` decides who joins
+ * a roster for the season and is non-negotiable; `confidence` is a self-report, and a
+ * decision missing it is worth publishing with the gap shown. Every consumer of these
+ * fields already null-guards them (`extractReasoning`).
+ */
+export const draftPickSalvageSchema = z.object({
+  pick: z.string().min(1),
+  headline: z.string().min(1).optional(),
+  key_factors: z.array(z.string().min(1)).optional(),
+  closest_call: z.string().min(1).optional(),
+  what_would_change_it: z.string().min(1).optional(),
+  confidence: z.number().min(0).max(1).optional(),
+});
+
+/**
+ * Salvage schemas for the two weekly decisions, same policy as `draftPickSalvageSchema`:
+ * strict on everything that changes the outcome, absent-tolerant on the reasoning.
+ *
+ * These matter more than the draft one, not less. A draft pick is one of fifteen and a
+ * bad one is survivable; a truncated LINEUP hands a whole week to deterministic code,
+ * and week 12 with playoff seeding live is exactly the hard decision that drives a model
+ * to spend its budget thinking. The draft proved the failure is not hypothetical and not
+ * confined to one model — Claude Opus 5 used 187 reasoning tokens on pick 2 and 12,130
+ * later in the same draft.
+ *
+ * The lineup slots stay STRICT, including the array lengths: a lineup missing its second
+ * receiver is not a lineup, and starting a partial one would silently forfeit points. If
+ * a lineup truncates before the slots are complete, the fallback is correct.
+ */
+export const lineupSalvageSchema = z.object({
+  qb: lineupSlot,
+  rb: z.array(lineupSlot).length(LEAGUE.slots.RB),
+  wr: z.array(lineupSlot).length(LEAGUE.slots.WR),
+  te: lineupSlot,
+  flex: lineupSlot,
+  k: lineupSlot,
+  def: lineupSlot,
+  headline: z.string().min(1).optional(),
+  key_factors: z.array(z.string().min(1)).optional(),
+  closest_call: z.string().min(1).optional(),
+  what_would_change_it: z.string().min(1).optional(),
+  confidence: z.number().min(0).max(1).optional(),
+});
+
+/**
+ * Waivers salvage with one deliberate difference: `claims` is REQUIRED even though an
+ * empty array is a valid answer.
+ *
+ * Absent and empty are not the same statement here. An empty array means "I looked and I
+ * am standing pat"; an absent one means we cut the model off before it said anything at
+ * all, and silently recording that as standing pat would put words in its mouth on a
+ * decision that spends money.
+ */
+export const waiverSalvageSchema = z.object({
+  claims: z.array(
+    z.object({
+      add_player_id: z.string().min(1),
+      drop_player_id: z.string().min(1),
+      bid: z.number().int().min(0).max(LEAGUE.budgetTotal),
+      reasoning: z.string().min(1),
+    }),
+  ),
+  headline: z.string().min(1).optional(),
+  key_factors: z.array(z.string().min(1)).optional(),
+  closest_call: z.string().min(1).optional(),
+  what_would_change_it: z.string().min(1).optional(),
+  confidence: z.number().min(0).max(1).optional(),
+});

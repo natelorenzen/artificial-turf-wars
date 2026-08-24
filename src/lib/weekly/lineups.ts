@@ -38,7 +38,7 @@ import {
 } from '@/lib/prompt/assemble';
 import type { RosterEntry } from '@/lib/prompt/context';
 import { recordEngineRejection, runDecision } from '@/lib/decisions/run';
-import { lineupSchema, type LineupResponse } from '@/lib/schemas/decisions';
+import { lineupSchema, lineupSalvageSchema, type LineupResponse } from '@/lib/schemas/decisions';
 import {
   teamsPlayingIn,
   weeklyBase,
@@ -323,6 +323,7 @@ export async function decideLineup(
       task: LINEUP_TASK,
       outputExample: LINEUP_OUTPUT_EXAMPLE,
       schema: lineupSchema,
+      salvageSchema: lineupSalvageSchema,
     },
     db,
   );

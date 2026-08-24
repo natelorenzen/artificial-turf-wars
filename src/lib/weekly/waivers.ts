@@ -30,7 +30,7 @@ import {
 } from '@/lib/prompt/assemble';
 import { mean, type RosterEntry } from '@/lib/prompt/context';
 import { recordEngineRejection, runDecision } from '@/lib/decisions/run';
-import { waiverSchema, type WaiverResponse } from '@/lib/schemas/decisions';
+import { waiverSchema, waiverSalvageSchema, type WaiverResponse } from '@/lib/schemas/decisions';
 import {
   loadPlayerForm,
   teamsPlayingIn,
@@ -321,6 +321,7 @@ export async function decideWaivers(
       task: WAIVER_TASK,
       outputExample: WAIVER_OUTPUT_EXAMPLE,
       schema: waiverSchema,
+      salvageSchema: waiverSalvageSchema,
     },
     db,
   );

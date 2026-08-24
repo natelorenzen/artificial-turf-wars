@@ -11,8 +11,9 @@ below refer to it.
 >
 > **24 August 2026.** The auction and draft are the only irreversible actions in this
 > project, and everything else is already built and rehearsed. `DRAFT-DAY.md` is the
-> step-by-step runbook: refresh preseason data, rebuild the briefing, dry-run both
-> stages, then commit. Do not improvise a shorter path — the draft refuses to run from
+> step-by-step runbook: confirm the cohort — today is `COHORT_FROZEN_AT`, the last day a
+> seat can move — refresh preseason data, rebuild the briefing, dry-run both stages, then
+> commit. Do not improvise a shorter path — the draft refuses to run from
 > a briefing more than 48 hours old, and that guard exists because a skipped rebuild
 > fails silently rather than loudly.
 
@@ -89,7 +90,11 @@ client in server-side routes.
 7. **Never overwrite a published score.** Tuesday writes `provisional`, Thursday
    writes `final`, and the diff is published (§5.5).
 8. **Model IDs are pinned** in `league.ts` before the draft and never swapped
-   mid-season, even if a lab ships something newer in October.
+   mid-season, even if a lab ships something newer in October. `COHORT_FROZEN_AT`
+   closes the pre-season loophole too — the pre-season is exactly when labs ship — so
+   draft morning is the last hour a seat can move. `scripts/cohort-check.ts` is what
+   checks it: pinned IDs against the live OpenRouter catalogue, and the seats in the
+   database against this file. The rule is *top-tier generally available*, not newest.
 9. **No lab or model name may ever reach a DATA block** (§14.3). Rivals appear only as
    stable anonymous labels derived from draft slot (`src/lib/engine/labels.ts`).
    Without this the season stops measuring fantasy reasoning and starts measuring how
@@ -189,6 +194,7 @@ Before the draft, in this order — the dossier is a stored snapshot and the dra
 whatever is stored, so a stale one ships silently:
 
 ```bash
+npx tsx --env-file=.env.local scripts/cohort-check.ts      # the eight, vs the live catalogue
 npm run ingest -- --preseason-stats --season 2026   # manual: not in the daily cron
 npx tsx --env-file=.env.local scripts/dossier.ts    # rebuild + store, prints coverage
 npx tsx --env-file=.env.local scripts/draft.ts --auction   # dry run

@@ -73,8 +73,14 @@ npx tsx --env-file=.env.local scripts/weekly-dry-run.ts --crons --season 2026
 > the briefing now carries. The cost is a week of buffer before the 9 September opener,
 > which the rehearsals have earned.
 >
-> **`DRAFT-DAY.md` is the runbook — follow it rather than this summary.** Refresh
-> preseason data, rebuild the briefing, dry-run both stages, then commit.
+> **`DRAFT-DAY.md` is the runbook — follow it rather than this summary.** Confirm the
+> cohort, refresh preseason data, rebuild the briefing, dry-run both stages, then commit.
+>
+> **The cohort freeze date is the draft date** *(24 Aug)*. `COHORT_FROZEN_AT` is
+> `2026-08-24`, so draft morning is the last hour any seat can move —
+> `scripts/cohort-check.ts` is step 1 for that reason: it reads the live OpenRouter
+> catalogue against the pinned eight, and the seats in the database against
+> `src/lib/config/league.ts`.
 >
 > **Rebuilding the dossier is enforced, not just written down** *(16 Aug)*. Neither stage
 > will commit from one older than 48 hours — a dry run warns, a commit refuses, and
@@ -136,7 +142,7 @@ from job_runs where week = 1 order by started_at;
 > the first thing the account will say unprompted, and the auto-release path has never
 > run end to end — its debut should not be an unattended post about something
 > irreversible. Release it with a one-line update once the text has been read; see
-> `DRAFT-DAY.md` §6.
+> `DRAFT-DAY.md` §7.
 
 - [x] Migration `0007_social_posts.sql` applied *(it already was — the 10 Aug entry was
       wrong; `social_posts` is present, verified 14 Aug)*

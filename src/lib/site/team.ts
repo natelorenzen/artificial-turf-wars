@@ -154,10 +154,20 @@ async function loadSeason(
     .eq('team_id', team.id)
     .maybeSingle();
 
+  /*
+   * Superseded decisions are retained but never counted (migration 0011). Draft day
+   * left seven: three from an auction stage accidentally run twice, four from picks
+   * re-run after a defect in our own code. Without this filter three of eight teams
+   * publish inflated decision counts and cost, and a reader comparing models reads our
+   * operator errors as model behaviour.
+   *
+   * A model that genuinely failed keeps its row counted. That is the finding.
+   */
   const { data: decisionRows } = await db
     .from('decisions')
     .select('type, headline, closest_call, confidence, cost_usd, unsupported_claims, fallback_applied, id')
-    .eq('team_id', team.id);
+    .eq('team_id', team.id)
+    .is('superseded_reason', null);
   const decisions = decisionRows ?? [];
   const byId = new Map(decisions.map((d) => [d.id as string, d]));
 
