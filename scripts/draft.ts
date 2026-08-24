@@ -666,6 +666,40 @@ async function stageAuction(commit: boolean) {
 // --draft
 // ---------------------------------------------------------------------------
 
+
+/**
+ * Stamp `seasons.draft_completed_at` once all 120 picks exist.
+ *
+ * Nothing wrote this column. `src/lib/site/league-facts.ts` reads it into
+ * `draftComplete`, which /preseason renders as a checkable "Draft complete" fact — so
+ * a finished draft would have gone on telling the public it had not happened. Found by
+ * verifying the finished draft against the database rather than against the runbook,
+ * which is the only reason it was found at all.
+ *
+ * Idempotent, and never overwrites an existing timestamp: the first completion is the
+ * one that happened.
+ */
+async function stampDraftComplete(supabase: SupabaseClient, seasonId: string, commit: boolean) {
+  const { data, error } = await supabase
+    .from('seasons')
+    .select('draft_completed_at')
+    .eq('id', seasonId)
+    .single();
+  if (error) fail(`seasons read: ${error.message}`);
+  if (data.draft_completed_at) return;
+
+  if (!commit) {
+    console.log('  draft_completed_at is unset — a --commit run will stamp it.');
+    return;
+  }
+  const { error: writeError } = await supabase
+    .from('seasons')
+    .update({ draft_completed_at: new Date().toISOString() })
+    .eq('id', seasonId);
+  if (writeError) fail(`draft_completed_at: ${writeError.message}`);
+  console.log('  draft_completed_at stamped — /preseason will now report the draft as complete.');
+}
+
 async function stageDraft(commit: boolean) {
   const supabase = db();
   const state = await loadDraftState(supabase, !commit);
@@ -673,6 +707,8 @@ async function stageDraft(commit: boolean) {
 
   if (state.picks.length >= TOTAL_PICKS) {
     console.log(`\n  The ${SEASON} draft is complete: ${state.picks.length}/${TOTAL_PICKS} picks. Nothing to do.\n`);
+    await stampDraftComplete(supabase, state.seasonId, commit);
+    console.log('');
     return;
   }
 
@@ -758,6 +794,8 @@ async function stageDraft(commit: boolean) {
     console.log('  Resumable — re-run to continue from where this stopped.\n');
   } else {
     console.log('  DRAFT COMPLETE.\n');
+    await stampDraftComplete(supabase, state.seasonId, commit);
+    console.log('');
   }
 }
 
