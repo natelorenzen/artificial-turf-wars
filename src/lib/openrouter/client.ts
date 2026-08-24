@@ -11,10 +11,46 @@
 
 import type { ZodType, ZodTypeDef } from 'zod';
 import { COHORT, LEAGUE } from '@/lib/config/league';
-import { extractJson } from '@/lib/schemas/decisions';
+import { extractJson, salvageTruncatedJson } from '@/lib/schemas/decisions';
 
 const ENDPOINT = 'https://openrouter.ai/api/v1/chat/completions';
-const REQUEST_TIMEOUT_MS = 300_000;
+
+/**
+ * Per-request ceiling. Raised from 300_000 on draft day, 24 August 2026, mid-draft.
+ *
+ * The old value silently converted "reasons slowly" into "failed", which is the one
+ * mistake this adapter exists to prevent. Qwen3.8 Max was cut off four times on draft
+ * pick 4, recorded as a `provider_failure`, and replaced by a deterministic fallback.
+ * Replaying that exact stored prompt with a longer ceiling returned HTTP 200 and a
+ * perfectly good pick — in **364 seconds**. The model was never failing; we were
+ * hanging up on it at 300, four times, and then filing it against the provider.
+ *
+ * A timeout is identical for all eight in the rule and unequal in its effect: it only
+ * ever binds on the models that think longest, which in a league whose product is the
+ * reasoning means it deletes exactly the thing being measured. 900s is ~2.5x the
+ * measured need, so a slow reasoner finishes on its FIRST attempt rather than racing
+ * a stopwatch.
+ *
+ * Raising this was safe to do mid-draft precisely because it had never bound on the
+ * picks already made — picks 1, 2, 3 and 5 completed in 21-105s, so a higher ceiling
+ * cannot retroactively change what they did. That is not true of retry counts or
+ * scoring, which is why only this moved.
+ */
+const REQUEST_TIMEOUT_MS = 900_000;
+
+/**
+ * Total wall clock for ONE `callModel`, across every retry.
+ *
+ * Without it, raising the per-request ceiling multiplies straight through the retry
+ * matrix: `parseRetries` (3 attempts) x `providerRetries` (4 attempts) is 12 requests,
+ * so 900s each would let a single pick run for three hours and a bad night could eat
+ * the week. The budget keeps the generous ceiling for the case that matters — one slow
+ * honest answer — while a model that is never going to reply stops re-costing it.
+ *
+ * Checked before each retry, never mid-flight: an answer already being generated is
+ * always allowed to land.
+ */
+const CALL_BUDGET_MS = 1_200_000;
 
 export interface CallUsage {
   tokensIn: number | null;
@@ -30,6 +66,12 @@ export interface CallResult<T> {
   validationError: string | null;
   /** True when the provider never gave us a usable response (outage, 5xx, timeout). */
   providerFailure: boolean;
+  /**
+   * True when the response hit our output ceiling mid-write and was closed at the last
+   * complete property. The decision is the model's; the missing fields are ours to own,
+   * and are published as such rather than counted against it.
+   */
+  salvagedFromTruncation?: boolean;
   retryCount: number;
   latencyMs: number;
   /**
@@ -170,6 +212,11 @@ export interface CallOptions<T> {
   schema: ZodType<T, ZodTypeDef, unknown>;
   /** Extra parse retries on malformed JSON. Identical for everyone (SPEC §8.1 #5). */
   parseRetries?: number;
+  /**
+   * Optional relaxed schema, used ONLY when our own ceiling truncated the response.
+   * Must be strict about anything that changes the outcome; see `draftPickSalvageSchema`.
+   */
+  salvageSchema?: ZodType<unknown>;
   /** Retries on provider outage, with exponential backoff (SPEC §5.6). */
   providerRetries?: number;
   /**
@@ -197,6 +244,7 @@ export async function callModel<T>(options: CallOptions<T>): Promise<CallResult<
     userPrompt,
     schema,
     parseRetries = LEAGUE.maxRetries,
+    salvageSchema,
     providerRetries = 3,
     maxOutputTokens = LEAGUE.maxOutputTokens,
   } = options;
@@ -208,14 +256,22 @@ export async function callModel<T>(options: CallOptions<T>): Promise<CallResult<
   let finishReason: string | null = null;
   let usage: CallUsage = { tokensIn: null, tokensOut: null, reasoningTokens: null, costUsd: null };
 
+  /** True once this call has spent its whole wall-clock budget. Never interrupts a
+   *  request already in flight — only stops another one being started. */
+  const outOfBudget = () => Date.now() - started > CALL_BUDGET_MS;
+
   for (let attempt = 0; attempt <= parseRetries; attempt++) {
-    if (attempt > 0) retryCount++;
+    if (attempt > 0) {
+      if (outOfBudget()) break;
+      retryCount++;
+    }
 
     let body: OpenRouterResponse | null = null;
     let providerError: unknown = null;
 
     for (let providerAttempt = 0; providerAttempt <= providerRetries; providerAttempt++) {
       if (providerAttempt > 0) {
+        if (outOfBudget()) break;
         retryCount++;
         await sleep(1000 * 2 ** providerAttempt);
       }
@@ -277,6 +333,40 @@ export async function callModel<T>(options: CallOptions<T>): Promise<CallResult<
         usage,
       };
     } catch (err) {
+      /*
+       * Salvage, and ONLY for a response we cut off ourselves.
+       *
+       * The gate is `finish_reason === 'length'`, which is the provider telling us the
+       * message ended because it hit our ceiling rather than because the model stopped.
+       * Malformed JSON for any other reason is the model's own failure and still earns
+       * the deterministic fallback — this path exists to undo our constraint, not to
+       * paper over theirs.
+       */
+      if (salvageSchema && finishReason === 'length' && content.trim().length > 0) {
+        const closed = salvageTruncatedJson(content);
+        if (closed !== null) {
+          const rescued = salvageSchema.safeParse(closed);
+          if (rescued.success) {
+            return {
+              ok: true,
+              // The salvage schema guarantees every outcome-critical field; the reasoning
+              // fields it allows to be absent are null-guarded by every consumer.
+              parsed: rescued.data as T,
+              rawResponse: content,
+              validationError: null,
+              providerFailure: false,
+              salvagedFromTruncation: true,
+              retryCount,
+              latencyMs: Date.now() - started,
+              finishReason,
+              temperatureRequested: LEAGUE.temperature,
+              temperatureHonored: null,
+              usage,
+            };
+          }
+        }
+      }
+
       lastValidationError =
         content.trim().length === 0
           ? `model returned empty content (finish_reason=${finishReason ?? 'unknown'}` +

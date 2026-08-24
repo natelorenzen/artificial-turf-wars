@@ -13,7 +13,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { LEAGUE, type Position } from '@/lib/config/league';
 import { recordEngineRejection, runDecision } from '@/lib/decisions/run';
-import { draftPickSchema } from '@/lib/schemas/decisions';
+import { draftPickSalvageSchema, draftPickSchema } from '@/lib/schemas/decisions';
 import { buildDraftBoard, draftBoardNeeds, type DraftBoardPick } from '@/lib/prompt/context';
 import {
   lookupScouting,
@@ -185,6 +185,7 @@ export async function runPick(
         'Choose exactly one player_id from `available`.',
       outputExample: OUTPUT_EXAMPLE,
       schema: draftPickSchema,
+      salvageSchema: draftPickSalvageSchema,
     },
     db,
   );
