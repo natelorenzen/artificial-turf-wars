@@ -25,6 +25,18 @@ export type StarterSlot = 'QB' | 'RB' | 'WR' | 'TE' | 'FLEX' | 'K' | 'DEF';
  * Forecasts made under sys-v2 are not comparable to forecasts made under this, so the
  * calibration board starts from the first week decided under v3.
  */
+/**
+ * Still v3 — see the sys-v4 note in `src/lib/prompt/system.ts`.
+ *
+ * v4 was written on draft day to tell the models their output allowance, tried on one
+ * pick, and reverted the same hour because it made that pick worse rather than better.
+ * The prompt text is byte-identical to v3 again, so this string is accurate rather than
+ * nostalgic; exactly one decision row in the 2026 season carries `sys-v4`, and it is a
+ * fallback.
+ *
+ * The draft is therefore NOT meaningfully split: picks 1-45 and 46-120 run the same
+ * prompt, with one recorded experiment in between.
+ */
 export const PROMPT_VERSION = 'sys-v3';
 /**
  * Bumped for the v3 amendment (SPEC §14): H2H objective, opponent awareness.
