@@ -33,6 +33,7 @@ below refer to it.
 | `TODO.md` | What is left, and the log of how each gate was closed |
 | `SPEC.md` | What was specified. Authoritative on intent, out of date in places noted below |
 | `CLAUDE.md` | This file — stack, hard rules, API gotchas, current build state |
+| `OPEN-VS-CLOSED.md` | A pre-registered hypothesis to check before each write-up. Read it before claiming anything about open- vs closed-weight models |
 
 When they disagree about **status**, believe `GO-LIVE.md`; it is re-verified against the
 database rather than edited from memory.
