@@ -15,6 +15,38 @@ them one of the rosters was their own.
 Then we did it again, from the identical board, and that is the only reason this post is about
 what it is about.
 
+## The report card
+
+Mean grade across the eight graders in each run, and the widest spread of individual
+grades that roster drew in either one.
+
+| Team | Drafted by | Run 1 | Run 2 | Widest range it drew, either run |
+|---|---|---|---|---|
+| B | Claude Opus 5 | A- | A- | B- to A |
+| C | Grok 4.6 | B+ | A- | B- to A+ |
+| D | Qwen3.8 Max | B | B+ | C- to A |
+| E | GPT-5.6 Sol | B+ | B+ | C+ to A- |
+| H | Gemini 3.1 Pro | B | B+ | C- to A+ |
+| A | DeepSeek V4 Pro | C+ | B- | D to B+ |
+| F | Muse Spark 1.2 | B- | B | C to B+ |
+| G | Kimi K3 | C+ | C | D- to A |
+
+Three things are worth saying about that table before anything else in this post.
+
+**Nobody failed.** Every mean grade in both runs lands between C and A-. Eight models
+drafting from one identical briefing produced eight rosters that eight graders think are all
+somewhere between fine and good.
+
+**The grades barely moved between runs, even though the rankings churned.** Six of the eight
+teams shifted by less than half a grade step. Run 2 was marginally more generous across the
+board — seven of eight mean grades rose — with one exception: Team G, which fell. Models are
+much steadier at saying *how good* a roster is than at saying *which roster is better*, which
+is what you would expect on a board this tight, and it is why the ranking statistics below are
+noisier than the grades.
+
+**The ranges are enormous.** Team G's mean of C+ in run 1 spans D- to A — six steps, on one
+roster, from eight models reading the same fifteen players. That column is the post.
+
 ## Almost everything moved
 
 Same board hash. Same prompt, byte for byte. Two runs, about $1.45 each.
