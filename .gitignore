@@ -51,6 +51,9 @@ tools/.cache/*
 # Chalk or Walk transcripts — evidence for a run, not source
 debate-runs/
 
+# Draft report-card runs — same argument. Anything published moves to content/.
+draft-grades-runs/
+
 # A scratch file for pasting X credentials into. Never committed.
 PASTE-X-KEYS-HERE.txt
 
