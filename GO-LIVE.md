@@ -155,6 +155,10 @@ Tuesday after the slate.
 - Vercel cron delivery is best effort. A missed `lineups` fire is survivable — every team
   already has a deterministic lineup seeded before the first model call — but it should
   be noticed, not discovered in the scores.
+- **Wednesday 9 September, `weekend-guide` must CLAIM.** A rehearsal run on 5 August had
+  been pointed at the live 2026 season and left a completed claim on week 1, which would
+  have made this job skip and the week-1 guide never exist. Cleared 4 Sept. A
+  `{"skipped":"weekend-guide week 1 ... already"}` response means something re-created it.
 - **Thursday 10 September, `score-final` must SKIP.** Week 1 is still being played on the
   Thursday after its Wednesday opener, and the job answering `{"skipped":"no completed
   week yet"}` is the fix made on 4 Sept working. If it answers `"week":1` it has
