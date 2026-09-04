@@ -103,6 +103,13 @@ client in server-side routes.
    draft morning is the last hour a seat can move. `scripts/cohort-check.ts` is what
    checks it: pinned IDs against the live OpenRouter catalogue, and the seats in the
    database against this file. The rule is *top-tier generally available*, not newest.
+8b. **Rehearse against 2025, never against the live season.** The weekly jobs are
+   idempotent by design — `job_runs` claims before it spends, and the weekend guide
+   reuses takes already stored — and neither guard can tell a duplicate cron delivery
+   apart from a rehearsal run five weeks early. A 5 August rehearsal pointed at 2026
+   left a completed week-1 claim (which would have made the real job skip entirely),
+   32 stale takes (which it would have reused) and a published article about three
+   games that were no longer in the week's top four. Found 4 September, five days out.
 9. **No lab or model name may ever reach a DATA block** (§14.3). Rivals appear only as
    stable anonymous labels derived from draft slot (`src/lib/engine/labels.ts`).
    Without this the season stops measuring fantasy reasoning and starts measuring how

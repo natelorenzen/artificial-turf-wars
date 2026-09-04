@@ -837,6 +837,39 @@ V4 Pro, but DeepSeek V4 Pro won that matchup"*.
   deliberately leave no row. On the first live week that would have read as three
   missing jobs.
 
+### Bug 20 — a rehearsal run against the LIVE season, five weeks earlier
+
+Found by asking why a single `job_runs` row from 5 August was sitting in the ledger. It
+was the weekend-guide rehearsal, and it had been pointed at **season 2026** rather than
+the 2025 rehearsal season, because week-1 fixtures only exist for 2026. It left three
+artefacts in the live league:
+
+1. A **`completed` claim** for `weekend-guide`, season 2026, week 1. The idempotency key
+   is `unique (job, season_id, week)` and `resumeExisting` never resumes a completed run,
+   so Wednesday's job would have hit `23505`, returned `claimed: false`, and done nothing.
+   **There would have been no week-1 weekend guide at all.**
+2. **32 stored takes** for 2026 week 1. Freeing the claim alone does not fix it: the route
+   skips any game already holding a full set of takes, by design, so the "fresh" guide
+   would have been assembled from 5 August calls.
+3. **The article, published**, which is what `/weekend/1` had been serving ever since.
+
+The third is what makes the first two worse than stale analysis. The guide covered
+BAL@IND, TB@CIN, BUF@HOU and NE@SEA. Re-run on 4 September the interest ranking picks
+**SF@LAR, DAL@NYG, NE@SEA and GB@MIN** — three of the four games are different. The
+rehearsal would not have published old opinions about this weekend's games; it would have
+published opinions about three games nobody was going to be watching.
+
+Cleared with the owner's sign-off: the claim and the 32 takes deleted, the article
+retracted with the new `publish.ts`, the rows backed up first. The rest of the live season
+is clean — lineups, standings, bids, recaps and `playoff_seeds` all empty, `h2h_schedule`
+at its correct 56.
+
+> **Both idempotency and reuse worked exactly as designed.** That is the point. A claim
+> that blocks a duplicate delivery cannot tell it apart from a rehearsal five weeks stale,
+> and take-reuse that rescues a job killed at the 300s ceiling cannot tell that apart
+> either. The defect was never in the guards; it was in running a rehearsal against the
+> season that counts. **Rehearse against 2025.**
+
 ### Left alone deliberately
 
 - **Weeks 1 and 12 fire `waiver-resolve` and `lineups` in the same hour** (16:00 UTC
