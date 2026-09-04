@@ -61,7 +61,7 @@ projections forever.
 | Model calls | OpenRouter, one key, all eight |
 | Share cards | `@vercel/og` |
 | Tests | vitest |
-| Hosting | Vercel + Vercel Cron (**Pro required** — 7 cron entries) |
+| Hosting | Vercel + Vercel Cron (Hobby is sufficient — 11 entries, see below) |
 
 No auth, no user accounts, ever. The site is fully public read-only: RLS is ON with
 an anon `SELECT` policy on every table, and all writes go through the service-role
@@ -141,6 +141,14 @@ client in server-side routes.
   `weekend-guide` each have a Wednesday *and* a Thursday entry and stand down on the
   earlier one whenever the later still clears kickoff (`defersToLaterFiring`). Check any
   new season with `scripts/weekly-dry-run.ts --crons`.
+  **It breaks the BACKWARD-looking jobs too**, which is the half that stayed hidden until
+  four days before kickoff. `resolveScoringWeek` used to answer "the latest week to have
+  kicked off", which is right on a Thursday opener — the Thursday scoring job fires five
+  hours before it — and wrong on a Wednesday one, where it names the week now in progress.
+  Week 1's `score-final` would have published one game of sixteen as the final result and
+  `/results/1` would have served it all weekend. It now answers "the latest week that is
+  OVER", meaning the last kickoff plus a game's length. Weeks 1 and 12 are the two 2026
+  weeks where those are different questions.
 - **No bye-week field exists.** Derive byes from
   `api.sleeper.app/schedule/nfl/regular/{season}`: any of the 32 teams absent from a
   week is on bye. Validated for 2026 — all 32 teams, exactly one bye each.
@@ -209,6 +217,16 @@ npx tsx --env-file=.env.local scripts/draft.ts --auction   # dry run
 npx tsx --env-file=.env.local scripts/draft.ts --draft     # dry run
 ```
 
+During the season. The two byline pieces do NOT publish themselves — a cron job writes
+each as a draft and a human reads it and releases it, which is the only manual step in
+a week:
+
+```bash
+npx tsx --env-file=.env.local scripts/publish.ts                       # what is waiting
+npx tsx --env-file=.env.local scripts/publish.ts --guide --week 1      # read it in full
+npx tsx --env-file=.env.local scripts/publish.ts --guide --week 1 --release
+```
+
 ## Env vars
 
 See `.env.local.example`. Server-only secrets (`SUPABASE_SERVICE_ROLE_KEY`,
@@ -248,12 +266,16 @@ and `/api/cron/score-final`.
 **Cron delivery is best effort** — Vercel may miss a run or deliver one twice, and
 never retries a failure. The ingest job is idempotent (upserts). The model-calling
 jobs are NOT: a duplicate invocation would spend eight more model calls. `lineups`
-is protected by `unique (team_id, week)`; `waiver_bids` has no such constraint and
-will need an idempotency key before that job ships.
+is protected by `unique (team_id, week)`, and migration `0003` closed the same hole in
+`waiver_bids` with `unique (team_id, week, add_player_id)`. Neither is the real guard:
+standing pat is a legal decision that writes no row, so row existence cannot prove a
+run happened. `claimJobRun` is — an insert against a partial unique index on
+`job_runs`, taken BEFORE the first model call, so two concurrent deliveries both
+insert and exactly one wins.
 
 ## Build status against SPEC §9
 
-Current as of **16 August 2026**, verified against the database. `GO-LIVE.md` defines
+Current as of **4 September 2026**, verified against the database. `GO-LIVE.md` defines
 *done* as five checkable gates and is re-verified; `TODO.md` is the working log of how
 each was closed. When any of the three disagree about status, believe `GO-LIVE.md`.
 
@@ -272,15 +294,15 @@ each was closed. When any of the three disagree about status, believe `GO-LIVE.m
 | 6 — auction + draft run | **done** *(24 Aug)* — 8/8 slots, 120/120 picks, **0 fallbacks**, $10.05. Seed revealed at 0 picks. Four picks re-run after defects in our own code; seven superseded decisions retained and marked |
 | Dossier delivery | **done** *(16 Aug)* — it had never been sent to anyone. Auction gets it whole; each pick gets curves + a scouting line per player shown |
 | Preseason data | **done** *(16 Aug)* — `preseason_stats`, manual stage, labelled in the briefing for what it is worth |
-| 7 — weekly jobs | **all 8 routes exist and have run on rehearsal data**; none has fired on a week that counts |
+| 7 — weekly jobs | **all 8 routes exist and have run on rehearsal data**; none has fired on a week that counts. Every backward-looking firing of 2026 re-simulated 4 Sept: 48 firings, all on a finished week |
 | 8–12 — site, standings, share card | **done** — findings, weekend guide, standings, `/results/[week]` incl. playoff rounds, `/ratings`, OG cards, methodology |
 | Playoffs (§14.5, weeks 15–16) | **done and rehearsed** *(14 Aug)* — bracket, pool, champion |
-| Social | **built** — X live as @PlayATW; the auto-release path has never had a post to release |
+| Social | **live** — @PlayATW, and the queue has auto-released on its own three times (17, 24, 27 Aug). The held draft post sat with its `hold_reason` until released by hand, which is both halves of the behaviour working |
 
 The remaining spec open items are unchanged except: the §4.1b comprehension question
 set is now written (`src/lib/preseason/rules-check.ts`).
 
-**What is left is not code.** The draft, then a week of real football. See `GO-LIVE.md`.
+**What is left is not code.** A week of real football. See `GO-LIVE.md`.
 
 ### Weekly job layout
 

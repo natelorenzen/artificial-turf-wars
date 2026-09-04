@@ -527,6 +527,54 @@ export async function loadWeeklyTotals(
 }
 
 /**
+ * How long after kickoff a game is safely over.
+ *
+ * A kickoff in the past does not mean a game in the books. Three and a half hours is
+ * a long NFL game; four is that with room for an overtime and a weather delay. It is
+ * deliberately generous because nothing legitimate runs inside the margin — the
+ * earliest scoring job is Tuesday 10:00 ET, half a day after Monday night kicks off.
+ */
+const GAME_LENGTH_HOURS = 4;
+
+export interface WeekKickoff {
+  week: number;
+  kickoffAt: Date;
+}
+
+/**
+ * The latest week with no game still to be played, in pure form.
+ *
+ * "Complete" has to mean the week's LAST game, not its first. Reading the first was
+ * the bug: it makes the answer flip on the opening kickoff, which is right for every
+ * week that opens on Thursday — the Thursday scoring job fires five hours BEFORE that
+ * kickoff, so the newest started week is still the one just played — and wrong for
+ * the two 2026 weeks that open on a WEDNESDAY. For weeks 1 and 12 the Thursday job
+ * fires the morning AFTER the opener, so the started-week answer is the week now in
+ * progress: `score-final` would have published week 1 as final off one game of
+ * sixteen, and `/results/1` would have served that all weekend.
+ *
+ * Nothing steps back a week here. Asking which weeks are FINISHED and taking the
+ * highest is the same answer on a normal week and the safe one on a Wednesday opener,
+ * without assuming weeks cannot overlap.
+ */
+export function completedWeek(kickoffs: WeekKickoff[], now: Date): number | null {
+  const lastKickoff = new Map<number, number>();
+  for (const game of kickoffs) {
+    const at = game.kickoffAt.getTime();
+    const seen = lastKickoff.get(game.week);
+    if (seen === undefined || at > seen) lastKickoff.set(game.week, at);
+  }
+
+  const over = now.getTime() - GAME_LENGTH_HOURS * 3_600_000;
+  let latest: number | null = null;
+  for (const [week, at] of lastKickoff) {
+    if (at > over) continue;
+    if (latest === null || week > latest) latest = week;
+  }
+  return latest;
+}
+
+/**
  * Which week a scoring job should operate on.
  *
  * Derived from the ingested schedule, not from date arithmetic against a hardcoded
@@ -535,12 +583,14 @@ export async function loadWeeklyTotals(
  * arithmetic version breaks on exactly the weeks that matter: the international
  * games, the Thanksgiving slate, and the 1 November DST shift mid-Week 9.
  *
- * The answer is the latest week whose first kickoff has already happened. On the
- * Tuesday and Thursday after a slate, that is the week just played.
+ * The answer is the latest week that is OVER. See `completedWeek` for why the latest
+ * week to have STARTED is a different question with a different, wrong answer.
  *
  * Bounded by the last PLAYOFF week. Capped at 14 this returned 14 forever from mid
  * December onwards, so the semifinals and the final would never have been scored and
- * the season's result would have been the week-14 standings.
+ * the season's result would have been the week-14 standings. That bound also keeps
+ * the row count small enough to read in one page — at most sixteen weeks of a
+ * sixteen-game slate, well inside PostgREST's default ceiling.
  */
 export async function resolveScoringWeek(
   db: SupabaseClient,
@@ -549,14 +599,17 @@ export async function resolveScoringWeek(
 ): Promise<number | null> {
   const { data, error } = await db
     .from('nfl_games')
-    .select('week')
+    .select('week, kickoff_at')
     .eq('season', season)
-    .lte('week', LAST_LEAGUE_WEEK)
-    .lt('kickoff_at', now.toISOString())
-    .order('week', { ascending: false })
-    .limit(1);
+    .eq('season_type', 'regular')
+    .lte('week', LAST_LEAGUE_WEEK);
   if (error) throw new Error(`nfl_games: ${error.message}`);
 
-  const week = data?.[0]?.week as number | undefined;
-  return week ?? null;
+  return completedWeek(
+    (data ?? []).map((row) => ({
+      week: row.week as number,
+      kickoffAt: new Date(row.kickoff_at as string),
+    })),
+    now,
+  );
 }

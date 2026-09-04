@@ -1,28 +1,29 @@
 # What's left before the season runs
 
-**Written 1 August 2026, updated 16 August.** Draft is imminent. NFL Week 1 kicks off
-**9 September 2026** (~3 weeks out).
+**Written 1 August 2026, updated 4 September.** The draft is done. NFL Week 1 kicks off
+**Wednesday 9 September 2026, 19:00 ET** — four days out.
 
 > **Read `GO-LIVE.md` first.** It defines what done looks like as five checkable gates.
 > This file is the working log of how each one was closed. Where the two disagree about
 > *status*, believe `GO-LIVE.md` — it is re-verified against the database.
 
-State as verified against the database on 16 August, not from memory
+State as verified against the database on 4 September, not from memory
 (`scripts/draft.ts --status`, `scripts/weekly-dry-run.ts --status --crons`, `db-check.ts`):
 
-- 2026 season: **8 teams seeded, rules check passed 8/8 at 19/19 under `rulebook-v3`, and
-  nothing else.** 0 auction bids, 0 draft picks, 0 rosters, 0 lineups. **The draft has not
-  been run** — it is the only thing left to build the league. Schedule, byes and week-1
-  projections all ingested and healthy: 3,236 season-long projections with **no
-  duplication**, and the daily ingest confirmed writing at 10:27 UTC on 16 August.
+- 2026 season: **the league exists.** 8 teams, 120 draft picks, 120 rostered players, FAAB
+  correctly reduced by the slot auction (75/79/82/100/93/84/100/100), 8/8 week-1 fixtures.
+  0 lineups and 0 standings, which is what a season that has not kicked off looks like.
+  273 games, 32 byes, 3,303 week-1 projections, and the daily ingest confirmed writing at
+  10:34 UTC that morning.
 - 2025 rehearsal: draft complete, **two weekly cycles and the whole postseason run** —
   142 rosters, 88 lineups, 80 standings rows, 50 bids, a champion. 188 decisions,
   $8.11 all-in.
-- Site: live, **eight** findings posts, the weekend guide, standings, weekly results,
-  `/ratings`, FAQ, feed, llms.txt, sitemap.
-- `vercel.json` declares **8 cron schedules**; all 8 routes exist and every week of 2026
-  clears its kickoff guard, **including the two playoff weeks**.
-- Tests: 381 across 28 files. Typecheck clean.
+- Site: live, **eleven** posts at `/findings`, the weekend guide, standings, weekly results,
+  `/ratings`, FAQ, feed, llms.txt, sitemap. Deployed at `origin/main`.
+- `vercel.json` declares **11 cron schedules** across 9 routes; every week of 2026 clears
+  its kickoff guard, **including the two playoff weeks**, and every backward-looking
+  firing of the season resolves a week that is actually finished.
+- Tests: 434 across 32 files. Typecheck clean.
 
 ---
 
@@ -765,3 +766,83 @@ fixed for about eight dollars.
 > verified against the published commitment, and the whole thing has been rehearsed on
 > 2025. On the evidence of this file, that rehearsal is worth considerably more than the
 > review was.
+
+---
+
+## Four days before kickoff — 4 September
+
+Nothing on the list above was wrong. Everything below was found by running the season
+forward against the real schedule rather than by reading the plan, which is now
+nineteen bugs to zero.
+
+**Verified healthy first**, because most of this file is a list of things that turned
+out to be broken: the draft is stuck (8 teams, 120 rosters, FAAB correctly reduced by
+the slot auction, 8/8 week-1 fixtures), the daily ingest wrote at 10:34 UTC that
+morning, all 120 rostered players carry a week-1 projection, the week-1 dry run passes
+every assertion, `origin/main` is deployed, and 426 tests were green before any of this.
+
+### Bug 19 — `score-final` would have published week 1 off one game
+
+`resolveScoringWeek` answered *the latest week whose FIRST kickoff has happened*. That is
+correct on every week that opens on a Thursday, because the Thursday scoring job fires
+five hours BEFORE that kickoff and the newest started week is still the one just played.
+
+2026 weeks 1 and 12 open on a **Wednesday**. For those, Thursday's `score-final` fires the
+morning after the opener, so the answer became the week now in progress — **week 1, with
+one game of sixteen played, written as `final`**. `scoredWeeks` keys on `standings`, so
+`/results/1` would have gone live that Thursday with near-zero scores and a fabricated
+head-to-head winner and served them all weekend. Tuesday's provisional pass writes the
+real numbers, but `final` beats `provisional` everywhere it is read — `wrap.ts`,
+`seasonPointsByPlayer`, `/ratings` — so the bad row keeps winning until the following
+Thursday overwrites it, which is itself the rule-7 violation the two-status split exists
+to prevent.
+
+It reaches nothing public beyond the site: a results post is gated on a `recaps` row and
+only the Tuesday wrap writes one.
+
+The question is now *which week is OVER*, meaning last kickoff plus a game's length, in a
+pure `completedWeek` with eight tests. Every backward-looking firing of the whole 2026
+season was then re-simulated against the ingested schedule: **48 firings, every one on a
+finished week, every week scored exactly once.** The two firings that used to be wrong —
+Thu 10 Sept and Thu 26 Nov — now return null and skip.
+
+> The shape is the familiar one. `--crons` printed a healthy margin for every week of the
+> season, because it only ever checked the FORWARD-looking jobs against kickoff. The
+> backward-looking half had no such check and no test at all: `resolveScoringWeek` was
+> the one function in the weekly path nothing exercised.
+
+### The release step existed only as a sentence
+
+`GO-LIVE.md` names releasing the column and the guide as the two things that stay human
+on purpose. Both are `published = false` by default, both are read by the site only when
+true — and there was no script, no flag and no documented SQL to flip either. The only
+manual step in the week was an UPDATE nobody had written down.
+
+`scripts/publish.ts` is that step: it lists what is waiting, prints the article in full,
+and releases or retracts one. A column that failed its deterministic number check needs
+`--despite-check`. Tried against the rehearsal rows, where week 5 refused with the two
+notes that are the reason this is a human step at all — *"says GPT-5.6 Sol beat DeepSeek
+V4 Pro, but DeepSeek V4 Pro won that matchup"*.
+
+### Three status claims that were no longer true
+
+- **Gate 3 was already closed.** `social_posts` shows three findings posts auto-released
+  on their own (17, 24, 27 Aug) and the draft post held with its `hold_reason` until it
+  was read. That is both halves of the gate, on real rows, while the file still said the
+  queue had never released anything.
+- **`waiver_bids` has had its idempotency key since migration `0003`.** `CLAUDE.md`
+  listed it as outstanding work.
+- **Gate 2 said to expect seven `job_runs` rows and will get four.** Only jobs that spend
+  claim a run; `score-provisional`, `score-final` and `waiver-resolve` call no model and
+  deliberately leave no row. On the first live week that would have read as three
+  missing jobs.
+
+### Left alone deliberately
+
+- **Weeks 1 and 12 fire `waiver-resolve` and `lineups` in the same hour** (16:00 UTC
+  Wednesday), so on a Wednesday-opener week a model could bid for a player on Tuesday and
+  find it absent from the roster its lineup is set from. Week 1 is unaffected — there are
+  no waivers before it — so this is a **week 12** problem with eleven weeks to fix it, and
+  moving the Wednesday lineup firing to 17:00 UTC is not a change to make four days before
+  the one Wednesday firing that has to work.
+- **The two `sharp` advisories under `@vercel/og`**, for the reasons already given above.

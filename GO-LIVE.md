@@ -1,6 +1,6 @@
 # What "fully live and automated" means, and how to know we are there
 
-**Written 10 August 2026, status re-verified 16 August.** `TODO.md` tracks *what is left*.
+**Written 10 August 2026, status re-verified 4 September.** `TODO.md` tracks *what is left*.
 This file defines *what done looks like* — five gates, each with a condition you can check
 rather than believe.
 
@@ -20,6 +20,20 @@ Two things stay human **on purpose**, and they are not gaps to close:
 |---|---|
 | Releasing the weekly column (`recaps.published`) | It is a byline piece. The number check can flag a wrong figure; it cannot fix one. Week 5 of the rehearsal shipped a draft asserting DeepSeek "fell to" GPT-5.6 Sol when DeepSeek won. |
 | Releasing the weekend guide (`weekend_guides.published`) | Same reason, same table pattern. |
+
+Both are `scripts/publish.ts`, which prints the article in full and then flips the flag:
+
+```bash
+npx tsx --env-file=.env.local scripts/publish.ts                    # what is waiting
+npx tsx --env-file=.env.local scripts/publish.ts --recap --week 1   # read it
+npx tsx --env-file=.env.local scripts/publish.ts --recap --week 1 --release
+```
+
+> **It had no implementation until 4 September.** The design said a human releases it,
+> `published` defaulted to false, the site read only published rows — and the release
+> itself was an UPDATE nobody had written down, on the one step standing between a
+> model's prose and the public. A column that failed its number check now needs
+> `--despite-check`, so releasing one is something somebody typed.
 
 Nothing that affects a **result** waits on a human. Everything that affects a **byline**
 does. If that ever inverts, something has gone wrong.
@@ -65,8 +79,9 @@ npx tsx --env-file=.env.local scripts/weekly-dry-run.ts --crons --season 2026
       the players actually on its board.
 - [x] **Preseason data ingested and in the briefing** *(16 Aug)* — 3,300 rows, all 332
       dossier players carrying a preseason line, labelled with what it is worth.
-- [ ] Auction run — 8 slots assigned, seed verified against the published commitment
-- [ ] Draft run — 120 picks, 8 rosters of 15
+- [x] **Auction run** *(24 Aug)* — 8 slots assigned, seed verified against the published
+      commitment and revealed at 0 picks
+- [x] **Draft run** *(24 Aug)* — 120 picks, 8 rosters of 15, 0 fallbacks, $10.05
 
 > **Run on 24 August**, as scheduled. Deliberately after preseason week 3 (~20–22 Aug), which is
 > the week starters actually play — drafting before it would halve the preseason signal
@@ -118,7 +133,15 @@ select job, status, model_calls, cost_usd, detail
 from job_runs where week = 1 order by started_at;
 ```
 
-**Passing looks like:** seven rows, all `completed`, no `running` left behind.
+**Passing looks like:** FOUR rows, all `completed`, no `running` left behind —
+`lineups` and `weekend-guide` on the Wednesday, then `wrap` and `waiver-bids` on the
+Tuesday after the slate.
+
+> Four, not seven. Only the jobs that SPEND claim a run: `score-provisional`,
+> `score-final` and `waiver-resolve` call no model, write upserts on natural keys, and
+> are safe to deliver twice, so they deliberately take no claim and leave no row. Read
+> their work in `lineup_scores` and `waiver_bids` instead. *(This file said seven until
+> 4 September, which would have read as three missing jobs on the first live week.)*
 
 > A row stuck in `running` means a job died mid-flight. It deliberately blocks
 > re-delivery — re-running a half-spent job is worse than not running it — so that is the
@@ -132,10 +155,14 @@ from job_runs where week = 1 order by started_at;
 - Vercel cron delivery is best effort. A missed `lineups` fire is survivable — every team
   already has a deterministic lineup seeded before the first model call — but it should
   be noticed, not discovered in the scores.
+- **Thursday 10 September, `score-final` must SKIP.** Week 1 is still being played on the
+  Thursday after its Wednesday opener, and the job answering `{"skipped":"no completed
+  week yet"}` is the fix made on 4 Sept working. If it answers `"week":1` it has
+  regressed and will publish one game of sixteen as the week's final result.
 
 ---
 
-## Gate 3 — It publishes itself 🟡
+## Gate 3 — It publishes itself ✅ *(auto-released 17–27 Aug)*
 
 > **The draft-completion post is held by hand on purpose** *(16 Aug)*. Every other kind
 > in the queue is `auto_eligible`; this one is not. It announces a one-shot event, it is
@@ -155,8 +182,11 @@ from job_runs where week = 1 order by started_at;
       goes out under the wrong name.
 - [x] **Text only, "link in bio"** *(14 Aug)* — X charges $0.20 for a post carrying a URL
       against $0.015 without. The season drops from about $8 to about $0.60.
-- [ ] A post auto-releases when its checks pass, and is held when they do not — the queue
-      runs daily and has had nothing fresh to say yet
+- [x] **A post auto-releases when its checks pass, and is held when they do not**
+      *(verified 4 Sept)* — three findings posts went out on their own (17, 24 and 27
+      Aug) with `auto_eligible = true` and no hold reason, while the draft-completion
+      post sat in the queue with its `hold_reason` until it was read and released by
+      hand. Both halves of the condition, on real rows.
 
 > **Two traps in the portal.** App permissions must be **Read and write** and the access
 > token must be **regenerated afterwards** — a token minted before the change keeps its
@@ -226,18 +256,21 @@ This is the part worth re-reading in October.
 
 ---
 
-## Honest status, 16 August 2026
+## Honest status, 4 September 2026
 
 Verified against the database rather than against this file — `draft.ts --status`,
 `weekly-dry-run.ts --status --crons`, `db-check.ts` (now 32/32) and both draft dry runs,
-all re-run on 16 August.
+re-run on 16 August, and the whole set re-run again on **4 September** with the week-1
+dry run against the live rosters: 120 players, 120 carrying a week-1 projection, no
+label leak, a legal fallback lineup for 8/8, and the daily ingest confirmed writing that
+morning at 10:34 UTC.
 
 | Gate | State |
 |---|---|
 | 0 — Deployed and guarded | ✅ 29/29 tables, RLS correct, every week clears its kickoff |
 | 1 — The league exists | ✅ *(24 Aug)* — 8/8 slots, 120/120 picks, 0 fallbacks, seed published before the first pick |
-| 2 — A week runs unattended | ⬜ blocked by 1, and by there being no football until 9 Sept |
-| 3 — It publishes itself | 🟡 @PlayATW connected and proven by hand; the queue has never auto-released, because `social_posts` has nothing in it yet |
+| 2 — A week runs unattended | ⬜ blocked only by there being no football until 9 Sept |
+| 3 — It publishes itself | ✅ *(4 Sept)* — three posts auto-released, one correctly held |
 | 4 — It finishes itself | ✅ built and rehearsed 14 Aug, champion declared |
 
 **Three full cycles have now been rehearsed** against 2025 — two regular-season weeks and
@@ -253,8 +286,8 @@ real football to exist:
 | Left | Needs | When |
 |---|---|---|
 | ~~The auction and draft~~ | ✅ done 24 Aug — 120/120, 0 fallbacks | — |
+| ~~Gate 3 — a post auto-releasing~~ | ✅ done, three times, 17–27 Aug | — |
 | Gate 2 — an unattended weekly cycle | rosters, and a week to run | Week 1, **9 Sept** |
-| Gate 3 — a post auto-releasing | a result worth announcing | first scored week |
 
 > **Week 1 is the Wednesday-opener exception.** It kicks off Wed 9 Sept 19:00 ET, so the
 > Wednesday `lineups` firing is the one that counts and the Thursday one must stand down.
