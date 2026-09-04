@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
   accumulateStandings,
+  completedWeek,
   seasonPointsByPlayer,
   standingsThroughWeek,
   type WeeklyTotal,
+  type WeekKickoff,
 } from './week';
 import { LEAGUE } from '@/lib/config/league';
 import { FINAL_WEEK, SEMIFINAL_WEEK } from '@/lib/engine/bracket';
@@ -275,5 +277,73 @@ describe('season totals across the provisional/final overlap', () => {
     const totals = await seasonPointsByPlayer(fakeDb(rows), 2025);
     expect(totals.get('allen')).toBe(17 * 22);
     expect(totals.get('allen')).not.toBe(rows.reduce((s, r) => s + r.computed_pts, 0));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Which week is over
+// ---------------------------------------------------------------------------
+
+/** A week the way 2026 schedules one: an opener, a Sunday slate, a Monday nightcap. */
+function week(n: number, opener: string, monday: string): WeekKickoff[] {
+  const sunday = new Date(new Date(monday).getTime() - 86_400_000).toISOString();
+  return [
+    { week: n, kickoffAt: new Date(opener) },
+    { week: n, kickoffAt: new Date(sunday) },
+    { week: n, kickoffAt: new Date(monday) },
+  ];
+}
+
+// The real 2026 dates. Weeks 1 and 12 open on a WEDNESDAY; everything else opens
+// Thursday night, which is why the difference stayed invisible for a whole rehearsal.
+const WEEK_1 = week(1, '2026-09-09T23:00:00Z', '2026-09-14T23:00:00Z');
+const WEEK_2 = week(2, '2026-09-18T00:15:00Z', '2026-09-22T00:15:00Z');
+const WEEK_11 = week(11, '2026-11-20T01:15:00Z', '2026-11-24T01:15:00Z');
+const WEEK_12 = week(12, '2026-11-26T00:00:00Z', '2026-12-01T00:00:00Z');
+
+describe('the week a scoring job may operate on', () => {
+  it('is the week just played, on the Tuesday after it', () => {
+    // score-provisional, 14:00 UTC Tuesday.
+    expect(completedWeek([...WEEK_1, ...WEEK_2], new Date('2026-09-15T14:00:00Z'))).toBe(1);
+  });
+
+  it('is still that week on the Thursday, before the next one opens', () => {
+    // score-final, 15:00 UTC Thursday — five hours before week 2 kicks off.
+    expect(completedWeek([...WEEK_1, ...WEEK_2], new Date('2026-09-17T15:00:00Z'))).toBe(1);
+  });
+
+  it('refuses to finalise week 1 the morning after its WEDNESDAY opener', () => {
+    // The bug. Week 1 has started, so "latest week to have kicked off" answered 1 and
+    // score-final would have published one game of sixteen as the final result.
+    expect(completedWeek(WEEK_1, new Date('2026-09-10T15:00:00Z'))).toBeNull();
+  });
+
+  it('refuses to finalise week 12 on Thanksgiving morning, for the same reason', () => {
+    // The second Wednesday opener, and the one that would have landed mid-season with
+    // ten weeks of standings already published.
+    expect(completedWeek([...WEEK_11, ...WEEK_12], new Date('2026-11-26T15:00:00Z'))).toBe(11);
+  });
+
+  it('does not count a week whose last game is still being played', () => {
+    // Monday night, one minute after kickoff. The week has no games left to START and
+    // is still not over — which is why the check is kickoff plus a game's length.
+    expect(completedWeek(WEEK_1, new Date('2026-09-14T23:01:00Z'))).toBeNull();
+    expect(completedWeek(WEEK_1, new Date('2026-09-15T03:01:00Z'))).toBe(1);
+  });
+
+  it('answers nothing before the season starts', () => {
+    // Every Tuesday job through August and the first week of September.
+    expect(completedWeek([...WEEK_1, ...WEEK_2], new Date('2026-09-08T14:00:00Z'))).toBeNull();
+  });
+
+  it('reaches the last playoff week once it is over', () => {
+    const final = week(FINAL_WEEK, '2026-12-25T01:15:00Z', '2026-12-29T01:15:00Z');
+    expect(completedWeek([...WEEK_1, ...final], new Date('2026-12-29T14:00:00Z'))).toBe(FINAL_WEEK);
+  });
+
+  it('takes the highest finished week rather than stepping back one from the newest', () => {
+    // Stepping back is the tempting fix and it assumes weeks never overlap. Taking the
+    // highest FINISHED week needs no such assumption.
+    expect(completedWeek([...WEEK_1, ...WEEK_2], new Date('2026-09-23T14:00:00Z'))).toBe(2);
   });
 });
