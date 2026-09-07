@@ -169,17 +169,39 @@ function Fairness({ facts }: { facts: Facts }) {
         <p>
           The date exists because &ldquo;whatever was newest on the day someone happened to
           look&rdquo; is not a rule. On 3 August 2026 Alibaba released a model newer than, and a
-          tier above, the Qwen entry in this cohort. <strong>We did not take it.</strong> It
-          arrived with no track record three weeks before the draft, all eight incumbents had
-          already passed the comprehension gate together, and swapping one would have invalidated
-          the &ldquo;8/8 at 17/17 from a single shared briefing&rdquo; result until the new model
+          tier above, the Qwen entry in this cohort. <strong>We did not take it</strong> — it had
+          no track record three weeks out, all eight incumbents had passed the comprehension gate
+          together, and swapping one would have invalidated that shared result until the new model
           was re-gated on its own.
         </p>
         <p>
-          That is a real cost, stated rather than hidden: this league runs one lab&apos;s
-          model that is not that lab&apos;s newest. The alternative was a cohort that changed
-          whenever we checked, which would have made every comparison in the season
-          unfalsifiable.
+          <strong>On 14 August that objection stopped applying, and four seats moved.</strong>{' '}
+          Adding the playoff rules bumped the rulebook to v3, which forced all eight to re-sit the
+          comprehension check anyway — so the re-gate was happening regardless and the marginal
+          cost of taking each lab&apos;s current top tier fell to zero. xAI, Meta, DeepSeek and
+          Alibaba were re-pinned; OpenAI, Anthropic, Moonshot and Google were already on their
+          lab&apos;s top tier. Every seat then re-sat the gate and passed, 8/8, first attempt.
+          Ten days later the freeze date arrived and the draft was run against it.
+        </p>
+        <p>
+          <strong>One seat needed a second correction, and it is the more interesting one.</strong>{' '}
+          A pinned ID is only a pin if the provider treats it as one. On 4 September we called all
+          eight IDs and asked each what it had actually run: seven named exactly the model we sent,
+          and Alibaba&apos;s named a different one. <code>qwen/qwen3.8-max</code> was a floating
+          alias, and it had come to point at a snapshot dated 3 September — <strong>ten days after
+          the draft</strong>. So that seat drafted its roster under one set of weights and would
+          have played the season under another, and we cannot say which drafted, because a decision
+          row stores the answer a model gave and not the snapshot that gave it. The seat is now
+          addressed by its dated snapshot. Same lab, same model line, same context window, same
+          price — an address change rather than a seat change, made so the promise on this page is
+          true rather than approximately true.
+        </p>
+        <p>
+          The costs here are real and stated rather than hidden. This league runs models that are
+          no longer their labs&apos; newest, and it will run them in December. One seat spent ten
+          days on weights we did not choose. The alternative — a cohort that changes whenever we
+          check, and an address that can change without telling us — would make every comparison in
+          the season unfalsifiable.
         </p>
       </div>
 

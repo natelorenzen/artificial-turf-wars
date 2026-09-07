@@ -870,6 +870,47 @@ at its correct 56.
 > either. The defect was never in the guards; it was in running a rehearsal against the
 > season that counts. **Rehearse against 2025.**
 
+### Bug 21 — a pinned ID that was not pinned, and a check that could not see it
+
+`scripts/cohort-check.ts` reported `qwen/qwen3.8-max` as **"not served by OpenRouter. The
+draft would fail on it"**, filed under MUST BE RESOLVED. It was wrong. The alias had left
+the `/models` LISTING and still routed perfectly. Unlisted is not withdrawn — and this is
+the one check that runs on draft morning and is authorised to break the cohort freeze, so
+a false alarm there swaps out a model that was fine.
+
+Probing the endpoint instead of reading the listing answered a question the listing
+cannot. OpenRouter echoes the model it actually ran, and calling all eight found that
+seven named exactly what we sent them and **Alibaba's named something else**:
+
+```
+qwen/qwen3.8-max  ->  qwen/qwen3.8-max-0902   FLOATING
+```
+
+A pinned ID is only a pin if the provider treats it as one. That snapshot is dated
+3 September — **ten days after the draft** — so the seat drafted under one set of weights
+and would have played the season under another, and we cannot say which drafted: a
+decision row stores the answer, not the snapshot that produced it.
+
+- [x] **The seat is addressed by its dated snapshot.** Same lab, same line, same 1M
+      context, same $2.00/$6.00 — an ADDRESS change, not a seat change. `teams.model_id`
+      never moves, which is why `repin-cohort.ts` is not involved and correctly refuses
+      to run post-draft. The `models` row was updated in place, same uuid, team still
+      seated on it.
+- [x] **`cohort-check.ts` probes routing.** An unlisted id that answers is a `!` notice,
+      not a blocker; an id that resolves to a different model is a blocker; `--no-probe`
+      skips the eight one-word calls.
+- [x] **DeepSeek repriced again** — $1.12/$3.37 → $0.66/$1.98, second correction for that
+      seat. Published on /methodology and /teams, and the fallback when OpenRouter returns
+      no cost.
+- [x] **/methodology now says all of this**, including the 14 August re-pin of four seats,
+      which had never been disclosed at all — the page still told readers "we did not take
+      it" about a model the league has been playing since.
+
+> **The freeze was broken by the provider, not by us, and quietly.** Everything downstream
+> of it — the cohort table, the price spans, "pinned before the draft and never swapped" —
+> was true of seven seats and approximately true of the eighth. The rule needed no change.
+> What it needed was a check that asks the endpoint rather than the index.
+
 ### Left alone deliberately
 
 - **Weeks 1 and 12 fire `waiver-resolve` and `lineups` in the same hour** (16:00 UTC
