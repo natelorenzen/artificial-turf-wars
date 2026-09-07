@@ -281,6 +281,27 @@ export const SCORING_NOTES = {
  *
  * The date below still governs. After it, no model ID changes for any reason short of a
  * provider withdrawing one — including if a lab ships something on 25 August.
+ *
+ * AMENDED 4 September 2026, and this is the amendment the rule did not anticipate. A
+ * pinned ID is only a pin if the provider treats it as one. `qwen/qwen3.8-max` was a
+ * floating ALIAS: probing all eight ids with a one-word call, seven came back naming
+ * exactly the model we asked for and Alibaba's came back naming
+ * `qwen/qwen3.8-max-0902`, a snapshot dated 3 September — ten days after the draft.
+ *
+ * So the freeze had already been broken, silently, by the provider rather than by us,
+ * and the eight rosters were drafted by a snapshot we can no longer name: the decision
+ * rows store the parsed answer, not the model id that produced it.
+ *
+ * The seat is therefore addressed by its dated snapshot. That is an ADDRESS change, not
+ * a seat change — same lab, same model line, same tier, same context, same price, and
+ * `teams.model_id` does not move, which is why `repin-cohort.ts` is not involved and
+ * correctly refuses to run. It makes the published promise true rather than bending it.
+ * The alternative, keeping an alias that can change again in October without telling
+ * us, is the version of this that a sceptical reader should object to.
+ *
+ * Disclosed on /methodology. The cost of the change is that if Alibaba retires the
+ * dated snapshot we are on a dead id, where the alias would have kept routing — a
+ * failure that is loud and caught by `cohort-check.ts`, which is the trade we want.
  */
 export const COHORT_FROZEN_AT = '2026-08-24';
 
@@ -308,7 +329,11 @@ export const COHORT: readonly CohortModel[] = [
   { key: 'muse-spark-1-2', displayName: 'Muse Spark 1.2', openrouterId: 'meta/muse-spark-1.2', lab: 'Meta', contextWindow: 1_048_576, priceIn: 1.25, priceOut: 4.25 },
   // Also repriced since the pin, and by more than 2x: $0.43/$0.87 → $1.12/$3.37, same
   // check, same morning. The old figures were the pre-GA preview price.
-  { key: 'deepseek-v4-pro-0813', displayName: 'DeepSeek V4 Pro 0813', openrouterId: 'deepseek/deepseek-v4-pro-0813', lab: 'DeepSeek', contextWindow: 1_048_576, priceIn: 1.12, priceOut: 3.37 },
+  // Repriced again since the pin: $1.12/$3.37 → $0.66/$1.98, caught by cohort-check on
+  // 4 September 2026. Second time for this seat — the first correction, on draft
+  // morning, was the pre-GA preview price. The MODEL is unchanged; only its price moved,
+  // and these numbers are published on /methodology and /teams.
+  { key: 'deepseek-v4-pro-0813', displayName: 'DeepSeek V4 Pro 0813', openrouterId: 'deepseek/deepseek-v4-pro-0813', lab: 'DeepSeek', contextWindow: 1_048_576, priceIn: 0.66, priceOut: 1.98 },
   { key: 'kimi-k3', displayName: 'Kimi K3', openrouterId: 'moonshotai/kimi-k3', lab: 'Moonshot', contextWindow: 1_048_576, priceIn: 3.0, priceOut: 15.0 },
   // priceOut was null here, which the cohort table rendered as "—" — implying Qwen
   // charged nothing for output. It charges $1.28/M. Corrected against the OpenRouter
@@ -316,7 +341,14 @@ export const COHORT: readonly CohortModel[] = [
   // Qwen3.8 Max, not the newer `qwen3.8-2.4t-a95b`: OpenRouter describes that one as
   // "the open-weight variant of Qwen3.8 Max", so it is a sibling release rather than a
   // tier above. Newest is not the rule; top-tier generally-available is.
-  { key: 'qwen3-8-max', displayName: 'Qwen3.8 Max', openrouterId: 'qwen/qwen3.8-max', lab: 'Alibaba', contextWindow: 1_000_000, priceIn: 2.0, priceOut: 6.0 },
+  //
+  // Addressed by its DATED SNAPSHOT since 4 September 2026, and this is the only seat
+  // that needs one. `qwen/qwen3.8-max` was a floating alias: it still routes, but it
+  // resolves to whatever snapshot Alibaba currently serves, and on 3 September that
+  // became `-0902` — ten days AFTER the draft. Seven seats return the exact id we send
+  // them; this one silently returned a model we did not pin. Same line, same 2.4T MoE,
+  // same 1M context, same $2.00/$6.00, so nothing published moves. See the freeze note.
+  { key: 'qwen3-8-max', displayName: 'Qwen3.8 Max', openrouterId: 'qwen/qwen3.8-max-0902', lab: 'Alibaba', contextWindow: 1_000_000, priceIn: 2.0, priceOut: 6.0 },
 ] as const;
 
 /**

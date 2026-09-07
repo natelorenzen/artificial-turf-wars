@@ -69,6 +69,9 @@ interface ModelRow {
   active: boolean;
 }
 
+/** `--no-probe` skips the eight one-word calls (a fraction of a cent) and the alias check with them. */
+const flag = (name: string) => process.argv.includes(`--${name}`);
+
 const problems: string[] = [];
 const decisions: string[] = [];
 
@@ -148,18 +151,97 @@ function freezeWindow(today: string, picks: number) {
   console.log();
 }
 
-function checkPinned(catalogue: Map<string, CatalogueModel>, endsOn: string) {
+/**
+ * What the id actually does when you call it.
+ *
+ * The catalogue listing is not the same question. `qwen/qwen3.8-max` was absent from
+ * it on 4 September 2026 and routed perfectly well — an alias Alibaba had stopped
+ * listing but not stopped serving. Reading absence as withdrawal reported a working
+ * seat as one that "would fail the draft", filed under MUST BE RESOLVED, on the one
+ * check that runs on draft morning and is authorised to break the cohort freeze. On a
+ * different week that false alarm swaps out a model that was fine.
+ *
+ * The call also answers a question the listing cannot: OpenRouter echoes the model it
+ * actually ran, so an id that resolves to something else is visible here and nowhere
+ * else. That is how the floating alias was found.
+ */
+async function probeRouting(id: string): Promise<{ ok: boolean; resolved: string | null; error: string | null }> {
+  try {
+    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      // One word out, and a reasoning budget in front of it: `max_tokens` is a single
+      // pool and a reasoning model that thinks first will otherwise return nothing.
+      body: JSON.stringify({
+        model: id,
+        messages: [{ role: 'user', content: 'Reply with the single word: ok' }],
+        max_tokens: 2000,
+      }),
+    });
+    // Lenient, because a model's own text can carry control characters that strict
+    // JSON.parse rejects — and the field we need is the envelope, not the text.
+    const body = JSON.parse(await response.text(), undefined) as {
+      model?: string;
+      error?: { message?: string; code?: unknown };
+    };
+    if (body.error) return { ok: false, resolved: null, error: String(body.error.message ?? body.error.code) };
+    return { ok: true, resolved: body.model ?? null, error: null };
+  } catch (err) {
+    return { ok: false, resolved: null, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+async function checkPinned(catalogue: Map<string, CatalogueModel>, endsOn: string, probe: boolean) {
   console.log('  The pinned eight, against the live catalogue\n');
 
   for (const model of COHORT) {
     const live = catalogue.get(model.openrouterId);
     if (!live) {
+      // Unlisted is not withdrawn. Ask the endpoint before saying the draft would fail.
+      const routed = probe ? await probeRouting(model.openrouterId) : null;
+      if (routed?.ok) {
+        console.log(
+          `    !  ${model.lab.padEnd(9)} ${model.openrouterId.padEnd(34)} UNLISTED, but it still routes` +
+            `${routed.resolved && routed.resolved !== model.openrouterId ? ` → ${routed.resolved}` : ''}`,
+        );
+        decisions.push(
+          `${model.openrouterId} (${model.lab}) has left the catalogue listing but still serves. Nothing ` +
+            'breaks today; it is notice that the id is on its way out.',
+        );
+        continue;
+      }
       console.log(`    ✗  ${model.lab.padEnd(9)} ${model.openrouterId}  NOT IN THE CATALOGUE`);
       problems.push(
-        `${model.openrouterId} (${model.lab}) is not served by OpenRouter. The draft would fail on it. ` +
+        `${model.openrouterId} (${model.lab}) is not served by OpenRouter` +
+          `${routed?.error ? ` — the call returned: ${routed.error}` : ' and is not in the catalogue'}. ` +
           'A withdrawn model is the one condition the freeze permits a change for.',
       );
       continue;
+    }
+
+    // A pinned id is only a pin if the provider treats it as one. Seven of the eight
+    // echo back exactly what we sent; an alias echoes back the snapshot it chose.
+    if (probe) {
+      const routed = await probeRouting(model.openrouterId);
+      if (routed.ok && routed.resolved && routed.resolved !== model.openrouterId) {
+        console.log(`    !  ${model.lab.padEnd(9)} ${model.openrouterId.padEnd(34)} resolves to ${routed.resolved}`);
+        problems.push(
+          `${model.openrouterId} (${model.lab}) is a FLOATING ALIAS — it ran ${routed.resolved}. The freeze ` +
+            'promises a pinned model and an alias cannot deliver one: it can change again, mid-season, ' +
+            'without telling us. Address the seat by its dated snapshot.',
+        );
+        continue;
+      }
+      if (!routed.ok) {
+        console.log(`    ✗  ${model.lab.padEnd(9)} ${model.openrouterId.padEnd(34)} LISTED BUT WILL NOT RUN`);
+        problems.push(
+          `${model.openrouterId} (${model.lab}) is in the catalogue but the call failed: ${routed.error}.`,
+        );
+        continue;
+      }
     }
 
     const drift: string[] = [];
@@ -372,7 +454,7 @@ async function main() {
 
   console.log(`\n  COHORT CHECK — season ${SEASON}, ${all.length} models in the catalogue\n`);
   freezeWindow(today, picks ?? 0);
-  checkPinned(catalogue, endsOn);
+  await checkPinned(catalogue, endsOn, !flag('no-probe'));
   checkNewer(all, catalogue);
   await checkSeats(supabase, season.id);
 
