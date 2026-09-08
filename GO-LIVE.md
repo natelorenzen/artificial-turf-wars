@@ -152,6 +152,13 @@ Tuesday after the slate.
 - `lineups` has two cron entries and must stand down on the Wednesday one. Week 1 of 2026
   opens on a **Wednesday**, so week 1 is the exception where the Wednesday run is the one
   that counts.
+- **Thursday 10 September, `lineups` returns a red 409, and that is correct.** It does not
+  stand down — it refuses. `assertBeforeKickoff` runs *before* `defersToLaterFiring`, so on
+  a Wednesday-opener week the Thursday firing is stopped by the too-late guard rather than
+  the deferral one, and answers `week 1: kickoff was 17.0h ago — this job would produce an
+  invalid week`. Expect it in the Vercel log; do not fix it. **The one to actually worry
+  about is a Thursday firing that answers anything else**, because the only way it reaches
+  the claim is if Wednesday never set the lineups at all.
 - Vercel cron delivery is best effort. A missed `lineups` fire is survivable — every team
   already has a deterministic lineup seeded before the first model call — but it should
   be noticed, not discovered in the scores.
@@ -294,9 +301,13 @@ real football to exist:
 | Gate 2 — an unattended weekly cycle | rosters, and a week to run | Week 1, **9 Sept** |
 
 > **Week 1 is the Wednesday-opener exception.** It kicks off Wed 9 Sept 19:00 ET, so the
-> Wednesday `lineups` firing is the one that counts and the Thursday one must stand down.
-> It is also the tightest margin of the season — 4.0h for the weekend guide, exactly the
-> required minimum. If any week is going to expose a scheduling assumption, it is this one.
+> Wednesday `lineups` firing is the one that counts and the Thursday one refuses (above).
+> It is also the tightest margin the `--crons` table reports all season — 4.0h for the
+> weekend guide, exactly the required minimum. **That figure is advisory for this job, not
+> a cliff**: `weekend-guide` is the one forward-looking route with no `assertBeforeKickoff`
+> call, so it cannot refuse itself out of existence at the late end of its hour. The margin
+> is enforced where it matters — `lineups`, which has the guard and still holds 6.0h at
+> worst. If any week is going to expose a scheduling assumption, it is this one.
 
 ### The eval, added 14 August
 

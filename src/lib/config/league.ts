@@ -327,13 +327,17 @@ export const COHORT: readonly CohortModel[] = [
   { key: 'grok-4-6', displayName: 'Grok 4.6', openrouterId: 'x-ai/grok-4.6', lab: 'xAI', contextWindow: 500_000, priceIn: 2.0, priceOut: 6.0 },
   { key: 'gemini-3-1-pro', displayName: 'Gemini 3.1 Pro', openrouterId: 'google/gemini-3.1-pro-preview', lab: 'Google', contextWindow: 1_048_576, priceIn: 2.0, priceOut: 12.0 },
   { key: 'muse-spark-1-2', displayName: 'Muse Spark 1.2', openrouterId: 'meta/muse-spark-1.2', lab: 'Meta', contextWindow: 1_048_576, priceIn: 1.25, priceOut: 4.25 },
-  // Also repriced since the pin, and by more than 2x: $0.43/$0.87 → $1.12/$3.37, same
-  // check, same morning. The old figures were the pre-GA preview price.
-  // Repriced again since the pin: $1.12/$3.37 → $0.66/$1.98, caught by cohort-check on
-  // 4 September 2026. Second time for this seat — the first correction, on draft
-  // morning, was the pre-GA preview price. The MODEL is unchanged; only its price moved,
-  // and these numbers are published on /methodology and /teams.
-  { key: 'deepseek-v4-pro-0813', displayName: 'DeepSeek V4 Pro 0813', openrouterId: 'deepseek/deepseek-v4-pro-0813', lab: 'DeepSeek', contextWindow: 1_048_576, priceIn: 0.66, priceOut: 1.98 },
+  // The most-repriced seat in the cohort, corrected three times and counting:
+  //   $0.43/$0.87 → $1.12/$3.37   draft morning, 24 Aug — the old figures were the
+  //                               pre-GA preview price
+  //   $1.12/$3.37 → $0.66/$1.98   4 Sept
+  //   $0.66/$1.98 → $0.58/$1.74   8 Sept, the season-eve check
+  // Every one of them caught by scripts/cohort-check.ts, which is the argument for
+  // running it on a schedule rather than only on draft morning: nothing else notices,
+  // because a price that drifts breaks no test and fails no call. The MODEL is unchanged
+  // throughout — only its price moved — and these numbers are published on /methodology
+  // and /teams, and are the fallback when OpenRouter returns no cost on a call.
+  { key: 'deepseek-v4-pro-0813', displayName: 'DeepSeek V4 Pro 0813', openrouterId: 'deepseek/deepseek-v4-pro-0813', lab: 'DeepSeek', contextWindow: 1_048_576, priceIn: 0.58, priceOut: 1.74 },
   { key: 'kimi-k3', displayName: 'Kimi K3', openrouterId: 'moonshotai/kimi-k3', lab: 'Moonshot', contextWindow: 1_048_576, priceIn: 3.0, priceOut: 15.0 },
   // priceOut was null here, which the cohort table rendered as "—" — implying Qwen
   // charged nothing for output. It charges $1.28/M. Corrected against the OpenRouter
