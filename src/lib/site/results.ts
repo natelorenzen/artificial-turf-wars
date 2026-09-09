@@ -366,3 +366,159 @@ export async function loadSeasonSnapshot(season = SEASON): Promise<SeasonSnapsho
     champion: (await loadPlayoffView(id, FINAL_WEEK))?.champion ?? null,
   };
 }
+
+// ---------------------------------------------------------------------------
+// The week in progress
+// ---------------------------------------------------------------------------
+
+export interface CurrentWeekTeam {
+  model: string;
+  modelKey: string;
+}
+
+export interface CurrentWeekFixture {
+  home: CurrentWeekTeam;
+  away: CurrentWeekTeam;
+}
+
+export interface CurrentWeekView {
+  week: number;
+  /** First kickoff of the week, ISO. */
+  firstKickoff: string;
+  /** Whether that kickoff is behind us, as of render time. */
+  kickedOff: boolean;
+  /** Of eight. Below eight means the lineup job has not finished, or a team is out. */
+  lineupsSet: number;
+  /**
+   * How many of those the CODE decided rather than the model.
+   *
+   * Tracked separately and stated publicly because the deterministic fallback is a real
+   * outcome, not a hidden one: a model that fails gets the projection-optimal lineup and
+   * the site says so. Summing it into `lineupsSet` would publish our own failure mode as
+   * eight models making eight decisions.
+   */
+  carriedForward: number;
+  fixtures: CurrentWeekFixture[];
+  /** The released weekend guide for this week, if a human has released one. */
+  guide: { week: number; headline: string } | null;
+  /** True once this week has been scored, i.e. it is history rather than in progress. */
+  scored: boolean;
+}
+
+/**
+ * The week being played right now, or null before the season starts.
+ *
+ * This exists because `loadSeasonSnapshot().throughWeek === null` was doing two jobs
+ * and could only answer one of them. It means "no week has been SCORED", which is true
+ * before the season starts and equally true from Wednesday of week 1 until the
+ * following Tuesday — so the front page announced "the season has not started" for six
+ * days after it had, with eight locked lineups and a published weekend guide sitting
+ * behind links nobody had a reason to click.
+ *
+ * "Current" is derived from kickoffs rather than from scores for exactly that reason:
+ * the season starts when a ball is kicked, not when our Tuesday job gets round to it.
+ */
+export async function loadCurrentWeek(season = SEASON): Promise<CurrentWeekView | null> {
+  const id = await seasonId(season);
+  if (!id) return null;
+
+  const now = new Date();
+
+  const { data: teamRowsForWeek } = await supabase.from('teams').select('id').eq('season_id', id);
+  const teamIds = (teamRowsForWeek ?? []).map((t) => t.id as string);
+  if (teamIds.length === 0) return null;
+
+  // The latest week this LEAGUE has acted on, which is the latest week holding lineups.
+  //
+  // Not "the latest week that has kicked off", which was the first thing tried and is
+  // wrong by about seven hours: lineups lock at noon ET and the ball is kicked in the
+  // evening, so on the afternoon of the opener — the exact moment the front page most
+  // needs to say something — the NFL reading still answers "no week yet". The lineup
+  // lock is also the more honest claim. It is the moment this league committed and
+  // nothing can change, whatever the schedule does afterwards.
+  const { data: acted } = await supabase
+    .from('lineups')
+    .select('week')
+    .in('team_id', teamIds)
+    .lte('week', LEAGUE.regularSeasonWeeks)
+    .order('week', { ascending: false })
+    .limit(1);
+
+  const week = acted?.[0]?.week as number | undefined;
+  if (!week) return null;
+
+  const { data: firstGame } = await supabase
+    .from('nfl_games')
+    .select('kickoff_at')
+    .eq('season', season)
+    .eq('week', week)
+    .not('kickoff_at', 'is', null)
+    .order('kickoff_at', { ascending: true })
+    .limit(1);
+  const firstKickoff = (firstGame?.[0]?.kickoff_at as string | undefined) ?? now.toISOString();
+
+  const { data: teamRows } = await supabase
+    .from('teams')
+    .select('id, models!inner(key, display_name)')
+    .eq('season_id', id);
+  const teams = (teamRows ?? []) as unknown as {
+    id: string;
+    models: { key: string; display_name: string };
+  }[];
+  const byId = new Map(teams.map((t) => [t.id, t]));
+  const named = (teamId: string): CurrentWeekTeam => {
+    const team = byId.get(teamId);
+    return {
+      model: team?.models.display_name ?? 'Unknown',
+      modelKey: team?.models.key ?? '',
+    };
+  };
+
+  const { data: schedule } = await supabase
+    .from('h2h_schedule')
+    .select('home_team_id, away_team_id')
+    .eq('season_id', id)
+    .eq('week', week);
+
+  const fixtures: CurrentWeekFixture[] = (schedule ?? []).map((row) => ({
+    home: named(row.home_team_id as string),
+    away: named(row.away_team_id as string),
+  }));
+
+  const { data: lineupRows } = await supabase
+    .from('lineups')
+    .select('carried_forward')
+    .eq('week', week)
+    .in('team_id', teamIds);
+  const lineupCount = (lineupRows ?? []).length;
+  const carriedForward = (lineupRows ?? []).filter((r) => r.carried_forward).length;
+
+  // Only a RELEASED guide is linkable — an unreleased one renders nothing at /weekend.
+  const { data: guideRow } = await supabase
+    .from('weekend_guides')
+    .select('week, headline')
+    .eq('season_id', id)
+    .eq('week', week)
+    .eq('published', true)
+    .maybeSingle();
+
+  const { data: scoredRow } = await supabase
+    .from('standings')
+    .select('week')
+    .eq('week', week)
+    .in('team_id', teamIds)
+    .limit(1);
+
+  return {
+    week,
+    firstKickoff,
+    kickedOff: new Date(firstKickoff) <= now,
+    lineupsSet: lineupCount,
+    carriedForward,
+    fixtures,
+    guide: guideRow
+      ? { week: guideRow.week as number, headline: guideRow.headline as string }
+      : null,
+    scored: (scoredRow ?? []).length > 0,
+  };
+}
