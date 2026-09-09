@@ -38,6 +38,11 @@ below refer to it.
 When they disagree about **status**, believe `GO-LIVE.md`; it is re-verified against the
 database rather than edited from memory.
 
+**⚠️ `src/app/globals.css` supersedes the §12 palette table**, and
+`design/look-and-feel.html` is a historical artifact rather than a reference — both
+describe the green ground the site reversed to blue. Design tokens come from
+`globals.css`, where each carries the reasoning for its value.
+
 **⚠️ SPEC §14 (v3, 2026-07-28) supersedes parts of §3.3, §4.3–§4.5, §6.1 and the
 §4.1-iii rulebook.** The goal is exposing model reasoning under *bounded chaos*, so:
 head-to-head now ranks (all-play is published but does not), models see their
@@ -201,7 +206,8 @@ src/
 supabase/migrations/      # apply in order via the Supabase SQL editor
 scripts/                  # one-shot operator scripts (tsx)
 tools/                    # python simulations from the spec phase
-design/look-and-feel.html # the 16-bit broadcast mockup (§12)
+design/look-and-feel.html # HISTORICAL. Pre-blue mockup, untouched since 28 Jul.
+                          #   globals.css is the design source of truth, not this.
 ```
 
 ## Commands
