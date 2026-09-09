@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { COHORT } from '@/lib/config/league';
 import { formatDate, getAllPosts } from '@/lib/blog/posts';
-import { loadSeasonSnapshot } from '@/lib/site/results';
+import { loadCurrentWeek, loadSeasonSnapshot } from '@/lib/site/results';
 
 export const metadata = {
   title: 'Artificial Turf War — eight AI models, one fantasy season',
@@ -16,6 +16,20 @@ export default async function Home() {
   // the newest one gets a slot on the front page rather than living only in the nav.
   const [latest] = getAllPosts();
   const snapshot = await loadSeasonSnapshot();
+  const current = await loadCurrentWeek();
+
+  // ET, because every time this league publishes is stated in ET and a kickoff written
+  // in the reader's own zone would be the one time on the site that moved.
+  const kickoffET = current
+    ? new Intl.DateTimeFormat('en-US', {
+        weekday: 'short',
+        month: 'short',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+        timeZone: 'America/New_York',
+      }).format(new Date(current.firstKickoff))
+    : null;
 
   return (
     <>
@@ -40,12 +54,77 @@ export default async function Home() {
           Real NFL results score them. Every prompt and every raw response is published.
         </p>
 
-        {snapshot.throughWeek === null ? (
+        {current === null && (
           <div className="notice info">
-            The season has not started. NFL Week 1 opens 9 September 2026 and the draft runs late
-            August.
+            The season has not started. The draft ran on 24 August 2026 and NFL Week 1 opens
+            9 September 2026.
           </div>
-        ) : (
+        )}
+
+        {/* The live week, which is the news for six days before it is ever scored.
+            Standings cannot carry this: they are written on the Tuesday AFTER a week, so
+            a page keyed only on them announced "the season has not started" through the
+            whole of week 1, with eight locked lineups and a released guide behind it. */}
+        {current && (
+          <>
+            <div className="yard" />
+            <h2>
+              Week {current.week}
+              {current.scored ? ' · final' : current.kickedOff ? ' · under way' : ' · lineups locked'}
+            </h2>
+            <p className="sub">
+              {current.lineupsSet}/{COHORT.length} lineups set
+              {current.carriedForward === 0
+                ? ', every one the model\u2019s own decision'
+                : `, ${current.carriedForward} of them decided by the fallback`}{' '}
+              · first kickoff {kickoffET} ET
+            </p>
+
+            <div className="scroll">
+              <table>
+                <thead>
+                  <tr>
+                    <th className="l">Home</th>
+                    <th className="l">Away</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {current.fixtures.map((f) => (
+                    <tr key={`${f.home.modelKey}-${f.away.modelKey}`}>
+                      <td className="l tname">
+                        <Link href={`/team/${f.home.modelKey}`}>{f.home.model}</Link>
+                      </td>
+                      <td className="l tname">
+                        <Link href={`/team/${f.away.modelKey}`}>{f.away.model}</Link>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <p className="lede-copy" style={{ marginTop: 14 }}>
+              {current.guide && (
+                <>
+                  This week&apos;s guide is out:{' '}
+                  <Link href={`/weekend/${current.guide.week}`}>{current.guide.headline}</Link>.{' '}
+                </>
+              )}
+              {current.scored ? (
+                <>
+                  <Link href={`/results/${current.week}`}>The week, score by score</Link>.
+                </>
+              ) : (
+                <>
+                  Scores land the Tuesday after the slate; every lineup and the reasoning behind
+                  it is on each <Link href="/teams">team&apos;s page</Link> now.
+                </>
+              )}
+            </p>
+          </>
+        )}
+
+        {snapshot.throughWeek !== null && (
           <>
             {/* The result of the season, when there is one. Above the table because a
                 champion is the news; still beside the sentence that keeps the bracket
@@ -119,7 +198,7 @@ export default async function Home() {
             <div className="k">Rules gate</div>
             <div className="v">8/8</div>
             <div className="n">
-              Every model scored 17/17 on the comprehension check, first attempt, from one shared
+              Every model scored 19/19 on the comprehension check, first attempt, from one shared
               byte-identical briefing.
             </div>
           </div>
@@ -132,9 +211,12 @@ export default async function Home() {
             </div>
           </div>
           <div className="tile">
-            <div className="k">Draft picks simulated</div>
+            <div className="k">Draft picks</div>
             <div className="v">120</div>
-            <div className="n">Zero fallbacks. Zero invalid responses.</div>
+            <div className="n">
+              Run for real on 24 August. Zero fallbacks, zero invalid responses — every pick a
+              model&apos;s own decision.
+            </div>
           </div>
         </div>
 
@@ -213,8 +295,9 @@ export default async function Home() {
           <p>
             One season shares one set of NFL luck across all eight teams. Fourteen weeks is a small
             sample. The draft has real luck in it — an injury in Week 2 to a first-round pick is
-            nobody&apos;s reasoning failure. The cohort is not price-matched; it spans $0.32 to
-            $5.00 per million input tokens.
+            nobody&apos;s reasoning failure. The cohort is not price-matched; it spans $
+            {Math.min(...COHORT.map((m) => m.priceIn)).toFixed(2)} to $
+            {Math.max(...COHORT.map((m) => m.priceIn)).toFixed(2)} per million input tokens.
           </p>
           <p>
             <strong>
