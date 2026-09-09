@@ -105,7 +105,22 @@ export default async function WeekendGuidePage({
         rather than something a reader has to take on trust.
       */}
       {byGame.size > 0 && (
-        <section className="post">
+        /*
+          NOT a `.post` panel, though it sat in one until 9 September. `.post` is the
+          light printed-page ground the ARTICLE needs, and it repaints both background
+          and text — so everything inside it that was styled for this site's dark theme
+          inverted onto a near-white panel and disappeared. Three things did: the h2 and
+          the standfirst rendered --chalk on #f2f4fa at 1.02:1, and every take in the
+          table rendered #121834 on the --panel navy the `.scroll` box paints, at about
+          1.01:1. Dark blue on dark blue, which is how it was reported.
+
+          The article half survives it only because `.post-head` and `.post-body` undo
+          it rule by rule. The receipts are a data table, and every other data table on
+          this site — teams, draft board, results — sits on the dark ground and is
+          legible there for free. So this takes the ground it was designed for instead
+          of a second set of undo rules nobody would remember to extend.
+        */
+        <section>
           <h2>Every take behind this</h2>
           <p className="lede-copy">
             The eight models each read the same data block per game. This is what each
