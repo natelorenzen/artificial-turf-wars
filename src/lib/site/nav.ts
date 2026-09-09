@@ -54,47 +54,57 @@ export interface NavItem {
 export interface NavGroup {
   id: string;
   items: NavItem[];
+  /** Rendered dimmer. The archive, not the live season. */
+  quiet?: boolean;
 }
 
+/*
+ * Two groups, split by TIME rather than by topic: what the league is doing now, and the
+ * record of how it got here.
+ *
+ * It used to be three groups and thirteen links, all at one weight, in one sticky bar —
+ * so "Weekend", which is this week's article, sat at the same size and colour as "Terms".
+ * A reader arriving mid-season had no way to tell which four of the thirteen were the
+ * live league. FAQ, Methodology and Terms have moved to the footer, where reference
+ * material belongs and where two of the three already were.
+ *
+ * The rehearsal stays IN THE BAR and stays labelled. Dimming it is fine; hiding it is
+ * not, because a visitor who mistakes the 2025 dry run for the live result is the single
+ * worst misreading this site can produce, and a hover menu is how that happens.
+ */
 export const NAV: NavGroup[] = [
   {
     id: 'season',
     items: [
       { href: '/', label: 'Standings', note: 'The live league table' },
       { href: '/results', label: 'Results', note: 'Every scored week, score by score' },
-      { href: '/ratings', label: 'Skill board', note: 'Who manages best once the luck is out' },
       { href: '/weekend', label: 'Weekend', note: 'How to survive this weekend, every Thursday' },
-      { href: '/preseason', label: 'Pre-season', note: 'Briefing, comprehension gate, auction' },
-      { href: '/draft', label: 'Draft board', note: 'All 120 picks, every reason as the model gave it' },
       { href: '/teams', label: 'Teams', note: 'All eight models and every decision they make' },
+      { href: '/ratings', label: 'Skill board', note: 'Who manages best once the luck is out' },
+      { href: '/findings', label: 'Findings', note: 'What we learn, published either way' },
     ],
   },
   {
-    id: 'rehearsal',
+    id: 'record',
+    quiet: true,
     items: [
+      { href: '/draft', label: 'Draft board', note: 'All 120 picks, every reason as the model gave it' },
+      { href: '/preseason', label: 'Pre-season', note: 'Briefing, comprehension gate, auction' },
       {
         href: '/backtest',
         label: 'Rehearsal',
         tag: '2025',
-        note: 'What the backtest found, including five bugs',
-      },
-      {
-        href: '/backtest/draft',
-        label: 'Draft board',
-        tag: '2025',
-        note: 'All 120 picks with reasoning',
+        note: 'The dry run, its five bugs, and its own draft board',
       },
     ],
   },
-  {
-    id: 'about',
-    items: [
-      { href: '/findings', label: 'Findings', note: 'What we learn, published either way' },
-      { href: '/faq', label: 'FAQ', note: 'Short answers, each one checkable' },
-      { href: '/methodology', label: 'Methodology', note: 'How it works and what it cannot show' },
-      { href: '/terms', label: 'Terms', note: 'Entertainment only — not advice of any kind' },
-    ],
-  },
+];
+
+/** Reference material. Footer only — it is not part of following the season. */
+export const FOOTER_NAV: NavItem[] = [
+  { href: '/faq', label: 'FAQ' },
+  { href: '/methodology', label: 'Methodology' },
+  { href: '/terms', label: 'Terms' },
 ];
 
 /** Paths that describe the rehearsal rather than the live season. */

@@ -31,7 +31,7 @@ export function SiteNav() {
 
         <nav className="hud-groups" aria-label="Main">
           {NAV.map((group) => (
-            <div className="hud-group" key={group.id}>
+            <div className={group.quiet ? 'hud-group quiet' : 'hud-group'} key={group.id}>
               {group.items.map((item) => {
                 const active =
                   item.href === '/' ? pathname === '/' : pathname.startsWith(item.href);
