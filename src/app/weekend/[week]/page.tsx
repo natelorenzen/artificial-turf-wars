@@ -127,30 +127,36 @@ export default async function WeekendGuidePage({
             of them actually said, before the beat writer assembled it.
           </p>
 
+          {/*
+            A quote list, not a table. globals.css has carried the rule since the draft
+            board was built — "model reasoning must never live in a table cell. Long
+            prose in a horizontally scrolling table clips at the viewport edge, so the
+            reader has to drag sideways to read the thing the whole project exists to
+            show" — and this page was the one place still breaking it. Two prose columns
+            at a 520px floor meant every take on the page sat behind a sideways drag.
+          */}
           {[...byGame.entries()].map(([gameKey, gameTakes]) => (
             <div key={gameKey}>
               <h3>{gameTitle(gameKey)}</h3>
-              <div className="scroll compact">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Model</th>
-                      <th>For the novice</th>
-                      <th>For the expert</th>
-                      <th>Conf.</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {gameTakes.map((take) => (
-                      <tr key={`${gameKey}-${take.modelName}`}>
-                        <td>{take.modelName}</td>
-                        <td>{take.novicePoint}</td>
-                        <td>{take.expertPoint}</td>
-                        <td>{take.confidence?.toFixed(2) ?? '—'}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div className="quotes">
+                {gameTakes.map((take) => (
+                  <div className="quote" key={`${gameKey}-${take.modelName}`}>
+                    <div className="who">
+                      {take.modelName}
+                      {take.confidence !== null && <small>conf {take.confidence.toFixed(2)}</small>}
+                    </div>
+                    <div className="said">
+                      <p>
+                        <span className="said-label">For the novice</span>
+                        {take.novicePoint}
+                      </p>
+                      <p>
+                        <span className="said-label">For the expert</span>
+                        {take.expertPoint}
+                      </p>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           ))}

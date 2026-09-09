@@ -675,6 +675,25 @@ a:focus-visible,
 }
 
 /* The quote block had the only working version, and wants no border or offset. */
+/* A take carries TWO prose blocks — one for the novice, one for the expert — so the
+   quote body needs to hold paragraphs rather than a single run of text. Labelled,
+   because unlabelled the two read as one rambling answer instead of the two different
+   questions each model was actually asked. */
+.quote .said p {
+  margin: 0 0 10px;
+}
+.quote .said p:last-child {
+  margin-bottom: 0;
+}
+.said-label {
+  display: block;
+  font-family: var(--font-data);
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--chalk-dim);
+  margin-bottom: 3px;
+}
 .quote .said .tag {
   display: inline;
   margin-left: 0;
