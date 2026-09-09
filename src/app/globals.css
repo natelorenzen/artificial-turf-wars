@@ -2,7 +2,15 @@
 
 /*
  * SPEC §12 — 16-bit console sports broadcast, Genesis-era Madden.
- * Ported from design/look-and-feel.html, which is the reference.
+ *
+ * THIS FILE IS THE DESIGN SOURCE OF TRUTH. It used to say it was "ported from
+ * design/look-and-feel.html, which is the reference", and both of those references are
+ * now wrong in the same direction: the mockup has not been touched since the scaffold
+ * commit on 28 July 2026, and the §12 palette table in SPEC.md was written from it. Both
+ * describe the GREEN ground — --pitch #071A12, --panel #12301F — which this file
+ * deliberately reversed to blue, for the reasons written into the :root block below.
+ * Anyone treating either as authoritative would revert the site to the olive wash that
+ * change exists to fix.
  *
  * The organizing idea: the retro treatment is a broadcast WRAPPER, and model
  * reasoning sits inside it presented plainly — a telestrator overlay on a game feed.

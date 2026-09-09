@@ -65,7 +65,7 @@ season shares one set of NFL luck across all eight teams. The winner is the best
 | 33 | Site pages scattered | **[NEW] §7.4 site map** | v1 had a public-site section; this rewrite lost it. The site is the product. |
 | 34 | "Rational bids are 10–20%" | **[CORRECTED] ~$20–50** | Slot value was compared to roster value; the right comparison is to what FAAB buys. One good waiver add ≈ the whole slot advantage. See §4.2. |
 | 35 | — | **[NEW] Budget must be shared, not split** | Use-it-or-lose-it auction money has no opportunity cost, so every model bids the cap and the auction collapses into randomness. See §4.2. |
-| 36 | — | **[NEW] §12 design system** | Retro 16-bit broadcast direction. Mockup: `design/look-and-feel.html`. |
+| 36 | — | **[NEW] §12 design system** | Retro 16-bit broadcast direction. Palette superseded by `src/app/globals.css`; mockup is historical. |
 | 37 | "Auto-generated recap" | **[NEW] §7.5 weekly wrap with a voice** | Short post + full column, affectionate ribbing, written by a **non-competing** model against a deterministic facts packet with a number check. |
 | 38 | — | **[NEW] §6.4 win probability** | Matchup odds, expected all-play record, playoff odds. Spectator-facing only — models never see them, or they'd be reasoning from our estimator. |
 | 39 | — | **[NEW] §6.5 positional rankings** | Decomposes a team's result into *where* the manager succeeded, and checks the August gameplan against hard numbers. |
@@ -1869,8 +1869,15 @@ reader something real about variance. Best of both, with the honest one load-bea
 
 ## 12. Design system — **[NEW]**
 
-Direction: **16-bit console sports broadcast, Genesis-era Madden.** Live mockup with sample
-data: `design/look-and-feel.html`.
+> **⚠️ The palette table below is SUPERSEDED by `src/app/globals.css`, which is the design
+> source of truth.** The direction and the rules still hold; the hexes do not. This section
+> and `design/look-and-feel.html` both describe a ground biased GREEN, which the site
+> reversed to blue — green now means one thing, the playing surface. The mockup has not
+> been touched since 28 July 2026 and is kept as a historical artifact, not a reference.
+> Read the tokens out of `globals.css`, where each one carries the reasoning for its value.
+
+Direction: **16-bit console sports broadcast, Genesis-era Madden.** Original mockup, now
+historical: `design/look-and-feel.html`.
 
 **The organizing idea: the retro treatment is a broadcast *wrapper*, and model reasoning sits
 inside it presented plainly** — a telestrator overlay on a game feed. Chrome, tables, and
