@@ -125,11 +125,24 @@
     transparent 3px
   );
 }
+/*
+ * The body face is the READING face, not the data face.
+ *
+ * It was monospace, which meant every sentence on this site that did not explicitly say
+ * otherwise was set in it — standfirsts, notices, tile captions, the footer. Mono gives
+ * `i` and `m` the same box, so word shapes stop working and prose reads mechanical and
+ * wide. It is the single biggest reason the site felt heavier than it is.
+ *
+ * §12 already said so: "Data: monospace with tabular-nums on EVERY FIGURE in the
+ * league", "Reading: humanist sans". Mono simply leaked out of the figures and became
+ * the default. Everything that genuinely needs it now names it, so no number column
+ * moves.
+ */
 body {
   margin: 0;
   background-color: var(--pitch);
   color: var(--chalk);
-  font-family: var(--font-data);
+  font-family: var(--font-read);
   font-size: 15px;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
@@ -196,6 +209,7 @@ body {
   }
 }
 .hud-nav {
+  font-family: var(--font-data);
   display: flex;
   gap: 18px;
   flex-wrap: wrap;
@@ -214,6 +228,7 @@ body {
   border-bottom-color: var(--amber);
 }
 .hud-meta {
+  font-family: var(--font-data);
   margin-left: auto;
   display: flex;
   gap: 14px;
@@ -257,13 +272,14 @@ body {
    separators were outshouting the headings they separated. A divider's job is to be
    noticed once and then ignored, so it keeps the pixel-block rhythm and gives up the
    brightness: turf-dark blocks, one amber block at the left as the yard marker. */
+/* A section rule, not a yard marker. This was 6px of amber-then-repeating-green dashes
+   running the full width between EVERY section — the loudest object on most pages, and
+   carrying no information at all. The amber tick survives as the cue; the dashes do
+   not. */
 .yard {
-  height: 6px;
+  height: 2px;
   margin: 44px 0 22px;
-  background-image:
-    linear-gradient(90deg, var(--amber) 0 24px, transparent 24px),
-    repeating-linear-gradient(90deg, var(--turf-lo) 0 10px, transparent 10px 20px);
-  background-repeat: no-repeat, repeat-x;
+  background-image: linear-gradient(90deg, var(--amber) 0 24px, var(--line) 24px);
 }
 
 h1,
@@ -342,14 +358,18 @@ h3 {
   grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
   gap: 14px;
 }
+/* No amber lid. --amber is declared "the single accent — scoreboard LED. Winners,
+   ranks, live state, focus. Nothing else", and a 6px bar across the top of every tile on
+   every page made it the default instead. When the accent is on everything it accents
+   nothing, and a genuine winner had no way to look different from a context window. */
 .tile {
   background: var(--panel);
   border: var(--bd);
   box-shadow: var(--shadow);
-  border-top: 6px solid var(--amber);
   padding: 14px 16px;
 }
 .tile .k {
+  font-family: var(--font-data);
   font-size: 10px;
   letter-spacing: 0.18em;
   text-transform: uppercase;
@@ -387,6 +407,12 @@ table {
 .scroll.compact table {
   min-width: 520px;
 }
+/* A table of two short columns has no business claiming a 720px floor and a sideways
+   drag on a phone. The week's fixtures are eight model names in two columns; on a 390px
+   screen the default floor cut "Muse Spark 1.2" to "use Spark 1.2". */
+.scroll.narrow table {
+  min-width: 0;
+}
 /* No scanline grille here. The header already carries a green ground, an amber rule and
    tracked-out mono caps; a fourth treatment on the same 30 pixels was texture nobody
    could see doing work. The grille now appears once, on the HUD.
@@ -416,6 +442,10 @@ thead th.l {
 tbody td {
   padding: 11px 12px;
   text-align: right;
+  /* Named, not inherited. `tabular-nums` only aligns a column if the face HAS tabular
+     figures, so leaving this to the body font would have silently unaligned every
+     number on the site the moment that font changed. */
+  font-family: var(--font-data);
   font-variant-numeric: tabular-nums;
   border-bottom: 1px solid var(--line);
   white-space: nowrap;
@@ -457,6 +487,7 @@ tbody tr:nth-child(odd) {
 }
 
 .pill {
+  font-family: var(--font-data);
   display: inline-block;
   padding: 3px 9px;
   font-size: 11px;
@@ -850,6 +881,7 @@ a:focus-visible,
 /* Groups are separated by a rule rather than announced by a heading — the structure is
    still legible, and it costs one pixel column instead of a whole row. */
 .hud-group {
+  font-family: var(--font-data);
   display: flex;
   gap: 14px;
   flex-wrap: wrap;
@@ -861,6 +893,17 @@ a:focus-visible,
 .hud-group + .hud-group {
   padding-left: 18px;
   border-left: 2px solid var(--line);
+}
+/* The archive group: same bar, same labels, visibly secondary — so the season running
+   now does not compete with the record of how it got here. Deliberately NOT a dropdown.
+   The rehearsal links live in this group, and hiding a 2025 link behind a hover is
+   exactly the misreading this nav was built to prevent. */
+.hud-group.quiet a {
+  color: #6b76a0;
+}
+.hud-group.quiet a:hover,
+.hud-group.quiet a[aria-current='page'] {
+  color: var(--amber);
 }
 .hud-group a {
   color: var(--chalk-dim);
@@ -1061,6 +1104,17 @@ a:focus-visible,
   text-align: center;
 }
 
+.footer-nav {
+  display: flex;
+  gap: 18px;
+  justify-content: center;
+  flex-wrap: wrap;
+  font-family: var(--font-data);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  margin-bottom: 10px;
+}
 .footer-warn {
   color: #ffb9af;
   border: 2px solid var(--bad);

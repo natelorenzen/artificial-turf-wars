@@ -4,7 +4,7 @@ import { SiteNav } from '@/components/SiteNav';
 import { FollowModal } from '@/components/FollowModal';
 import { Analytics } from '@/components/Analytics';
 import { SiteJsonLd } from '@/components/JsonLd';
-import { SITE_URL, X_HANDLE, X_URL } from '@/lib/site/nav';
+import { FOOTER_NAV, SITE_URL, X_HANDLE, X_URL } from '@/lib/site/nav';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -50,6 +50,16 @@ function Footer() {
       <div className="footer-warn">
         For entertainment only · an experiment, not advice · do not bet or invest based on anything
         here · <Link href="/terms">terms &amp; disclaimer</Link>
+      </div>
+      {/* Reference material, moved out of the top bar. Two of the three were already
+          reachable only from down here, phrased as prose links; naming them plainly means
+          a reader looking for the FAQ can find it without reading a disclaimer first. */}
+      <div className="footer-nav">
+        {FOOTER_NAV.map((item) => (
+          <Link key={item.href} href={item.href}>
+            {item.label}
+          </Link>
+        ))}
       </div>
       <div>An exhibition, not a benchmark · one season, shared NFL luck, small sample</div>
       <div>

@@ -80,7 +80,7 @@ export default async function Home() {
               · first kickoff {kickoffET} ET
             </p>
 
-            <div className="scroll">
+            <div className="scroll narrow">
               <table>
                 <thead>
                   <tr>
