@@ -44,6 +44,34 @@
     {
       "path": "/api/cron/social",
       "schedule": "0 20 * * *"
+    },
+    {
+      "path": "/api/cron/score-live",
+      "schedule": "0 18 * * 0"
+    },
+    {
+      "path": "/api/cron/score-live",
+      "schedule": "0 21 * * 0"
+    },
+    {
+      "path": "/api/cron/score-live",
+      "schedule": "0 0 * * 1"
+    },
+    {
+      "path": "/api/cron/score-live",
+      "schedule": "0 5 * * 1"
+    },
+    {
+      "path": "/api/cron/score-live",
+      "schedule": "0 5 * * 2"
+    },
+    {
+      "path": "/api/cron/score-live",
+      "schedule": "0 5 * * 4"
+    },
+    {
+      "path": "/api/cron/score-live",
+      "schedule": "0 5 * * 5"
     }
   ]
 }

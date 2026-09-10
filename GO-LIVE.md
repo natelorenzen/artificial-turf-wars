@@ -159,6 +159,12 @@ Tuesday after the slate.
   invalid week`. Expect it in the Vercel log; do not fix it. **The one to actually worry
   about is a Thursday firing that answers anything else**, because the only way it reaches
   the claim is if Wednesday never set the lineups at all.
+- **Live scores are new as of 10 September and are NOT part of Gate 2.** They write only
+  to `live_scores`, no job_runs claim, no model calls, and nothing in the league engine
+  reads them. If a `score-live` firing fails, the correct response is to ignore it until
+  Tuesday — it cannot affect a result, and `score-provisional` does not depend on it. The
+  front page falls back to exactly its previous behaviour when the table is empty or
+  absent, which was verified before the migration was applied.
 - Vercel cron delivery is best effort. A missed `lineups` fire is survivable — every team
   already has a deterministic lineup seeded before the first model call — but it should
   be noticed, not discovered in the scores.

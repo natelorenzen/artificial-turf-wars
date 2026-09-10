@@ -46,7 +46,7 @@ export const COST_PER_POST_WITH_URL = 0.2;
  */
 export const LINK_IN_BIO = 'Link in bio.';
 
-export type PostKind = 'results' | 'waivers' | 'weekend' | 'findings' | 'draft';
+export type PostKind = 'results' | 'waivers' | 'weekend' | 'findings' | 'draft' | 'preview';
 
 export interface ComposedPost {
   kind: PostKind;
@@ -231,6 +231,107 @@ export function composeWeekend(input: {
     // that does not show the article yet.
     autoEligible: input.published,
     holdReason: input.published ? null : 'the guide has not been released yet',
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Saturday — the matchup to watch
+// ---------------------------------------------------------------------------
+
+export interface PreviewTeamLine {
+  model: string;
+  /** Standings rank going into this week. Null before any week has been scored. */
+  rank: number | null;
+  /** The week's projected total for the LOCKED lineup, not for the best possible one. */
+  projected: number;
+  /** Points already banked this week — a Thursday-night game — or null. */
+  live: number | null;
+}
+
+export interface PreviewSource {
+  week: number;
+  /**
+   * Which rule picked this matchup. Stated in the post rather than left implicit,
+   * because the two rules answer different questions and a reader deserves to know
+   * which one they are being shown.
+   */
+  basis: 'standings' | 'projection';
+  home: PreviewTeamLine;
+  away: PreviewTeamLine;
+  /** How many fixtures it was chosen from — four, in an eight-team league. */
+  outOf: number;
+}
+
+const ORDINALS = ['', '1st', '2nd', '3rd', '4th', '5th', '6th', '7th', '8th'];
+
+/**
+ * The Saturday post: the matchup worth watching, going into the weekend.
+ *
+ * "Best" is HIGHEST STAKES — the pairing with the lowest combined standings rank, tie
+ * broken by the closest projection. That rule is meaningless in week one, when nothing
+ * has been scored and every team is unranked, so the caller falls back to the closest
+ * matchup on projection and says so in `basis`. Both rules are deterministic and both
+ * are stated in the text; nothing here is a judgement call, and no model writes a word
+ * of it.
+ *
+ * Returns null rather than posting a matchup it cannot describe. A week whose
+ * projections have not been ingested would otherwise compose "0.0 to 0.0", which is
+ * worse than silence.
+ */
+export function composePreview(source: PreviewSource): ComposedPost | null {
+  const { week, basis, home, away, outOf } = source;
+  if (home.projected <= 0 || away.projected <= 0) return null;
+
+  const margin = Math.abs(home.projected - away.projected);
+  const sentences: string[] = [];
+
+  if (basis === 'standings' && home.rank !== null && away.rank !== null) {
+    sentences.push(
+      `${home.model} (${ORDINALS[home.rank] ?? `${home.rank}th`}) meets ` +
+        `${away.model} (${ORDINALS[away.rank] ?? `${away.rank}th`}) — the highest-ranked ` +
+        `pairing on the board, ${home.projected.toFixed(1)} to ${away.projected.toFixed(1)} ` +
+        `on projection.`,
+    );
+  } else {
+    sentences.push(
+      `${home.model} and ${away.model} are ${margin.toFixed(1)} points apart on ` +
+        `projection, the closest of the ${outOf}. No table to rank them by yet.`,
+    );
+  }
+
+  // Points already banked by Saturday, which is the difference between a preview and a
+  // projection nobody can check.
+  //
+  // Deliberately does NOT name the night. The obvious phrasing is "Thursday night is
+  // in", and it is wrong in weeks 1 and 12, which open on a WEDNESDAY — the assumption
+  // this codebase has already been bitten by twice, in `defersToLaterFiring` and in
+  // `resolveScoringWeek`. By Saturday there may also be two games in rather than one.
+  // "On the board" is true whichever nights have been played.
+  const banked = (home.live ?? 0) + (away.live ?? 0);
+  if (home.live !== null && away.live !== null && banked > 0) {
+    const [ahead, behind] =
+      home.live >= away.live ? [home, away] : [away, home];
+    sentences.push(
+      `Already on the board: ${ahead.model} leads ` +
+        `${ahead.live!.toFixed(1)}–${behind.live!.toFixed(1)}.`,
+    );
+  }
+
+  const headline = basis === 'standings' ? `Week ${week}, the one that matters.` : `Week ${week}, the one to watch.`;
+  const full = `${headline}\n\n${sentences.join(' ')}\n\n${LINK_IN_BIO}`;
+  const short = `${headline}\n\n${sentences[0]}\n\n${LINK_IN_BIO}`;
+
+  return finish({
+    kind: 'preview',
+    week,
+    dedupeKey: `preview:${week}`,
+    // Drop the live clause before letting the backstop cut a sentence in half.
+    body: trimToFit(fits(full, null) ? full : short, null),
+    link: null,
+    // Nothing here is model-written and every figure is one the site already shows.
+    // There is no claim a deterministic check could fail.
+    autoEligible: true,
+    holdReason: null,
   });
 }
 

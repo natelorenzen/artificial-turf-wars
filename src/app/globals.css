@@ -476,6 +476,13 @@ tbody tr:nth-child(odd) {
 .lead td {
   background: rgba(255, 192, 46, 0.09);
 }
+/* The side currently ahead in a live matchup.
+   Weight, not colour. These are unofficial in-progress numbers that are overwritten on
+   every refresh, and giving them the amber a result gets would say they were one. */
+.ahead {
+  color: var(--chalk);
+  font-weight: 700;
+}
 .muted {
   color: var(--chalk-dim);
 }

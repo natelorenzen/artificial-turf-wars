@@ -21,6 +21,7 @@ const TABLES = [
   'social_posts', // 0007
   'playoff_seeds', // 0009
   'preseason_stats', // 0010
+  'live_scores', // 0011
 ];
 
 async function main() {
