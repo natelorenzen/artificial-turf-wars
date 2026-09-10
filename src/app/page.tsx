@@ -8,7 +8,12 @@ export const metadata = {
   alternates: { canonical: '/' },
 };
 
-/** The standings are written by a cron job every Tuesday, so this cannot be static. */
+/**
+ * Standings are written every Tuesday and live scores several times a game day, so this
+ * cannot be static. Fifteen minutes is comfortably inside the live refresh cadence —
+ * Vercel Hobby fires a cron anywhere within its hour, so a shorter window here would
+ * only re-render the same numbers.
+ */
 export const revalidate = 900;
 
 export default async function Home() {
@@ -17,6 +22,11 @@ export default async function Home() {
   const [latest] = getAllPosts();
   const snapshot = await loadSeasonSnapshot();
   const current = await loadCurrentWeek();
+
+  // Where the live week would leave the table. Null in week one — there is no prior
+  // table to move within — and null the moment the week is scored for real, at which
+  // point the table itself is the answer.
+  const projected = current?.live?.projected ?? null;
 
   // ET, because every time this league publishes is stated in ET and a kickoff written
   // in the reader's own zone would be the one time on the site that moved.
@@ -70,7 +80,13 @@ export default async function Home() {
             <div className="yard" />
             <h2>
               Week {current.week}
-              {current.scored ? ' · final' : current.kickedOff ? ' · under way' : ' · lineups locked'}
+              {current.scored
+                ? ' · final'
+                : current.live?.complete
+                  ? ' · all games in'
+                  : current.kickedOff
+                    ? ' · under way'
+                    : ' · lineups locked'}
             </h2>
             <p className="sub">
               {current.lineupsSet}/{COHORT.length} lineups set
@@ -85,23 +101,63 @@ export default async function Home() {
                 <thead>
                   <tr>
                     <th className="l">Home</th>
+                    {current.live && <th>Pts</th>}
+                    {current.live && <th>Pts</th>}
                     <th className="l">Away</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {current.fixtures.map((f) => (
-                    <tr key={`${f.home.modelKey}-${f.away.modelKey}`}>
-                      <td className="l tname">
-                        <Link href={`/team/${f.home.modelKey}`}>{f.home.model}</Link>
-                      </td>
-                      <td className="l tname">
-                        <Link href={`/team/${f.away.modelKey}`}>{f.away.model}</Link>
-                      </td>
-                    </tr>
-                  ))}
+                  {current.fixtures.map((f) => {
+                    // Only mark a leader once BOTH sides have a number. Ahead 40-0
+                    // because the other team's players kick off tomorrow is not
+                    // leading, and bolding it would say it was.
+                    const both = f.home.livePoints !== null && f.away.livePoints !== null;
+                    const homeAhead = both && f.home.livePoints! > f.away.livePoints!;
+                    const awayAhead = both && f.away.livePoints! > f.home.livePoints!;
+                    return (
+                      <tr key={`${f.home.modelKey}-${f.away.modelKey}`}>
+                        <td className="l tname">
+                          <Link href={`/team/${f.home.modelKey}`}>{f.home.model}</Link>
+                        </td>
+                        {current.live && (
+                          <td className={homeAhead ? 'ahead' : 'muted'}>
+                            {f.home.livePoints === null ? '—' : f.home.livePoints.toFixed(1)}
+                          </td>
+                        )}
+                        {current.live && (
+                          <td className={awayAhead ? 'ahead' : 'muted'}>
+                            {f.away.livePoints === null ? '—' : f.away.livePoints.toFixed(1)}
+                          </td>
+                        )}
+                        <td className="l tname">
+                          <Link href={`/team/${f.away.modelKey}`}>{f.away.model}</Link>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
+
+            {/* Said plainly, wherever these numbers appear. They are a courtesy to
+                somebody watching on a Sunday afternoon, they are overwritten on every
+                refresh, and no standing, record, FAAB balance or bracket seed is
+                derived from them. */}
+            {current.live && (
+              <p className="sub" style={{ marginTop: 10 }}>
+                Live · {current.live.startersPlayed}/{current.live.startersTotal} starters have
+                played · updated{' '}
+                {new Intl.DateTimeFormat('en-US', {
+                  hour: 'numeric',
+                  minute: '2-digit',
+                  timeZone: 'America/New_York',
+                }).format(new Date(current.live.computedAt))}{' '}
+                ET.{' '}
+                {current.live.complete
+                  ? 'Every game is in. These become official on Tuesday.'
+                  : 'Unofficial and still moving — the week is scored on Tuesday.'}
+              </p>
+            )}
 
             <p className="lede-copy" style={{ marginTop: 14 }}>
               {current.guide && (
@@ -147,6 +203,7 @@ export default async function Home() {
             <p className="sub">
               Through week {snapshot.throughWeek} · head-to-head ranks · top {snapshot.playoffSpots}{' '}
               make the playoffs
+              {projected && ` · "if" is week ${current!.week} as it stands right now`}
             </p>
 
             <div className="scroll">
@@ -158,24 +215,40 @@ export default async function Home() {
                     <th>Record</th>
                     <th>All-play</th>
                     <th>Points for</th>
+                    {projected && <th>If</th>}
                   </tr>
                 </thead>
                 <tbody>
-                  {snapshot.table.map((row) => (
-                    <tr key={row.modelKey}>
-                      <td>
-                        {row.rank}
-                        {/* Co-ranked teams are declared, never separated by a coin flip. */}
-                        {row.coRanked && <span className="tag">tied</span>}
-                      </td>
-                      <td className="l tname">
-                        <Link href={`/team/${row.modelKey}`}>{row.model}</Link>
-                      </td>
-                      <td>{row.record}</td>
-                      <td className="muted">{row.allPlay}</td>
-                      <td className="muted">{row.pointsFor}</td>
-                    </tr>
-                  ))}
+                  {snapshot.table.map((row) => {
+                    const move = projected?.[row.modelKey] ?? null;
+                    return (
+                      <tr key={row.modelKey}>
+                        <td>
+                          {row.rank}
+                          {/* Co-ranked teams are declared, never separated by a coin flip. */}
+                          {row.coRanked && <span className="tag">tied</span>}
+                        </td>
+                        <td className="l tname">
+                          <Link href={`/team/${row.modelKey}`}>{row.model}</Link>
+                        </td>
+                        <td>{row.record}</td>
+                        <td className="muted">{row.allPlay}</td>
+                        <td className="muted">{row.pointsFor}</td>
+                        {/* The live week folded in, ranked on the same basis the engine
+                            uses so a projected move never has a cause the real table
+                            would not have. Nothing here is stored. */}
+                        {projected && (
+                          <td className={move && move.delta > 0 ? 'pos' : move && move.delta < 0 ? 'neg' : 'muted'}>
+                            {move === null
+                              ? '—'
+                              : move.delta === 0
+                                ? `${move.rank}`
+                                : `${move.rank} ${move.delta > 0 ? '▲' : '▼'}${Math.abs(move.delta)}`}
+                          </td>
+                        )}
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

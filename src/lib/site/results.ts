@@ -16,6 +16,8 @@ import { supabase, SUPABASE_CONFIGURED } from '@/lib/supabase';
 import { buildWrapFacts, type WrapFacts, type WrapTeamFacts } from '@/lib/weekly/wrap';
 import { FINAL_WEEK, isPlayoffWeek, SEMIFINAL_WEEK } from '@/lib/engine/bracket';
 import { loadBracket } from '@/lib/playoffs/state';
+import { completedWeek } from '@/lib/scoring/week';
+import { projectTable, type ProjectionTeam } from '@/lib/scoring/live';
 
 /**
  * Which season the site shows.
@@ -374,11 +376,48 @@ export async function loadSeasonSnapshot(season = SEASON): Promise<SeasonSnapsho
 export interface CurrentWeekTeam {
   model: string;
   modelKey: string;
+  /**
+   * Live points, while a slate is being played and before it has been scored.
+   *
+   * Null means no live row — before kickoff, or once Tuesday has made the week a
+   * result and `/results/{week}` is the place to read it. Never authoritative: see the
+   * header of `supabase/migrations/0011_live_scores.sql`.
+   */
+  livePoints: number | null;
+  /** Starters with a Sleeper line yet, of the nine slots. */
+  startersPlayed: number;
 }
 
 export interface CurrentWeekFixture {
   home: CurrentWeekTeam;
   away: CurrentWeekTeam;
+}
+
+/** What a live week would do to the table, if it ended right now. */
+export interface ProjectedRank {
+  rank: number;
+  /** Positive is a climb. Zero means the live week does not move this team. */
+  delta: number;
+}
+
+export interface LiveWeekState {
+  /** When the numbers were last refreshed, ISO. */
+  computedAt: string;
+  /**
+   * True when every game of the week is over — the overnight state, where the totals
+   * have stopped moving and Tuesday has not yet made them official. Worth separating
+   * from "under way", because "live" beside a number that cannot change is a lie.
+   */
+  complete: boolean;
+  /** Of the eight teams × nine slots. */
+  startersPlayed: number;
+  startersTotal: number;
+  /**
+   * Where each team would sit if the week ended now, keyed by model key. Null before
+   * any week has been scored, because there is no prior table to move within — in week
+   * one the live points ARE the whole story and the fixtures carry it.
+   */
+  projected: Record<string, ProjectedRank> | null;
 }
 
 export interface CurrentWeekView {
@@ -403,6 +442,8 @@ export interface CurrentWeekView {
   guide: { week: number; headline: string } | null;
   /** True once this week has been scored, i.e. it is history rather than in progress. */
   scored: boolean;
+  /** Present only while the week is being played and has not been scored. */
+  live: LiveWeekState | null;
 }
 
 /**
@@ -466,11 +507,35 @@ export async function loadCurrentWeek(season = SEASON): Promise<CurrentWeekView 
     models: { key: string; display_name: string };
   }[];
   const byId = new Map(teams.map((t) => [t.id, t]));
+
+  // Live scores, if a refresh has written any for this week. Absent is the normal
+  // state for most of the week and is not an error — before the first kickoff there is
+  // nothing to show, and after Tuesday `/results/{week}` is the place to read it.
+  const { data: liveRows } = await supabase
+    .from('live_scores')
+    .select('team_id, total_pts, starters_played, starters_total, computed_at')
+    .eq('week', week)
+    .in('team_id', teamIds);
+  const live = new Map(
+    (liveRows ?? []).map((r) => [
+      r.team_id as string,
+      {
+        total: Number(r.total_pts),
+        played: Number(r.starters_played ?? 0),
+        total_slots: Number(r.starters_total ?? 0),
+        computedAt: r.computed_at as string,
+      },
+    ]),
+  );
+
   const named = (teamId: string): CurrentWeekTeam => {
     const team = byId.get(teamId);
+    const score = live.get(teamId);
     return {
       model: team?.models.display_name ?? 'Unknown',
       modelKey: team?.models.key ?? '',
+      livePoints: score ? score.total : null,
+      startersPlayed: score ? score.played : 0,
     };
   };
 
@@ -508,6 +573,7 @@ export async function loadCurrentWeek(season = SEASON): Promise<CurrentWeekView 
     .eq('week', week)
     .in('team_id', teamIds)
     .limit(1);
+  const scored = (scoredRow ?? []).length > 0;
 
   return {
     week,
@@ -519,6 +585,105 @@ export async function loadCurrentWeek(season = SEASON): Promise<CurrentWeekView 
     guide: guideRow
       ? { week: guideRow.week as number, headline: guideRow.headline as string }
       : null,
-    scored: (scoredRow ?? []).length > 0,
+    scored,
+    // Once a week is scored it is a result, and a stale live row beside the official
+    // number would be the site disagreeing with itself in public.
+    live:
+      scored || live.size === 0
+        ? null
+        : {
+            computedAt: [...live.values()]
+              .map((v) => v.computedAt)
+              .sort()
+              .at(-1)!,
+            complete: await weekIsComplete(season, week, now),
+            startersPlayed: [...live.values()].reduce((sum, v) => sum + v.played, 0),
+            startersTotal: [...live.values()].reduce((sum, v) => sum + v.total_slots, 0),
+            projected: await projectRanks(teamIds, byId, fixtures, live, week),
+          },
   };
+}
+
+/**
+ * Whether every game of the week has been played, for labelling only.
+ *
+ * The site says "under way" or "all games in" on the strength of this, and the two
+ * read very differently beside a total. Uses the same four-hour game length the
+ * scoring resolver does, via the same function, so the page and the job cannot
+ * disagree about when a week ended.
+ */
+async function weekIsComplete(season: number, week: number, now: Date): Promise<boolean> {
+  const { data } = await supabase
+    .from('nfl_games')
+    .select('week, kickoff_at')
+    .eq('season', season)
+    .eq('season_type', 'regular')
+    .eq('week', week)
+    .not('kickoff_at', 'is', null);
+
+  const kickoffs = (data ?? []).map((row) => ({
+    week: row.week as number,
+    kickoffAt: new Date(row.kickoff_at as string),
+  }));
+  if (kickoffs.length === 0) return false;
+  return completedWeek(kickoffs, now) === week;
+}
+
+/**
+ * Where the table would stand if the live week ended right now.
+ *
+ * Ranked the way the engine ranks — head-to-head, a tie worth half a win, points-for
+ * as the tiebreak — because a projection ordered on a different basis from the real
+ * table would move teams for reasons the real table would not.
+ *
+ * Returns null before any week has been scored. That is not a failure case: in week
+ * one there is no prior table for a team to move within, so a "projected rank" would
+ * just be this week's points wearing a rank's clothes, and the fixtures already say
+ * that honestly.
+ */
+async function projectRanks(
+  teamIds: string[],
+  byId: Map<string, { id: string; models: { key: string; display_name: string } }>,
+  fixtures: CurrentWeekFixture[],
+  live: Map<string, { total: number }>,
+  week: number,
+): Promise<Record<string, ProjectedRank> | null> {
+  const { data: rows } = await supabase
+    .from('standings')
+    .select('team_id, week, h2h_w, h2h_t, cum_pts, rank')
+    .in('team_id', teamIds)
+    .lt('week', week)
+    .order('week', { ascending: true });
+  if (!rows || rows.length === 0) return null;
+
+  const throughWeek = Math.max(...rows.map((r) => r.week as number));
+  const teams: ProjectionTeam[] = rows
+    .filter((row) => (row.week as number) === throughWeek)
+    .map((row) => ({
+      teamId: row.team_id as string,
+      h2hW: Number(row.h2h_w ?? 0),
+      h2hT: Number(row.h2h_t ?? 0),
+      cumPts: Number(row.cum_pts ?? 0),
+      rank: Number(row.rank ?? 0),
+    }));
+  if (teams.length === 0) return null;
+
+  const keyToId = new Map([...byId.values()].map((t) => [t.models.key, t.id]));
+  const places = projectTable({
+    teams,
+    fixtures: fixtures
+      .map((f) => ({
+        homeTeamId: keyToId.get(f.home.modelKey) ?? '',
+        awayTeamId: keyToId.get(f.away.modelKey) ?? '',
+      }))
+      .filter((f) => f.homeTeamId && f.awayTeamId),
+    live: new Map([...live].map(([teamId, v]) => [teamId, v.total])),
+  });
+
+  const out: Record<string, ProjectedRank> = {};
+  for (const [teamId, place] of places) {
+    const key = byId.get(teamId)?.models.key;
+    if (key) out[key] = place;
+  }
+  return out;
 }

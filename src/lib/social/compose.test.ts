@@ -5,6 +5,7 @@ import {
   COST_PER_POST_WITH_URL,
   composeDraft,
   composeFinding,
+  composePreview,
   composeResults,
   composeWaivers,
   composeWeekend,
@@ -233,5 +234,105 @@ describe('cost', () => {
     ];
     expect(week.every((p) => p.link === null)).toBe(true);
     expect(estimateCost(week)).toBeCloseTo(0.045, 3);
+  });
+});
+
+describe('composePreview', () => {
+  const line = (over: Partial<Parameters<typeof composePreview>[0]['home']> & { model: string }) => ({
+    rank: null,
+    projected: 110,
+    live: null,
+    ...over,
+  });
+
+  it('names the ranks and calls it the highest-ranked pairing, on the standings basis', () => {
+    const post = composePreview({
+      week: 6,
+      basis: 'standings',
+      outOf: 4,
+      home: line({ model: 'Gemini 3.1 Pro', rank: 1, projected: 118.4 }),
+      away: line({ model: 'Muse Spark 1.2', rank: 2, projected: 117.9 }),
+    })!;
+
+    expect(post.kind).toBe('preview');
+    expect(post.week).toBe(6);
+    expect(post.dedupeKey).toBe('preview:6');
+    expect(post.body).toContain('Gemini 3.1 Pro (1st)');
+    expect(post.body).toContain('Muse Spark 1.2 (2nd)');
+    expect(post.body).toContain('highest-ranked pairing');
+    expect(post.body).toContain('118.4 to 117.9');
+  });
+
+  it('falls back to the closest projection, and SAYS there is no table yet', () => {
+    const post = composePreview({
+      week: 1,
+      basis: 'projection',
+      outOf: 4,
+      home: line({ model: 'Grok 4.6', projected: 120.0 }),
+      away: line({ model: 'Kimi K3', projected: 119.5 }),
+    })!;
+
+    // The rule that picked it is stated, so a reader is never guessing which
+    // question the post is answering.
+    expect(post.body).toContain('0.5 points apart on projection');
+    expect(post.body).toContain('closest of the 4');
+    expect(post.body).toContain('No table to rank them by yet');
+    expect(post.body).not.toContain('(1st)');
+  });
+
+  it('reports points already banked WITHOUT naming the night', () => {
+    const post = composePreview({
+      week: 1,
+      basis: 'projection',
+      outOf: 4,
+      home: line({ model: 'Grok 4.6', projected: 120.0, live: 18.2 }),
+      away: line({ model: 'Kimi K3', projected: 119.5, live: 4.1 }),
+    })!;
+
+    expect(post.body).toContain('Already on the board: Grok 4.6 leads 18.2');
+    // Weeks 1 and 12 open on a Wednesday. Naming the night would be wrong in both.
+    expect(post.body).not.toContain('Thursday');
+  });
+
+  it('says nothing about live points when neither side has any yet', () => {
+    const post = composePreview({
+      week: 1,
+      basis: 'projection',
+      outOf: 4,
+      home: line({ model: 'Grok 4.6', projected: 120.0, live: 0 }),
+      away: line({ model: 'Kimi K3', projected: 119.5, live: 0 }),
+    })!;
+
+    expect(post.body).not.toContain('Already on the board');
+  });
+
+  it('refuses to post a matchup it cannot describe', () => {
+    // Projections not ingested for the week. Silence beats "0.0 to 0.0".
+    expect(
+      composePreview({
+        week: 3,
+        basis: 'standings',
+        outOf: 4,
+        home: line({ model: 'Grok 4.6', rank: 1, projected: 0 }),
+        away: line({ model: 'Kimi K3', rank: 2, projected: 0 }),
+      }),
+    ).toBeNull();
+  });
+
+  it('fits inside the post limit, carries no link, and needs no human', () => {
+    const post = composePreview({
+      week: 12,
+      basis: 'standings',
+      outOf: 4,
+      home: line({ model: 'DeepSeek V4 Pro 0813', rank: 1, projected: 131.4, live: 22.6 }),
+      away: line({ model: 'GPT-5.6 Sol', rank: 2, projected: 129.8, live: 15.2 }),
+    })!;
+
+    expect(fits(post.body, post.link)).toBe(true);
+    expect(post.link).toBeNull();
+    expect(post.estCostUsd).toBe(COST_PER_POST);
+    // Nothing here is model-written, so there is no claim a check could fail.
+    expect(post.autoEligible).toBe(true);
+    expect(post.holdReason).toBeNull();
   });
 });

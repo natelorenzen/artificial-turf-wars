@@ -94,6 +94,15 @@ client in server-side routes.
    models as `last_season_points`. Use `seasonPointsByPlayer` in
    `src/lib/scoring/week.ts`, which takes final where it exists and provisional where
    it does not.
+3c. **Live scores live in `live_scores`, never as a third `player_stats` status.**
+   Both unique keys would accept `status = 'live'` without a schema change, which is
+   what makes it dangerous: `loadPoints`, `seasonPointsByPlayer` and `writeCorrections`
+   all bucket with `row.status === 'final' ? final : provisional`, so every one of them
+   would read a live row as a published provisional score — Tuesday's official numbers
+   computed off a half-finished Sunday, season totals double-counted, and Thursday's
+   published correction diff comparing final against a third-quarter snapshot. Nothing
+   in the league engine reads `live_scores`, and the live job stops writing about a week
+   the moment it is officially scored.
 4. **Every stat read defaults to 0.** Sleeper omits keys instead of returning zero;
    `stats.safe * 2` on a defense with no safety yields `NaN` and silently poisons a
    score. Use `n(stats, key)` — never index raw stats directly.
@@ -194,6 +203,7 @@ src/
   lib/
     config/league.ts      # ← source of truth: rules, scoring, cohort
     scoring/engine.ts     # raw Sleeper stats → our points
+    scoring/live.ts       #   ← in-progress scores. Own table, own path, never authoritative
     sleeper/              # HTTP client + ingest jobs, snapshot + hash
     prompt/               # rulebook generator, system prompt, memory, hashing
       context.ts          #   ← v3: opponent view, lookahead, standings, draft board
@@ -257,6 +267,9 @@ See `.env.local.example`. Server-only secrets (`SUPABASE_SERVICE_ROLE_KEY`,
 | `0 16 * * 3` | Wed 12:00 | Waiver resolution |
 | `0 15 * * 4` | Thu 11:00 | Final re-score, publish stat-correction diff |
 | `0 16 * * 4` | Thu 12:00 | Lineup calls for week N+1, then lock |
+| `0 18 * * 0`, `0 21 * * 0`, `0 0 * * 1` | Sun 14:00, 17:00, 20:00 | Live scores |
+| `0 5 * * 1`, `0 5 * * 2` | Mon 01:00, Tue 01:00 | Live scores — after the Sunday slate, after MNF |
+| `0 5 * * 4`, `0 5 * * 5` | Thu 01:00, Fri 01:00 | Live scores — after a Wednesday opener, after TNF |
 
 US DST ends **1 Nov 2026, mid-Week 9**, so every fixed UTC cron shifts an hour
 against kickoff. Two defenses, both required: ≥4 hours of slack before the event a
@@ -270,6 +283,14 @@ frequency cap is satisfied by our one daily + six weekly entries. Hobby's functi
 scheduling precision: it fires anywhere within the specified hour (±59 min), which
 our ≥4h slack absorbs and the kickoff guard would catch anyway. Upgrade to Pro for
 per-minute precision if that margin ever feels thin.
+
+**Live scores are seven entries on one path, not a frequent schedule.** Hobby's
+once-per-day cap is per ENTRY, so `0 18 * * 0` and `0 21 * * 0` are two legal daily
+schedules rather than one illegal two-hourly one — the same trick `lineups` already uses
+for its Wednesday/Thursday pair. The ±59 min jitter is why the site prints the time the
+numbers were computed rather than implying they are current to the minute. Every hour is
+chosen to survive the 1 Nov DST shift in the direction that matters: `0 5 * * 2` is Tue
+01:00 ET now and Tue 00:00 ET in November, both comfortably after Monday night ends.
 
 **Cron paths must not carry query strings.** Vercel documents distinguishing two
 schedules on one path via the `x-vercel-cron-schedule` header, not via a query
@@ -309,6 +330,7 @@ each was closed. When any of the three disagree about status, believe `GO-LIVE.m
 | Preseason data | **done** *(16 Aug)* — `preseason_stats`, manual stage, labelled in the briefing for what it is worth |
 | 7 — weekly jobs | **all 8 routes exist and have run on rehearsal data**; none has fired on a week that counts. Every backward-looking firing of 2026 re-simulated 4 Sept: 48 firings, all on a finished week |
 | 8–12 — site, standings, share card | **done** — findings, weekend guide, standings, `/results/[week]` incl. playoff rounds, `/ratings`, OG cards, methodology |
+| Live scores + Saturday preview post | **built 10 Sept**, migration `0011` pending. Front page shows in-progress matchup scores and projected table movement; the social queue composes a Saturday "highest stakes" post |
 | Playoffs (§14.5, weeks 15–16) | **done and rehearsed** *(14 Aug)* — bracket, pool, champion |
 | Social | **live** — @PlayATW, and the queue has auto-released on its own three times (17, 24, 27 Aug). The held draft post sat with its `hold_reason` until released by hand, which is both halves of the behaviour working |
 
