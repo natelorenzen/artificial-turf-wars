@@ -245,6 +245,8 @@ each as a draft and a human reads it and releases it, which is the only manual s
 a week:
 
 ```bash
+npx tsx --env-file=.env.local scripts/health.ts                        # did the jobs run?
+npx tsx --env-file=.env.local scripts/health.ts --at 2026-09-15T18:00:00Z  # as of a moment
 npx tsx --env-file=.env.local scripts/publish.ts                       # what is waiting
 npx tsx --env-file=.env.local scripts/publish.ts --guide --week 1      # read it in full
 npx tsx --env-file=.env.local scripts/publish.ts --guide --week 1 --release
@@ -330,7 +332,7 @@ each was closed. When any of the three disagree about status, believe `GO-LIVE.m
 | Preseason data | **done** *(16 Aug)* — `preseason_stats`, manual stage, labelled in the briefing for what it is worth |
 | 7 — weekly jobs | **all 8 routes exist and have run on rehearsal data**; none has fired on a week that counts. Every backward-looking firing of 2026 re-simulated 4 Sept: 48 firings, all on a finished week |
 | 8–12 — site, standings, share card | **done** — findings, weekend guide, standings, `/results/[week]` incl. playoff rounds, `/ratings`, OG cards, methodology |
-| Live scores + Saturday preview post | **built 10 Sept**, migration `0011` pending. Front page shows in-progress matchup scores and projected table movement; the social queue composes a Saturday "highest stakes" post |
+| Live scores + Saturday preview post | **live** — `0011_live_scores` applied, and the job has written real week-1 rows (8 teams, Wed+Thu games in). Front page shows in-progress matchup scores and projected table movement; the social queue composes a Saturday "highest stakes" post, which first fires unattended **Sat 12 Sept** |
 | Playoffs (§14.5, weeks 15–16) | **done and rehearsed** *(14 Aug)* — bracket, pool, champion |
 | Social | **live** — @PlayATW, and the queue has auto-released on its own three times (17, 24, 27 Aug). The held draft post sat with its `hold_reason` until released by hand, which is both halves of the behaviour working |
 
@@ -352,7 +354,40 @@ src/lib/weekly/
 src/lib/cron/
   upcoming.ts  # the lead-time guard: refuse a week that does not kick off within 7 days
   job-run.ts   # claim before you spend
+  health.ts    # ← did the jobs that should have run, run? Served at /api/health
 ```
+
+### The watchdog
+
+`/api/health` answers one question: did every job that was due leave the evidence it
+owed? Nothing answered it before, and the failure it exists for has already happened
+once — the `CCRON_SECRET` typo, which 500'd every route before it did any work and went
+unnoticed for weeks.
+
+Two rules keep it honest, and both matter more than the checking logic:
+
+1. **It never re-derives the schedule.** `WATCHED` holds the cron expressions verbatim
+   from `vercel.json` and `health.test.ts` fails if the two drift — the same mechanical
+   check the rulebook gets against `league.ts`.
+2. **It asks the jobs' own resolvers** (`resolveScoringWeek`, `resolveUpcomingWeek`,
+   `resolveLiveWeek`) which week each job was due to act on, so a job that correctly
+   stood down is `idle`, never `late`. A watchdog that cries wolf is one nobody reads,
+   which is how the typo survived in the first place.
+
+Forward-looking deadlines anchor on the week's FIRST kickoff, looked up explicitly —
+**not** `upcoming.firstKickoff`, which is the next kickoff ahead of *now* and walks the
+deciding firing forward a day when asked mid-week. That bug reported week 1, a Wednesday
+opener, as having been decided on the Thursday.
+
+The route is public and unauthenticated on purpose: it has to be readable when the cron
+secret is the broken thing, and it returns 200 even when unhealthy so a monitor blames
+the job rather than the watchdog. `state` is one of `ok`, `idle`, `unverifiable`, `late`,
+`stuck`. Only the last two are problems. `stuck` is not self-healing — `claimJobRun` has
+no lease, so a human must clear the row.
+
+The social job is deliberately `unverifiable`: composing nothing is the correct outcome
+on most days, so a quiet day and a dead job are identical from outside. Only a stuck
+release queue is detectable, and that is what it checks.
 
 ## Deviations taken during the build
 
