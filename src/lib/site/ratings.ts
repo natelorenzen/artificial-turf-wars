@@ -36,9 +36,9 @@ import {
 } from '@/lib/engine/calibration';
 import { loadWeeklyTotals } from '@/lib/scoring/week';
 import { LAST_LEAGUE_WEEK } from '@/lib/engine/bracket';
-import { optimalLineup, type LineupPlayer } from '@/lib/engine/lineup';
+import { lineupPlayerIds } from '@/lib/engine/lineup';
+import { autopilotLineup, loadLockedWeek, type LockedWeek } from '@/lib/weekly/autopilot';
 import { decisionScore, type DecisionScore, type WeeklyDelta } from '@/lib/engine/decision-score';
-import type { Position } from '@/lib/config/league';
 import { SEASON } from './results';
 
 /**
@@ -74,10 +74,17 @@ async function fetchAll<T>(
  * The deterministic manager every model is measured against.
  *
  * Not a hypothetical. It is the same best-projection lineup the cron seeds for all
- * eight teams BEFORE the first model call, reconstructed here from the roster each team
- * actually held that week and then scored with what those players really did. The
- * difference between it and the model's own lineup is the part of the week the model
- * chose — the same roster, the same opponent, the same variance, subtracted away.
+ * eight teams BEFORE the first model call, replayed from the roster, projections,
+ * injury tags and byes in that week's stored prompts, then scored with what those
+ * players really did. The difference between it and the model's own lineup is the part
+ * of the week the model chose — the same roster, the same opponent, the same variance,
+ * subtracted away.
+ *
+ * It used to be rebuilt from `player_projections`, which the daily ingest rewrites for a
+ * locked week until its last game kicks off. Week 1 of 2026 was graded on projections
+ * from five days after lock, and four of eight teams got the wrong number — one of them
+ * a model that had simply started its top projection everywhere, charged −33.1 for it.
+ * See `src/lib/weekly/autopilot.ts`.
  */
 async function baselineDeltas(
   seasonId: string,
@@ -87,56 +94,38 @@ async function baselineDeltas(
 ): Promise<Map<string, WeeklyDelta[]>> {
   const out = new Map<string, WeeklyDelta[]>(teamIds.map((id) => [id, []]));
 
-  const { data: rosterRows } = await supabase
-    .from('rosters')
-    .select('team_id, player_id, acquired_week, dropped_week, players!inner(position)')
-    .in('team_id', teamIds);
-  const rosters = (rosterRows ?? []) as unknown as {
-    team_id: string;
-    player_id: string;
-    acquired_week: number | null;
-    dropped_week: number | null;
-    players: { position: Position };
-  }[];
-  if (rosters.length === 0) return out;
+  const weeks = [...new Set([...totals.values()].flatMap((byWeek) => [...byWeek.keys()]))]
+    .filter((week) => week <= LAST_LEAGUE_WEEK)
+    .sort((a, b) => a - b);
+  const locked = new Map<number, LockedWeek>();
+  for (const week of weeks) locked.set(week, await loadLockedWeek(supabase, week, teamIds, seasonId));
 
-  // Only rostered players are ever needed, which keeps this to a couple of thousand
-  // rows rather than the whole projection board for every week of the season.
-  const playerIds = [...new Set(rosters.map((r) => r.player_id))];
+  // Only players some lineup could have started are ever needed.
+  const playerIds = [
+    ...new Set(
+      [...locked.values()].flatMap((w) => [...w.rosterOf.values()].flat().map((entry) => entry.player_id)),
+    ),
+  ];
+  if (playerIds.length === 0) return out;
 
-  const projRows = await fetchAll<{ player_id: string; week: number; proj_pts: number | null }>(
-    (from, to) =>
-      supabase
-        .from('player_projections')
-        .select('player_id, week, proj_pts')
-        .eq('season', season)
-        .not('week', 'is', null)
-        .in('player_id', playerIds)
-        .order('id', { ascending: true })
-        .range(from, to),
-  );
-
-  const actualRows = await fetchAll<{
-    player_id: string;
-    week: number;
-    computed_pts: number | null;
-    status: string;
-  }>((from, to) =>
-    supabase
-      .from('player_stats')
-      .select('player_id, week, computed_pts, status')
-      .eq('season', season)
-      .in('player_id', playerIds)
-      // Ordered so `final` is seen before `provisional` for the same player-week, and
-      // paged on a unique column so rows cannot shuffle between requests.
-      .order('status', { ascending: true })
-      .order('id', { ascending: true })
-      .range(from, to),
-  );
-
-  const projected = new Map<string, number>();
-  for (const row of projRows) {
-    projected.set(`${row.player_id}:${row.week}`, Number(row.proj_pts ?? 0));
+  const actualRows: { player_id: string; week: number; computed_pts: number | null; status: string }[] = [];
+  for (let start = 0; start < playerIds.length; start += 200) {
+    const slice = playerIds.slice(start, start + 200);
+    actualRows.push(
+      ...(await fetchAll<{ player_id: string; week: number; computed_pts: number | null; status: string }>(
+        (from, to) =>
+          supabase
+            .from('player_stats')
+            .select('player_id, week, computed_pts, status')
+            .eq('season', season)
+            .in('player_id', slice)
+            // Ordered so `final` is seen before `provisional` for the same player-week, and
+            // paged on a unique column so rows cannot shuffle between requests.
+            .order('status', { ascending: true })
+            .order('id', { ascending: true })
+            .range(from, to),
+      )),
+    );
   }
 
   // Final beats provisional for the same player-week, exactly as the scoring engine
@@ -151,44 +140,20 @@ async function baselineDeltas(
   }
 
   for (const teamId of teamIds) {
-    const mine = rosters.filter((r) => r.team_id === teamId);
-
-    for (let week = 1; week <= LAST_LEAGUE_WEEK; week++) {
+    for (const week of weeks) {
       const modelPts = totals.get(teamId)?.get(week)?.total;
       // No score means the week was never played or never scored. Not a zero.
       if (modelPts === undefined) continue;
 
-      // The roster as it stood that week: acquired by then, not yet dropped.
-      const held = mine.filter(
-        (r) =>
-          (r.acquired_week ?? 0) <= week &&
-          (r.dropped_week === null || r.dropped_week > week),
-      );
-      if (held.length === 0) continue;
+      const roster = locked.get(week)?.rosterOf.get(teamId);
+      // No stored prompt shows this roster, so there is nothing honest to replay.
+      if (!roster || roster.length === 0) continue;
 
-      const byProjection: LineupPlayer[] = held.map((r) => ({
-        playerId: r.player_id,
-        position: r.players.position,
-        points: projected.get(`${r.player_id}:${week}`) ?? 0,
-      }));
-
-      // Chosen on PROJECTION — that is the decision the sort would have made — then
-      // paid out at ACTUAL points, which is the week that really happened.
-      const chosen = optimalLineup(byProjection).lineup;
-      const startedIds = [
-        chosen.qb,
-        ...chosen.rb,
-        ...chosen.wr,
-        chosen.te,
-        chosen.flex,
-        chosen.k,
-        chosen.def,
-      ].filter((id): id is string => Boolean(id));
-
-      const baselinePts = startedIds.reduce(
-        (sum, id) => sum + (actual.get(`${id}:${week}`) ?? 0),
-        0,
-      );
+      // Chosen on the projections the models saw — the decision the sort would have
+      // made — then paid out at ACTUAL points, which is the week that really happened.
+      const baselinePts = lineupPlayerIds(autopilotLineup(roster))
+        .filter((id): id is string => Boolean(id))
+        .reduce((sum, id) => sum + (actual.get(`${id}:${week}`) ?? 0), 0);
 
       out.get(teamId)!.push({ week, modelPts, baselinePts: Number(baselinePts.toFixed(2)) });
     }

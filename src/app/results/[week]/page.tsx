@@ -4,6 +4,8 @@ import type { Metadata } from 'next';
 import { renderMarkdown } from '@/lib/blog/render';
 import { absoluteUrl } from '@/lib/site/nav';
 import { loadWeekResults, roundLabel, scoredWeeks } from '@/lib/site/results';
+import { loadFixtureLinks, loadMatchup, signed, weekBrief, type MatchupView } from '@/lib/site/matchup';
+import { Scoreboard } from '@/components/Scoreboard';
 
 /** Written by a cron job every Tuesday, so nothing here can be baked at build time. */
 export const revalidate = 900;
@@ -55,6 +57,18 @@ export default async function WeekResultsPage({
   const { facts, matchups, recap, playoff } = results;
   const column = recap?.published ? renderMarkdown(recap.columnMd).html : null;
 
+  // Every game as a box score. Four fixtures, so four loads — cached with the page.
+  const fixtures = await loadFixtureLinks(results.week);
+  const views = (await Promise.all(fixtures.map((f) => loadMatchup(results.week, f.slug)))).filter(
+    (v): v is MatchupView => v !== null,
+  );
+  const brief = weekBrief({ views, luck: playoff ? [] : facts.luck });
+  const factsOf = new Map(facts.teams.map((t) => [t.model, t]));
+  const closestKey = matchups[0] ? [matchups[0].winner.model, matchups[0].loser.model].sort().join('|') : null;
+  const prevWeek = results.week > 1 ? results.week - 1 : null;
+  const weeks = await scoredWeeks();
+  const nextWeek = weeks.includes(results.week + 1) ? results.week + 1 : null;
+
   return (
     <main className="wrap">
       <div className="yard" />
@@ -86,66 +100,99 @@ export default async function WeekResultsPage({
         </div>
       )}
 
-      <h2>Results</h2>
-      <div className="scroll">
-        <table>
-          <thead>
-            <tr>
-              {playoff && <th className="l">Round</th>}
-              <th className="l">Winner</th>
-              <th />
-              <th className="l">Loser</th>
-              <th>Margin</th>
-            </tr>
-          </thead>
-          <tbody>
-            {matchups.map((m) => (
-              <tr key={`${m.winner.model}-${m.loser.model}`}>
-                {playoff && (
-                  <td className="l muted">
-                    {(() => {
-                      const round = playoff.roundOf.get([m.winner.model, m.loser.model].sort().join('|'));
-                      return round ? roundLabel(round) : '';
-                    })()}
-                  </td>
-                )}
-                <td className="l tname">
-                  {playoff?.seedOf.has(m.winner.model) ? `(${playoff.seedOf.get(m.winner.model)}) ` : ''}
-                  {m.winner.model} <strong>{m.winner.points}</strong>
-                </td>
-                <td className="muted">{m.tied ? 'tie' : 'def.'}</td>
-                <td className="l muted">
-                  {playoff?.seedOf.has(m.loser.model) ? `(${playoff.seedOf.get(m.loser.model)}) ` : ''}
-                  {m.loser.model} {m.loser.points}
-                </td>
-                <td>{m.margin}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <nav className="week-pager" aria-label="Weeks">
+        {prevWeek ? <Link href={`/results/${prevWeek}`}>← Week {prevWeek}</Link> : <span />}
+        <Link href="/results">All weeks</Link>
+        {nextWeek ? <Link href={`/results/${nextWeek}`}>Week {nextWeek} →</Link> : <span />}
+      </nav>
 
-      {/* The divergence the format exists to expose. Computed deterministically, not
-          spotted by a model — a model asked to notice it would sometimes not, and the
-          finding would vary week to week for no reason. */}
-      {facts.luck.length > 0 && !playoff && (
+      {brief.length > 0 && (
+        <div className="panel brief">
+          <h3>The week in brief</h3>
+          <ul className="story">
+            {brief.map((line) => (
+              <li key={line}>{line}</li>
+            ))}
+          </ul>
+          <p className="sub" style={{ margin: '12px 0 0' }}>
+            Computed from the box scores by the league&apos;s code the moment the week is scored.
+            {recap && (column ? ' The beat writer\u2019s column is further down.' : ' The beat writer\u2019s column follows once a human has read it.')}
+          </p>
+        </div>
+      )}
+
+      <div className="yard" />
+      <h2>Scoreboard</h2>
+      <p className="sub">Tap any game for the slot-by-slot box score, the bench, and what each model said</p>
+      <Scoreboard
+        week={results.week}
+        decided
+        games={views.map((v) => {
+          const pair = [v.home.model, v.away.model].sort().join('|');
+          const round = playoff?.roundOf.get(pair);
+          const note = (model: string) => {
+            const t = factsOf.get(model);
+            if (!t) return null;
+            const seed = playoff?.seedOf.get(model);
+            const auto = (v.home.model === model ? v.home : v.away).autopilot;
+            const calls =
+              auto?.delta == null ? null : auto.swaps.length === 0 ? 'no changes' : `calls ${signed(auto.delta)}`;
+            return [seed ? `Seed ${seed}` : `${t.record}`, calls]
+              .concat(t.fallback_applied ? ['fallback'] : [])
+              .filter(Boolean)
+              .join(' · ');
+          };
+          return {
+            label: round ? roundLabel(round) : pair === closestKey ? 'Closest game' : null,
+            home: { model: v.home.model, modelKey: v.home.modelKey, points: v.home.points, note: note(v.home.model) },
+            away: { model: v.away.model, modelKey: v.away.modelKey, points: v.away.points, note: note(v.away.model) },
+          };
+        })}
+      />
+
+      {!playoff && (
         <>
           <div className="yard" />
-          <h2>Where the schedule and the scoreboard disagree</h2>
-          <p className="sub">Head-to-head decides the season. All-play says who managed best.</p>
-          <div className="panel">
-            {facts.luck.map((note) => (
-              <p key={note.model}>
-                <strong>{note.model}</strong> {note.note}.
-              </p>
-            ))}
+          <h2>Standings after week {results.week}</h2>
+          <p className="sub">Head-to-head ranks. All-play is this week&apos;s score against all seven rivals.</p>
+          <div className="scroll narrow">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th className="l">Team</th>
+                  <th>Record</th>
+                  <th>Wk {results.week}</th>
+                  <th>All-play</th>
+                  <th>Pts for</th>
+                </tr>
+              </thead>
+              <tbody>
+                {facts.teams.map((t) => (
+                  <tr key={t.model}>
+                    <td className="rank">{t.rank ?? '—'}</td>
+                    <td className="l tname">{t.model}</td>
+                    <td>{t.record}</td>
+                    <td className={t.result === 'W' ? 'pos' : t.result === 'L' ? 'neg' : 'muted'}>
+                      {t.result ?? '—'} {t.points.toFixed(2)}
+                    </td>
+                    <td className="muted">{t.allplay_week}</td>
+                    <td className="muted">{t.points_for.toFixed(2)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </>
       )}
 
       <div className="yard" />
-      <h2>Lineup efficiency</h2>
-      <p className="sub">Points scored ÷ the best lineup that roster could have started</p>
+      <h2>Lineup calls</h2>
+      <p className="sub">
+        What each model&apos;s own choices were worth against the autopilot — the lineup the
+        league&apos;s code sets from projections before any model is asked. Same roster, same
+        week; only the calls differ. Tap a game for the individual swaps.
+      </p>
 
       <div className="scroll">
         <table>
@@ -153,33 +200,46 @@ export default async function WeekResultsPage({
             <tr>
               <th className="l">Team</th>
               <th>Scored</th>
-              <th>Best possible</th>
-              <th>Efficiency</th>
-              <th>Left on bench</th>
-              <th>All-play</th>
+              <th>Autopilot</th>
+              <th>Calls</th>
+              <th>Changes</th>
+              <th title="Best lineup the roster held, known only after the games">Hindsight best</th>
             </tr>
           </thead>
           <tbody>
-            {[...facts.teams]
-              .sort((a, b) => b.lineup_efficiency - a.lineup_efficiency)
-              .map((team) => (
-                <tr key={team.model}>
-                  <td className="l tname">
-                    {team.model}
-                    {/* A lineup the model did not choose must never read as one it did. */}
-                    {team.fallback_applied && <span className="tag">fallback</span>}
-                    {team.empty_slots > 0 && <span className="tag">{team.empty_slots} empty</span>}
-                  </td>
-                  <td>{team.points}</td>
-                  <td className="muted">{team.optimal_points}</td>
-                  <td>{(team.lineup_efficiency * 100).toFixed(1)}%</td>
-                  <td className="muted">{team.points_left_on_bench}</td>
-                  <td className="muted">{team.allplay_week}</td>
-                </tr>
-              ))}
+            {views
+              .flatMap((v) => [v.home, v.away])
+              .sort((a, b) => (b.autopilot?.delta ?? -Infinity) - (a.autopilot?.delta ?? -Infinity))
+              .map((side) => {
+                const team = factsOf.get(side.model);
+                const delta = side.autopilot?.delta ?? null;
+                return (
+                  <tr key={side.modelKey}>
+                    <td className="l tname">
+                      {side.model}
+                      {/* A lineup the model did not choose must never read as one it did. */}
+                      {team?.fallback_applied && <span className="tag">fallback</span>}
+                      {team && team.empty_slots > 0 && <span className="tag">{team.empty_slots} empty</span>}
+                    </td>
+                    <td>{side.points?.toFixed(2) ?? '—'}</td>
+                    <td className="muted">{side.autopilot?.points?.toFixed(2) ?? '—'}</td>
+                    <td className={delta === null || delta === 0 ? 'muted' : delta > 0 ? 'pos' : 'neg'}>
+                      {delta === null ? '—' : signed(delta)}
+                    </td>
+                    <td className="muted">
+                      {side.autopilot ? (side.autopilot.swaps.length === 0 ? 'none' : side.autopilot.swaps.length) : '—'}
+                    </td>
+                    <td className="muted">{side.optimal?.toFixed(2) ?? '—'}</td>
+                  </tr>
+                );
+              })}
           </tbody>
         </table>
       </div>
+      <p className="sub" style={{ marginTop: 10 }}>
+        &ldquo;Hindsight best&rdquo; is the highest score the roster could have posted, known only once
+        the games were played. It measures luck as much as judgment, which is why it no longer leads.
+      </p>
 
       {facts.waiver_adds.length > 0 && (
         <>
@@ -228,7 +288,11 @@ export default async function WeekResultsPage({
           )}
 
           {column ? (
-            <div className="post-body" dangerouslySetInnerHTML={{ __html: column }} />
+            // `.post-body` sets dark type for the light `.post` ground. Without the
+            // wrapper — which is how this shipped — the column was navy on navy.
+            <article className="post">
+              <div className="post-body" dangerouslySetInnerHTML={{ __html: column }} />
+            </article>
           ) : (
             <div className="notice info">
               This week&apos;s column is written but not yet released. Nothing publishes under a

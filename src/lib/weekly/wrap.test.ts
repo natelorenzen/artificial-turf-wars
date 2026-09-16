@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { checkArticle, numberCheck, resultCheck, unluckyAndLucky, type WrapFacts, type WrapTeamFacts } from './wrap';
+import { callsSummary, checkArticle, numberCheck, resultCheck, unluckyAndLucky, type WrapFacts, type WrapTeamFacts } from './wrap';
 
 function team(over: Partial<WrapTeamFacts> & { model: string }): WrapTeamFacts {
   return {
@@ -17,6 +17,9 @@ function team(over: Partial<WrapTeamFacts> & { model: string }): WrapTeamFacts {
     record: '4-2',
     rank: 3,
     points_for: 701.5,
+    autopilot_points: null,
+    lineup_calls: null,
+    lineup_changes: [],
     lineup_headline: null,
     lineup_closest_call: null,
     ...over,
@@ -36,6 +39,10 @@ const facts: WrapFacts = {
   best_efficiency: { model: 'Alpha', efficiency: 0.874 },
   worst_efficiency: { model: 'Omega', efficiency: 0.612 },
   luck: [],
+  best_calls: null,
+  worst_calls: null,
+  decided_by_calls: [],
+  autopilot_teams: [],
   waiver_adds: [],
 };
 
@@ -159,6 +166,10 @@ const wk5: WrapFacts = {
   best_efficiency: { model: 'DeepSeek V4 Pro', efficiency: 1.0 },
   worst_efficiency: { model: 'Muse Spark 1.1', efficiency: 0.7815 },
   luck: [],
+  best_calls: null,
+  worst_calls: null,
+  decided_by_calls: [],
+  autopilot_teams: [],
   waiver_adds: [],
 };
 
@@ -205,6 +216,18 @@ describe('regression — the first real wrap', () => {
     expect(resultCheck(article('GPT-5.6 Sol fell to DeepSeek V4 Pro.'), wk5).passed).toBe(true);
   });
 
+  it('judges a sentence by the verb nearest the second name, not the first in the list', () => {
+    // Week 1, 2026: "GPT-5.6 Sol scored 135, which beat four teams on all-play, yet still
+    // lost to Qwen3.8 Max's 138.46." — correct, and flagged as an inverted result.
+    expect(
+      resultCheck(article('GPT-5.6 Sol scored 122.92, which beat four teams on all-play, yet still fell to DeepSeek V4 Pro.'), wk5)
+        .passed,
+    ).toBe(true);
+    expect(
+      resultCheck(article('DeepSeek V4 Pro topped four teams on all-play but lost to GPT-5.6 Sol.'), wk5).passed,
+    ).toBe(false);
+  });
+
   it('reads a "demolition of" as a win, and gets it right', () => {
     expect(resultCheck(article('Kimi K3 authored an 88.62-point demolition of Muse Spark 1.1.'), wk5).passed).toBe(true);
     expect(resultCheck(article('Muse Spark 1.1 authored a demolition of Kimi K3.'), wk5).passed).toBe(false);
@@ -218,6 +241,16 @@ describe('regression — the first real wrap', () => {
     ).toBe(true);
   });
 
+  it('accepts a negative figure written as a cost', () => {
+    const withCalls = { ...facts, teams: [team({ model: 'Alpha', lineup_calls: -26.8 })] };
+    expect(numberCheck(article('Its changes cost 26.8 points.'), withCalls).notes).toEqual([]);
+  });
+
+  it('reads a hyphenated scoreline as two figures, not a negative one', () => {
+    expect(numberCheck(article('Alpha won 112.4-99.1.'), facts).notes).toEqual([]);
+    expect(numberCheck(article('A swing of -201.77.'), facts).passed).toBe(false);
+  });
+
   it('leads with the result error and labels both kinds', () => {
     const check = checkArticle(
       article('DeepSeek V4 Pro fell to GPT-5.6 Sol. Kimi K3 put up 201.77.'),
@@ -226,5 +259,26 @@ describe('regression — the first real wrap', () => {
     expect(check.passed).toBe(false);
     expect(check.notes[0]).toMatch(/^RESULT:/);
     expect(check.notes[1]).toMatch(/^FIGURE:/);
+  });
+});
+
+describe('callsSummary', () => {
+  it('names the best and worst calls and the games the autopilot would have reversed', () => {
+    const summary = callsSummary([
+      team({ model: 'Claude', opponent: 'Kimi', result: 'W', points: 116.1, autopilot_points: 139.1, lineup_calls: -23, lineup_changes: [{ started: 'X', benched: 'Y', points: 1 }] }),
+      team({ model: 'Kimi', opponent: 'Claude', result: 'L', points: 113.76, autopilot_points: 140.56, lineup_calls: -26.8, lineup_changes: [{ started: 'X', benched: 'Y', points: 1 }] }),
+      team({ model: 'Qwen', opponent: 'Grok', result: 'W', points: 138.46, autopilot_points: 128.76, lineup_calls: 9.7, lineup_changes: [{ started: 'X', benched: 'Y', points: 1 }] }),
+      team({ model: 'Grok', opponent: 'Qwen', result: 'L', points: 98.4, autopilot_points: 98.4, lineup_calls: 0 }),
+    ]);
+    expect(summary.best_calls).toEqual({ model: 'Qwen', lineup_calls: 9.7 });
+    expect(summary.worst_calls).toEqual({ model: 'Kimi', lineup_calls: -26.8 });
+    expect(summary.autopilot_teams).toEqual(['Grok']);
+    expect(summary.decided_by_calls).toEqual([
+      { winner: 'Claude', loser: 'Kimi', winner_autopilot: 139.1, loser_autopilot: 140.56 },
+    ]);
+  });
+
+  it('claims nothing when no lineup could be replayed', () => {
+    expect(callsSummary([team({ model: 'A' })])).toEqual({ best_calls: null, worst_calls: null, decided_by_calls: [], autopilot_teams: [] });
   });
 });

@@ -384,6 +384,12 @@ export interface CurrentWeekTeam {
    * header of `supabase/migrations/0011_live_scores.sql`.
    */
   livePoints: number | null;
+  /**
+   * The official score once the week has been scored, final over provisional. Null
+   * before Tuesday. Without it the front page showed a scored week's fixtures as bare
+   * names — the live numbers are hidden once a week is official, and nothing replaced them.
+   */
+  officialPoints: number | null;
   /** Starters with a Sleeper line yet, of the nine slots. */
   startersPlayed: number;
 }
@@ -528,6 +534,18 @@ export async function loadCurrentWeek(season = SEASON): Promise<CurrentWeekView 
     ]),
   );
 
+  const { data: officialRows } = await supabase
+    .from('lineup_scores')
+    .select('status, total_pts, lineups!inner(team_id)')
+    .eq('week', week)
+    .in('lineups.team_id', teamIds);
+  const official = new Map<string, { status: string; total: number }>();
+  for (const row of officialRows ?? []) {
+    const teamId = (row.lineups as unknown as { team_id: string }).team_id;
+    if (official.get(teamId)?.status === 'final' && row.status !== 'final') continue;
+    official.set(teamId, { status: row.status as string, total: Number(row.total_pts) });
+  }
+
   const named = (teamId: string): CurrentWeekTeam => {
     const team = byId.get(teamId);
     const score = live.get(teamId);
@@ -535,6 +553,7 @@ export async function loadCurrentWeek(season = SEASON): Promise<CurrentWeekView 
       model: team?.models.display_name ?? 'Unknown',
       modelKey: team?.models.key ?? '',
       livePoints: score ? score.total : null,
+      officialPoints: official.get(teamId)?.total ?? null,
       startersPlayed: score ? score.played : 0,
     };
   };

@@ -31,6 +31,9 @@ function team(over: Partial<WrapTeamFacts> & { model: string }): WrapTeamFacts {
     record: '4-2',
     rank: 3,
     points_for: 701.5,
+    autopilot_points: null,
+    lineup_calls: null,
+    lineup_changes: [],
     lineup_headline: null,
     lineup_closest_call: null,
     ...over,
@@ -54,6 +57,10 @@ const wk6: WrapFacts = {
     { model: 'Kimi K3', note: 'scored 120.3, beat 5 of 7 rivals on all-play, and still lost to Claude Opus 5' },
     { model: 'GPT-5.6 Sol', note: 'won with 104.02, which would have lost to 6 of 7 rivals' },
   ],
+  best_calls: null,
+  worst_calls: null,
+  decided_by_calls: [],
+  autopilot_teams: [],
   waiver_adds: [],
 };
 
