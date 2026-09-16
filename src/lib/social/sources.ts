@@ -12,6 +12,9 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { getAllPosts } from '@/lib/blog/posts';
 import { buildWrapFacts } from '@/lib/weekly/wrap';
 import { LEAGUE } from '@/lib/config/league';
+import { bidIsResolved } from '@/lib/engine/faab';
+
+export { bidIsResolved };
 import {
   composeFinding,
   composePreview,
@@ -99,9 +102,8 @@ async function waiverPost(
   // which no test catches because the ambiguity lives in the database, not the query.
   const { data, error } = await db
     .from('waiver_bids')
-    .select('week, team_id, bid, won, created_at, players!waiver_bids_add_player_id_fkey(name)')
+    .select('week, team_id, bid, won, losing_reason, created_at, players!waiver_bids_add_player_id_fkey(name)')
     .in('team_id', [...nameOf.keys()])
-    .not('won', 'is', null)
     .order('week', { ascending: false })
     .limit(200);
   if (error) throw new Error(`waiver_bids: ${error.message}`);
@@ -109,6 +111,8 @@ async function waiverPost(
 
   const week = data[0].week as number;
   const forWeek = data.filter((row) => row.week === week);
+  // The whole run, or nothing: a post about half-resolved bids is still a leak.
+  if (!forWeek.every(bidIsResolved)) return null;
   if (forWeek.some((row) => daysAgo(row.created_at as string, now) > FRESH_DAYS)) return null;
 
   const outcomes: WaiverOutcomeLine[] = forWeek.map((row) => ({

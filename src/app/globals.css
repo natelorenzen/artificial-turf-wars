@@ -2039,3 +2039,69 @@ tr.miss td {
 .calls tbody td.call-cell {
   white-space: normal;
 }
+
+/* ---------- waivers ----------
+   A bid is a valuation. The winning one gets the result amber; losing ones stay
+   readable rather than greyed out, because they are half the story. */
+.th-meta {
+  display: block;
+  margin-top: 2px;
+  font-weight: 400;
+  letter-spacing: 0.08em;
+  color: #cfe8d6;
+}
+.bid-team {
+  display: block;
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 16px;
+  letter-spacing: 0.03em;
+  color: var(--chalk);
+}
+.bid-meta {
+  display: block;
+  font-family: var(--font-data);
+  font-size: 10.5px;
+  color: var(--chalk-dim);
+}
+td.bid-won {
+  color: var(--amber);
+  font-weight: 700;
+}
+tr.won-row td {
+  background: rgba(255, 192, 46, 0.07);
+}
+.stack {
+  display: grid;
+  gap: 16px;
+}
+.claims {
+  margin: 0 0 12px;
+  padding-left: 0;
+  list-style: none;
+  max-width: 70ch;
+}
+.claims li {
+  margin-bottom: 10px;
+}
+.claim-won,
+.claim-lost {
+  font-family: var(--font-data);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  padding: 1px 5px;
+  border: 2px solid currentColor;
+}
+.claim-won {
+  color: #1d7a3f;
+}
+.claim-lost {
+  color: #a3321f;
+}
+.claim-why {
+  display: block;
+  margin-top: 3px;
+  color: #4d5675;
+  font-size: 14px;
+}

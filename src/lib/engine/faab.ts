@@ -177,3 +177,17 @@ export function dollarsPerPoint(faabSpent: number, netPointsGained: number): num
   if (netPointsGained <= 0) return null;
   return Number((faabSpent / netPointsGained).toFixed(2));
 }
+
+/**
+ * Whether the Wednesday run has decided this bid.
+ *
+ * NOT `won is not null`, which is what this used to ask. `waiver_bids.won` is
+ * `not null default false`, so every sealed bid already reads as a decided loss the
+ * moment it is written. On Tuesday 15 Sept 2026 that posted "5 teams wanted Stefon
+ * Diggs. Every claim failed." twenty hours before the run — false, since seven claims
+ * won, and a leak of sealed bids. A resolved bid has either won or been given a reason
+ * for losing; the resolver always writes one or the other.
+ */
+export function bidIsResolved(row: { won: boolean | null; losing_reason: string | null }): boolean {
+  return row.won === true || row.losing_reason !== null;
+}
