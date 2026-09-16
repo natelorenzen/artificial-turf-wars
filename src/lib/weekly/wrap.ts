@@ -22,7 +22,7 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { BEAT_WRITER_MODEL, LEAGUE } from '@/lib/config/league';
+import { BEAT_WRITER_MODEL, LEAGUE, PROMPT_VERSION, RULEBOOK_VERSION } from '@/lib/config/league';
 import { callModel } from '@/lib/openrouter/client';
 import { collectDataIndex } from '@/lib/prompt/cited';
 import { round2 } from '@/lib/scoring/engine';
@@ -31,6 +31,7 @@ import { buildLabelMap } from '@/lib/engine/labels';
 import { standingsThroughWeek } from '@/lib/scoring/week';
 import { stableHash } from '@/lib/util/hash';
 import { recapSchema, type RecapResponse } from '@/lib/schemas/decisions';
+import { autopilotLineup, compareToAutopilot, loadLockedWeek } from '@/lib/weekly/autopilot';
 
 const RECAP_OUTPUT_EXAMPLE = {
   headline: 'One line, under twelve words.',
@@ -59,6 +60,18 @@ RULES:
    the model's answer was unusable. Say so plainly when it mattered; do not describe it
    as a decision the model made.
 6. No predictions about future weeks beyond what the standings support.
+7. Judge each lineup by lineup_calls, not lineup_efficiency. Before any model is asked,
+   the league's code sets an AUTOPILOT lineup: the highest projection at every slot.
+   lineup_calls is the team's score minus the autopilot's (autopilot_points) — what the
+   model's own changes were worth. 0 with no lineup_changes means the model started the
+   autopilot's nine. lineup_changes names each change: "started" over "benched", and
+   the points it gained or cost. autopilot_points are REAL points — what the autopilot
+   lineup actually scored — never a projection, so do not call them projected.
+   autopilot_teams lists every team whose lineup_calls is 0 with no changes; use that
+   list rather than counting. decided_by_calls lists games the autopilot lineups
+   would have reversed. lineup_efficiency is hindsight (score ÷ the best lineup the
+   roster held, known only after the games) and measures luck as much as judgment; if
+   you mention it, say so.
 
 Return only a single JSON object matching the schema. No preamble, no code fences.`;
 
@@ -82,6 +95,12 @@ export interface WrapTeamFacts {
   record: string;
   rank: number | null;
   points_for: number;
+  /** What the league's autopilot lineup scored. Null when no stored prompt replays it. */
+  autopilot_points: number | null;
+  /** points − autopilot_points: what the model's own changes were worth. */
+  lineup_calls: number | null;
+  /** Each change from the autopilot, and what it gained or cost. */
+  lineup_changes: { started: string | null; benched: string | null; points: number | null }[];
   /** What the model said on Thursday when it set this lineup. */
   lineup_headline: string | null;
   lineup_closest_call: string | null;
@@ -105,6 +124,12 @@ export interface WrapFacts {
    * week, and it is invisible in a head-to-head table alone.
    */
   luck: { model: string; note: string }[];
+  best_calls: { model: string; lineup_calls: number } | null;
+  worst_calls: { model: string; lineup_calls: number } | null;
+  /** Games the two autopilot lineups would have reversed: decided by the models' changes. */
+  decided_by_calls: { winner: string; loser: string; winner_autopilot: number; loser_autopilot: number }[];
+  /** Teams that started exactly the autopilot's nine, named so nobody has to count. */
+  autopilot_teams: string[];
   waiver_adds: { model: string; player: string; bid: number; points_this_week: number | null }[];
 }
 
@@ -138,6 +163,7 @@ export async function buildWrapFacts(
   // on the page would read "0-0", unranked, in the biggest week of the year.
   const standings = await loadStandingsRow(db, teams.map((t) => t.id), standingsThroughWeek(week));
   const matchups = await loadMatchups(db, seasonId, week);
+  const calls = await loadLineupCalls(db, { seasonId, season, week, teamIds: teams.map((t) => t.id) });
 
   const scored = teams.filter((t) => scores.has(t.id));
   const perWeekAllPlay = allPlayWeek(
@@ -182,6 +208,9 @@ export async function buildWrapFacts(
       record: standing ? `${standing.h2hW}-${standing.h2hL}${standing.h2hT > 0 ? `-${standing.h2hT}` : ''}` : '0-0',
       rank: standing?.rank ?? null,
       points_for: standing?.cumPts ?? score.total,
+      autopilot_points: calls.get(team.id)?.autopilotPoints ?? null,
+      lineup_calls: calls.get(team.id)?.delta ?? null,
+      lineup_changes: calls.get(team.id)?.changes ?? [],
       lineup_headline: meta?.headline ?? null,
       lineup_closest_call: meta?.closestCall ?? null,
     };
@@ -219,7 +248,44 @@ export async function buildWrapFacts(
       ? { model: byEfficiency.at(-1)!.model, efficiency: byEfficiency.at(-1)!.lineup_efficiency }
       : null,
     luck: unluckyAndLucky(facts),
+    ...callsSummary(facts),
     waiver_adds: await loadWaiverAdds(db, teams.map((t) => t.id), week, nameOf),
+  };
+}
+
+/** Best and worst lineup calls, and the games the autopilot lineups would have reversed. */
+export function callsSummary(
+  facts: WrapTeamFacts[],
+): Pick<WrapFacts, 'best_calls' | 'worst_calls' | 'decided_by_calls' | 'autopilot_teams'> {
+  const judged = facts
+    .filter((t) => t.lineup_calls !== null)
+    .sort((a, b) => b.lineup_calls! - a.lineup_calls!);
+  const best = judged[0];
+  const worst = judged.at(-1);
+
+  const byModel = new Map(facts.map((t) => [t.model, t]));
+  const decided: WrapFacts['decided_by_calls'] = [];
+  for (const team of facts) {
+    if (team.result !== 'W' || !team.opponent) continue;
+    const loser = byModel.get(team.opponent);
+    if (team.autopilot_points === null || loser?.autopilot_points == null) continue;
+    if (loser.autopilot_points > team.autopilot_points) {
+      decided.push({
+        winner: team.model,
+        loser: loser.model,
+        winner_autopilot: team.autopilot_points,
+        loser_autopilot: loser.autopilot_points,
+      });
+    }
+  }
+
+  return {
+    best_calls: best && best.lineup_calls! > 0 ? { model: best.model, lineup_calls: best.lineup_calls! } : null,
+    worst_calls: worst && worst.lineup_calls! < 0 ? { model: worst.model, lineup_calls: worst.lineup_calls! } : null,
+    decided_by_calls: decided,
+    autopilot_teams: facts
+      .filter((t) => t.lineup_calls !== null && t.lineup_changes.length === 0)
+      .map((t) => t.model),
   };
 }
 
@@ -295,6 +361,9 @@ function allowedNumbers(facts: WrapFacts): Set<string> {
   for (const key of [...allowed]) {
     const value = Number(key);
     if (value >= 0 && value <= 1) allowed.add(numberKey(value * 100));
+    // "Cost 23 points" states a lineup_calls of -23 in English. The magnitude of a real
+    // figure is not an invented one.
+    if (value < 0) allowed.add(numberKey(-value));
   }
 
   //   3. **Rounding.** A writer that says two models "topped 0.85 efficiency" when the
@@ -337,7 +406,9 @@ export function numberCheck(article: RecapResponse, facts: WrapFacts): NumberChe
   const notes: string[] = [];
   const seen = new Set<string>();
 
-  for (const raw of prose.match(/-?\d+(?:\.\d+)?/g) ?? []) {
+  // A hyphen straight after a digit is a scoreline, not a sign: "138.46-135" is two
+  // figures. Read as one, it flagged a correct week-1 score as the invented "-135".
+  for (const raw of prose.match(/(?:(?<![\w.])-)?\d+(?:\.\d+)?/g) ?? []) {
     const value = Number(raw);
     if (!Number.isFinite(value)) continue;
     // Whole numbers below the floor are prose; decimals are always claims.
@@ -411,24 +482,31 @@ export function resultCheck(article: RecapResponse, facts: WrapFacts): NumberChe
     const [first, second] = found;
     const between = sentence.slice(first.at + first.model.length, second.at);
 
+    // The verb nearest the SECOND name is the one that relates the two. "Sol scored 135,
+    // which beat four teams on all-play, yet still lost to Qwen" carries both a win verb
+    // and a loss verb, and the win verb is about four unnamed teams. Taking the first
+    // pattern in list order — which is what this did — published week 1's column as
+    // having inverted a result it got right.
+    let governing: { at: number; firstWon: boolean } | null = null;
     for (const [verb, firstWon] of RESULT_VERBS) {
-      if (!verb.test(between)) continue;
-
-      const claimedWinner = firstWon ? first.model : second.model;
-      const claimedLoser = firstWon ? second.model : first.model;
-
-      // Only judge a pair that met. Anything else is not a claim about a fixture.
-      const played =
-        winnerOver.get(claimedWinner) === claimedLoser ||
-        winnerOver.get(claimedLoser) === claimedWinner;
-      if (!played) break;
-
-      if (winnerOver.get(claimedWinner) !== claimedLoser) {
-        notes.push(
-          `says ${claimedWinner} beat ${claimedLoser}, but ${claimedLoser} won that matchup`,
-        );
+      for (const match of between.matchAll(new RegExp(verb.source, 'gi'))) {
+        const at = (match.index ?? 0) + match[0].length;
+        if (!governing || at > governing.at) governing = { at, firstWon };
       }
-      break;
+    }
+    if (!governing) continue;
+
+    const claimedWinner = governing.firstWon ? first.model : second.model;
+    const claimedLoser = governing.firstWon ? second.model : first.model;
+
+    // Only judge a pair that met. Anything else is not a claim about a fixture.
+    const played =
+      winnerOver.get(claimedWinner) === claimedLoser ||
+      winnerOver.get(claimedLoser) === claimedWinner;
+    if (!played) continue;
+
+    if (winnerOver.get(claimedWinner) !== claimedLoser) {
+      notes.push(`says ${claimedWinner} beat ${claimedLoser}, but ${claimedLoser} won that matchup`);
     }
   }
 
@@ -608,6 +686,82 @@ async function loadLineupMeta(
   return out;
 }
 
+/**
+ * Each team's lineup against the autopilot, replayed from the stored prompts.
+ *
+ * Same computation as the box score (`src/lib/weekly/autopilot.ts`), so the column and
+ * the page cannot disagree about what a model's changes were worth.
+ */
+async function loadLineupCalls(
+  db: SupabaseClient,
+  input: { seasonId: string; season: number; week: number; teamIds: string[] },
+): Promise<Map<string, { autopilotPoints: number | null; delta: number | null; changes: WrapTeamFacts['lineup_changes'] }>> {
+  const { seasonId, season, week, teamIds } = input;
+  const out = new Map<string, { autopilotPoints: number | null; delta: number | null; changes: WrapTeamFacts['lineup_changes'] }>();
+
+  const locked = await loadLockedWeek(db, week, teamIds, seasonId);
+  if (locked.rosterOf.size === 0) return out;
+
+  const { data: lineupRows, error } = await db
+    .from('lineups')
+    .select('team_id, qb, rb, wr, te, flex, k, def')
+    .eq('week', week)
+    .in('team_id', teamIds);
+  if (error) throw new Error(`lineups: ${error.message}`);
+
+  const ids = [...new Set([...locked.rosterOf.values()].flat().map((e) => e.player_id))];
+  const points = new Map<string, number>();
+  const finals = new Set<string>();
+  for (let i = 0; i < ids.length; i += 200) {
+    const { data: statRows, error: statError } = await db
+      .from('player_stats')
+      .select('player_id, computed_pts, status')
+      .eq('season', season)
+      .eq('week', week)
+      .in('player_id', ids.slice(i, i + 200));
+    if (statError) throw new Error(`player_stats: ${statError.message}`);
+    // Final beats provisional (CLAUDE.md rule 3b).
+    for (const row of statRows ?? []) {
+      const id = row.player_id as string;
+      if (finals.has(id)) continue;
+      points.set(id, Number(row.computed_pts));
+      if (row.status === 'final') finals.add(id);
+    }
+  }
+
+  for (const row of lineupRows ?? []) {
+    const roster = locked.rosterOf.get(row.team_id as string);
+    if (!roster) continue;
+    const byId = new Map(roster.map((e) => [e.player_id, e]));
+    const comparison = compareToAutopilot({
+      chosen: {
+        qb: row.qb as string | null,
+        rb: (row.rb ?? []) as string[],
+        wr: (row.wr ?? []) as string[],
+        te: row.te as string | null,
+        flex: row.flex as string | null,
+        k: row.k as string | null,
+        def: row.def as string | null,
+      },
+      autopilot: autopilotLineup(roster),
+      positionOf: (id) => byId.get(id)?.position ?? '',
+      projected: (id) => byId.get(id)?.projection ?? null,
+      actual: (id) => points.get(id) ?? 0,
+    });
+    const nameOf = (id: string | undefined) => (id ? (byId.get(id)?.name ?? id) : null);
+    out.set(row.team_id as string, {
+      autopilotPoints: comparison.autopilotPoints,
+      delta: comparison.delta,
+      changes: comparison.swaps.map((swap) => ({
+        started: nameOf(swap.started?.playerId),
+        benched: nameOf(swap.benched?.playerId),
+        points: swap.delta,
+      })),
+    });
+  }
+  return out;
+}
+
 async function loadStandingsRow(
   db: SupabaseClient,
   teamIds: string[],
@@ -696,4 +850,98 @@ async function loadWaiverAdds(
     bid: Number(row.bid),
     points_this_week: points.get(row.add_player_id as string) ?? null,
   }));
+}
+
+/**
+ * The beat writer's call goes in `decisions` like every other model call.
+ *
+ * Written by hand rather than through `runDecision` because that path assembles the
+ * League Rulebook and a memory block, neither of which the writer gets — it is not
+ * playing. What must not differ is the audit: the project's claim is that every prompt
+ * and every raw response is published, and "except the column" is not a footnote worth
+ * having.
+ *
+ * `team_id` and `model_id` are null: the writer has no team, and it is deliberately
+ * absent from the `models` table so it can never be mistaken for a competitor.
+ */
+export async function recordRecapDecision(
+  db: SupabaseClient,
+  seasonId: string,
+  week: number,
+  result: RecapResult,
+): Promise<string | null> {
+  const { data, error } = await db
+    .from('decisions')
+    .insert({
+      season_id: seasonId,
+      team_id: null,
+      model_id: null,
+      type: 'recap',
+      week,
+      prompt_version: PROMPT_VERSION,
+      rulebook_version: RULEBOOK_VERSION,
+      system_prompt: result.systemPrompt,
+      user_prompt: result.userPrompt,
+      context_hash: stableHash(result.factsPacket),
+      raw_response: result.raw,
+      parsed_json: (result.recap ?? null) as unknown as Record<string, unknown> | null,
+      valid: result.valid,
+      validation_error: result.validationError,
+      fallback_applied: false,
+      provider_failure: result.providerFailure,
+      retry_count: result.retryCount,
+      temperature_requested: LEAGUE.temperature,
+      latency_ms: result.latencyMs,
+      tokens_in: result.tokensIn,
+      tokens_out: result.tokensOut,
+      cost_usd: result.costUsd,
+      headline: result.recap?.headline ?? null,
+      // The number check is the writer's equivalent of the citation post-pass every
+      // competitor's decision carries, and it belongs in the same column.
+      unsupported_claims: result.numbers.notes,
+    })
+    .select('id')
+    .single();
+
+  if (error) {
+    // The column itself is the deliverable. Losing the audit row is worth a loud log,
+    // not a 500 that discards a written article and invites a re-run.
+    console.error(`recap decision insert (${BEAT_WRITER_MODEL}): ${error.message}`);
+    return null;
+  }
+  return data.id as string;
+}
+
+/**
+ * Store a written column as a DRAFT. Nothing publishes under a byline without a human
+ * reading it first (`scripts/publish.ts`); a column this replaces goes back to draft too.
+ */
+export async function storeRecap(
+  db: SupabaseClient,
+  input: { seasonId: string; week: number; result: RecapResult; decisionId: string | null },
+): Promise<void> {
+  const { seasonId, week, result, decisionId } = input;
+  if (!result.recap) throw new Error('storeRecap: no column to store');
+  const { error } = await db.from('recaps').upsert(
+    {
+      season_id: seasonId,
+      week,
+      headline: result.recap.headline,
+      short_post: result.recap.short_post,
+      column_md: result.recap.column_md,
+      facts_packet: result.factsPacket as unknown as Record<string, unknown>,
+      facts_packet_hash: result.factsPacketHash,
+      // Stored, never acted on. A failed check is a finding about the writer and is
+      // published next to the draft rather than triggering a rewrite that would
+      // hide it.
+      number_check_passed: result.numbers.passed,
+      number_check_notes: result.numbers.notes,
+      decision_id: decisionId,
+      model_calls: 1,
+      cost_usd: result.costUsd,
+      published: false,
+    },
+    { onConflict: 'season_id,week' },
+  );
+  if (error) throw new Error(`recaps: ${error.message}`);
 }

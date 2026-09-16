@@ -1605,3 +1605,437 @@ a:focus-visible,
   max-width: 72ch;
   margin: 0;
 }
+
+/* ---------- scoreboard + box score ----------
+   The week's games as cards, and one game slot by slot — the shape every fantasy app
+   has taught readers to expect. Amber stays reserved for a RESULT: a settled winner's
+   score and its W. A live lead gets weight only, exactly like `.ahead` on the tables. */
+.crumb {
+  margin: 0 0 14px;
+  font-family: var(--font-data);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+}
+.crumb a,
+.week-pager a {
+  color: var(--amber);
+  text-decoration: none;
+}
+.crumb a:hover,
+.week-pager a:hover {
+  text-decoration: underline;
+}
+.week-pager {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 0 18px;
+  font-family: var(--font-data);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+}
+
+.board {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 14px;
+}
+.board-card {
+  position: relative;
+  display: block;
+  border: var(--bd);
+  box-shadow: var(--shadow);
+  background: var(--panel);
+  color: var(--chalk);
+  text-decoration: none;
+  padding: 12px 16px 10px;
+  transition: border-color 0.1s;
+}
+.board-card:hover,
+.board-card:focus-visible {
+  border-color: var(--amber);
+}
+.board-card:active {
+  transform: translate(2px, 2px);
+  box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.6);
+}
+.board-label {
+  display: block;
+  font-family: var(--font-data);
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--chalk-dim);
+  margin-bottom: 4px;
+}
+.board-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 7px 0;
+  color: var(--chalk-dim);
+}
+.board-row + .board-row {
+  border-top: 1px solid var(--line);
+}
+.board-team {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.board-name {
+  font-family: var(--font-display);
+  font-size: 19px;
+  letter-spacing: 0.03em;
+  color: var(--chalk);
+  line-height: 1.15;
+}
+.board-note {
+  font-family: var(--font-data);
+  font-size: 11px;
+  color: var(--chalk-dim);
+}
+.board-pts {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-display);
+  font-size: 28px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}
+.board-row.ahead .board-pts {
+  color: var(--chalk);
+}
+.board-row.won .board-pts {
+  color: var(--amber);
+}
+.board-w,
+.box-w {
+  font-family: var(--font-data);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  padding: 1px 5px;
+  border: 2px solid var(--amber);
+  color: var(--amber);
+}
+.board-cta {
+  display: block;
+  margin-top: 6px;
+  text-align: right;
+  font-family: var(--font-data);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--amber);
+}
+
+.panel.brief {
+  border-left: 6px solid var(--amber);
+}
+.story {
+  margin: 0;
+  padding-left: 20px;
+  font-size: 15.5px;
+  line-height: 1.55;
+}
+.story li {
+  margin-bottom: 6px;
+}
+.story li:last-child {
+  margin-bottom: 0;
+}
+
+.box-head {
+  border: var(--bd);
+  box-shadow: var(--shadow);
+  background: var(--panel);
+  padding: 14px 18px 0;
+}
+.box-status {
+  text-align: center;
+  font-family: var(--font-data);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--chalk-dim);
+  margin-bottom: 10px;
+}
+.box-score {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: end;
+  gap: 10px;
+}
+.box-team {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.box-team.r {
+  align-items: flex-end;
+  text-align: right;
+}
+.box-name {
+  font-family: var(--font-display);
+  font-size: clamp(16px, 2.6vw, 24px);
+  letter-spacing: 0.03em;
+  color: var(--chalk);
+  text-decoration: none;
+}
+.box-name:hover {
+  text-decoration: underline;
+}
+.box-meta {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font-family: var(--font-data);
+  font-size: 11px;
+  color: var(--chalk-dim);
+  min-height: 18px;
+}
+.box-big {
+  font-family: var(--font-display);
+  font-size: clamp(40px, 9vw, 72px);
+  line-height: 1.05;
+  font-variant-numeric: tabular-nums;
+  color: var(--chalk-dim);
+}
+.box-big.ahead {
+  color: var(--chalk);
+}
+.box-big.won {
+  color: var(--amber);
+}
+.box-vs {
+  font-family: var(--font-display);
+  font-size: clamp(24px, 5vw, 40px);
+  color: var(--chalk-dim);
+  padding-bottom: 12px;
+}
+.box-proj {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: 10px;
+  padding: 6px 0 12px;
+  font-family: var(--font-data);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.box-proj span:last-child {
+  text-align: right;
+}
+/* The Yahoo bar: a hard two-colour split, no gradient, in the key art's two sides. */
+.box-bar {
+  display: flex;
+  height: 8px;
+  margin: 0 -18px;
+}
+.box-bar .h {
+  background: var(--home);
+}
+.box-bar .a {
+  flex: 1;
+  background: var(--away);
+}
+
+table.box,
+table.bench {
+  min-width: 0;
+}
+thead th.c,
+tbody td.c {
+  text-align: center;
+}
+table.box thead th:last-child {
+  text-align: right;
+}
+table.box td {
+  vertical-align: middle;
+  padding: 9px 10px;
+}
+td.box-player {
+  white-space: normal;
+  width: 36%;
+}
+table.bench td.box-player {
+  width: auto;
+}
+table.box td.box-player:last-child {
+  text-align: right;
+}
+td.lit-l {
+  box-shadow: inset 4px 0 0 var(--good);
+}
+td.lit-r {
+  box-shadow: inset -4px 0 0 var(--good);
+}
+.pc {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.pc.r {
+  align-items: flex-end;
+}
+.pc-name {
+  font-family: var(--font-read);
+  font-weight: 700;
+  font-size: 14.5px;
+  color: var(--chalk);
+  line-height: 1.25;
+}
+.pc-meta {
+  font-size: 11px;
+  color: var(--chalk-dim);
+  letter-spacing: 0.04em;
+}
+td.box-pts b {
+  display: block;
+  font-size: 16px;
+  color: var(--chalk);
+}
+td.box-pts b.win {
+  color: var(--good);
+}
+td.box-pts small {
+  display: block;
+  font-size: 11px;
+  color: var(--chalk-dim);
+}
+td.box-slot {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: var(--chalk-dim);
+  background: rgba(0, 0, 0, 0.18);
+  width: 1%;
+}
+table.box tfoot td {
+  padding: 11px 10px;
+  border-top: 3px solid var(--line);
+  font-family: var(--font-display);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+table.box tfoot td.box-pts b {
+  font-size: 20px;
+}
+table.box tfoot td.box-pts b.win {
+  color: var(--amber);
+}
+tr.miss td {
+  background: rgba(244, 87, 63, 0.08);
+}
+.miss-note {
+  display: block;
+  margin-top: 3px;
+  font-size: 11px;
+  color: #ffb3a8;
+}
+.tel-ft a {
+  color: #1745bb;
+}
+
+/* A phone gets the same five columns Yahoo fits, by fixing the column widths and
+   letting names wrap, rather than a sideways drag that hides the other team. */
+@media (max-width: 520px) {
+  table.box {
+    table-layout: fixed;
+  }
+  table.box th,
+  table.box td {
+    padding: 8px 4px;
+  }
+  table.box th {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    letter-spacing: 0.06em;
+  }
+  table.box th:nth-child(1),
+  table.box th:nth-child(5) {
+    width: 30%;
+  }
+  table.box th:nth-child(2),
+  table.box th:nth-child(4) {
+    width: 15%;
+  }
+  table.box th:nth-child(3) {
+    width: 10%;
+  }
+  td.box-player {
+    width: auto;
+  }
+  .pc-name {
+    font-size: 12.5px;
+    overflow-wrap: anywhere;
+  }
+  .pc-meta {
+    font-size: 10px;
+  }
+  td.box-pts b {
+    font-size: 13px;
+  }
+  td.box-slot {
+    font-size: 9px;
+    letter-spacing: 0.04em;
+    width: auto;
+  }
+  table.box tfoot td.box-pts b {
+    font-size: 15px;
+  }
+}
+
+/* Each model's overrides of the autopilot. The call is the model's reasoning made
+   concrete, so the player names read as text, not as a data column. */
+.calls table {
+  min-width: 0;
+}
+.calls tbody td {
+  vertical-align: middle;
+}
+.call-in,
+.call-out {
+  display: block;
+  font-family: var(--font-read);
+  font-size: 14px;
+  line-height: 1.35;
+}
+.call-out {
+  margin-top: 4px;
+  color: var(--chalk-dim);
+}
+.call-in b,
+.call-out b {
+  color: var(--chalk);
+}
+.call-in small,
+.call-out small,
+.calls-foot {
+  display: block;
+  font-family: var(--font-data);
+  font-size: 10.5px;
+  color: var(--chalk-dim);
+  letter-spacing: 0.02em;
+}
+.calls tfoot td {
+  padding: 11px 12px;
+  border-top: 3px solid var(--line);
+  font-family: var(--font-display);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  text-align: right;
+  vertical-align: top;
+}
+.calls tfoot td.l {
+  text-align: left;
+}
+.calls tfoot b {
+  font-size: 20px;
+}
+.calls tbody td.call-cell {
+  white-space: normal;
+}

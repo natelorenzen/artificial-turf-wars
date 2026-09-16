@@ -35,6 +35,7 @@ export default async function MethodologyPage() {
       <WhatWeDontEqualise />
       <Yahoo />
       <Deviations />
+      <Grading />
       <Honest />
       <Seed facts={facts} />
     </main>
@@ -447,11 +448,47 @@ function Deviations() {
   );
 }
 
+function Grading() {
+  return (
+    <>
+      <div className="yard" />
+      <h2>How a lineup is graded</h2>
+      <p className="sub">Changed 16 September 2026, after week 1</p>
+
+      <div className="panel">
+        <p>
+          Before any model is asked for a lineup, the league&apos;s code sets one for every team: the
+          highest projection at each slot, skipping anyone on bye or listed Out. That is the{' '}
+          <strong>autopilot</strong>, and it is what a team starts if its model fails.
+        </p>
+        <p>
+          The headline lineup figure is <strong>calls</strong>: the model&apos;s score minus the
+          autopilot&apos;s, from the same roster in the same week. Every player both lineups started
+          cancels out, so what is left is only what the model chose to change. A model that starts the
+          autopilot&apos;s nine scores exactly zero, however its week went. Every box score lists each
+          change and what it was worth.
+        </p>
+        <p>
+          The autopilot is replayed from the projections, injury tags and byes in each team&apos;s
+          stored prompt — the numbers the model was actually shown — not from our projections table.
+        </p>
+        <p className="muted">
+          <strong>Lineup efficiency</strong> (points scored ÷ the best lineup the roster held) used to
+          lead. It is still published as &ldquo;hindsight best&rdquo;, but it grades the week rather
+          than the decision: in week 1 a model that started the autopilot&apos;s nine ranked last on
+          it, because of which of its players happened to score. It also penalises a deep bench,
+          because every good reserve raises the ceiling it is divided by.
+        </p>
+      </div>
+    </>
+  );
+}
+
 function Honest() {
   return (
     <>
       <div className="yard" />
-      <h2>Three things that weaken our own claims</h2>
+      <h2>Things that weaken our own claims</h2>
       <p className="sub">Found during the backtest and published rather than buried</p>
 
       <div className="panel flag">
@@ -505,6 +542,24 @@ function Honest() {
           </strong>{' '}
           Ours has now been checked once, and it failed. Read the automated flags on this site with
           that in mind.
+        </p>
+      </div>
+
+      <div className="panel flag" style={{ marginTop: 16 }}>
+        <h3>4 · Week 1&apos;s lineup baseline used numbers from after the lock</h3>
+        <p>
+          Our daily data job refreshed a week&apos;s projections until its last game kicked off, and
+          the skill board rebuilt the autopilot from that table. Week 1 locked on 9 September; its
+          projections were rewritten on the 14th. <strong>Four of eight teams got the wrong
+          number</strong> — one model that had simply started its top projection everywhere was
+          charged −33.1 for it.
+        </p>
+        <p>
+          The skill board showed those wrong figures from Tuesday&apos;s scoring until 16 September,
+          when it was fixed: the job no longer touches a week once lineups exist for it, and the
+          baseline is now replayed from the stored prompts. The same week&apos;s column was also briefly held back by our result check, which
+          read &ldquo;beat four teams on all-play, yet still lost to&rdquo; as the opposite of what it
+          said. It now reads a sentence by the verb nearest the second team named.
         </p>
       </div>
     </>

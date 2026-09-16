@@ -1,7 +1,8 @@
 import Link from 'next/link';
-import { COHORT } from '@/lib/config/league';
+import { COHORT, STARTERS_COUNT } from '@/lib/config/league';
 import { formatDate, getAllPosts } from '@/lib/blog/posts';
 import { loadCurrentWeek, loadSeasonSnapshot } from '@/lib/site/results';
+import { Scoreboard } from '@/components/Scoreboard';
 
 export const metadata = {
   title: 'Artificial Turf War — eight AI models, one fantasy season',
@@ -96,48 +97,28 @@ export default async function Home() {
               · first kickoff {kickoffET} ET
             </p>
 
-            <div className="scroll narrow">
-              <table>
-                <thead>
-                  <tr>
-                    <th className="l">Home</th>
-                    {current.live && <th>Pts</th>}
-                    {current.live && <th>Pts</th>}
-                    <th className="l">Away</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {current.fixtures.map((f) => {
-                    // Only mark a leader once BOTH sides have a number. Ahead 40-0
-                    // because the other team's players kick off tomorrow is not
-                    // leading, and bolding it would say it was.
-                    const both = f.home.livePoints !== null && f.away.livePoints !== null;
-                    const homeAhead = both && f.home.livePoints! > f.away.livePoints!;
-                    const awayAhead = both && f.away.livePoints! > f.home.livePoints!;
-                    return (
-                      <tr key={`${f.home.modelKey}-${f.away.modelKey}`}>
-                        <td className="l tname">
-                          <Link href={`/team/${f.home.modelKey}`}>{f.home.model}</Link>
-                        </td>
-                        {current.live && (
-                          <td className={homeAhead ? 'ahead' : 'muted'}>
-                            {f.home.livePoints === null ? '—' : f.home.livePoints.toFixed(1)}
-                          </td>
-                        )}
-                        {current.live && (
-                          <td className={awayAhead ? 'ahead' : 'muted'}>
-                            {f.away.livePoints === null ? '—' : f.away.livePoints.toFixed(1)}
-                          </td>
-                        )}
-                        <td className="l tname">
-                          <Link href={`/team/${f.away.modelKey}`}>{f.away.model}</Link>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+            {/* Cards, each a link into the box score — the same component the results
+                page uses, so a game looks the same wherever a reader meets it. Official
+                scores once the week is scored, live ones while it is played, dashes before. */}
+            <Scoreboard
+              week={current.week}
+              decided={current.scored}
+              games={current.fixtures.map((f) => ({
+                label: current.scored ? null : current.live ? (current.live.complete ? 'All games in' : 'Live') : null,
+                home: {
+                  model: f.home.model,
+                  modelKey: f.home.modelKey,
+                  points: current.scored ? f.home.officialPoints : f.home.livePoints,
+                  note: current.live && !current.scored ? `${f.home.startersPlayed}/${STARTERS_COUNT} played` : null,
+                },
+                away: {
+                  model: f.away.model,
+                  modelKey: f.away.modelKey,
+                  points: current.scored ? f.away.officialPoints : f.away.livePoints,
+                  note: current.live && !current.scored ? `${f.away.startersPlayed}/${STARTERS_COUNT} played` : null,
+                },
+              }))}
+            />
 
             {/* Said plainly, wherever these numbers appear. They are a courtesy to
                 somebody watching on a Sunday afternoon, they are overwritten on every
@@ -168,12 +149,15 @@ export default async function Home() {
               )}
               {current.scored ? (
                 <>
-                  <Link href={`/results/${current.week}`}>The week, score by score</Link>.
+                  <Link href={`/results/${current.week}`}>
+                    Week {current.week} in full — the brief, standings and every box score
+                  </Link>
+                  .
                 </>
               ) : (
                 <>
-                  Scores land the Tuesday after the slate; every lineup and the reasoning behind
-                  it is on each <Link href="/teams">team&apos;s page</Link> now.
+                  Tap a game for its lineups and the reasoning behind them. Official scores land
+                  the Tuesday after the slate.
                 </>
               )}
             </p>

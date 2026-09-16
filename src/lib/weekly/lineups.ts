@@ -23,7 +23,6 @@ import { COHORT, FLEX_ELIGIBLE, LEAGUE } from '@/lib/config/league';
 import { assertNoLabelLeak } from '@/lib/engine/labels';
 import {
   EMPTY_LINEUP,
-  fallbackLineup,
   isStartable,
   lineupPlayerIds,
   validateLineup,
@@ -36,7 +35,6 @@ import {
   hashSplitContext,
   type SplitHashes,
 } from '@/lib/prompt/assemble';
-import type { RosterEntry } from '@/lib/prompt/context';
 import { recordEngineRejection, runDecision } from '@/lib/decisions/run';
 import { lineupSchema, lineupSalvageSchema, type LineupResponse } from '@/lib/schemas/decisions';
 import {
@@ -86,41 +84,10 @@ const LINEUP_OUTPUT_EXAMPLE = {
 // Roster shaping
 // ---------------------------------------------------------------------------
 
-/**
- * The roster as the lineup engine sees it: projections in the `points` field, because
- * a lineup is set against projections and graded against actuals.
- *
- * A null projection becomes 0 here and stays null in the DATA block. Those are not
- * inconsistent — the engine needs a number to sort by, and the model needs to know the
- * number is missing rather than genuinely zero.
- */
-export function lineupRoster(entries: RosterEntry[]): LineupPlayer[] {
-  return entries.map((entry) => ({
-    playerId: entry.player_id,
-    position: entry.position as LineupPlayer['position'],
-    points: entry.projection ?? 0,
-    isOnBye: entry.is_on_bye,
-    injuryStatus: entry.injury_status,
-  }));
-}
-
-/** Ids a model is allowed to name: not on bye, not Out/Inactive/IR (SPEC §4.4). */
-export function startableIds(roster: LineupPlayer[]): string[] {
-  return roster.filter(isStartable).map((p) => p.playerId).sort();
-}
-
-/**
- * The deterministic answer, used whenever a model does not supply a usable one.
- *
- * Built from startable players only. `optimalLineup` filters byes but not injuries,
- * because as the SCORING denominator it must measure the best lineup that could have
- * been set — and a player listed Out on Thursday sometimes plays on Sunday. As a
- * FALLBACK the opposite is true: starting someone we were told is out is a choice
- * nobody made on purpose.
- */
-export function deterministicLineup(roster: LineupPlayer[]): Lineup {
-  return fallbackLineup(roster.filter(isStartable));
-}
+// Kept in their own module so the site can replay the autopilot without importing the
+// model-calling half of this file. Re-exported so every existing caller is unchanged.
+export { deterministicLineup, lineupRoster, startableIds } from '@/lib/weekly/deterministic';
+import { deterministicLineup, lineupRoster, startableIds } from '@/lib/weekly/deterministic';
 
 // ---------------------------------------------------------------------------
 // The DATA block
