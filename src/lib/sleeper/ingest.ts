@@ -120,6 +120,11 @@ export async function ingestPlayers(db = supabaseServer()) {
       active: p.active ?? true,
       depth_chart_order: p.depth_chart_order ?? null,
       injury_status: p.injury_status ?? null,
+      injury_body_part: p.injury_body_part ?? null,
+      injury_notes: p.injury_notes ?? null,
+      injury_start_date: p.injury_start_date ?? null,
+      practice_participation: p.practice_participation ?? null,
+      practice_description: p.practice_description ?? null,
       years_exp: p.years_exp ?? null,
       updated_at: new Date().toISOString(),
     }));

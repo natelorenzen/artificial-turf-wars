@@ -101,6 +101,12 @@ export interface SleeperPlayerRecord {
   active?: boolean | null;
   depth_chart_order?: number | null;
   injury_status?: string | null;
+  injury_body_part?: string | null;
+  injury_notes?: string | null;
+  injury_start_date?: string | null;
+  /** Almost never populated — 1 of 2,725 rostered players on 18 Sep 2026. */
+  practice_participation?: string | null;
+  practice_description?: string | null;
   years_exp?: number | null;
 }
 

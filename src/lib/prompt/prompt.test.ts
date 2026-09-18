@@ -3,6 +3,7 @@ import { generateRulebook } from './rulebook';
 import { assemblePrompt, assertSharedContext, estimateTokens } from './assemble';
 import { buildMemoryBlock, ordinal, seasonSummary } from './memory';
 import { LEAGUE, OFFENSE_SCORING } from '@/lib/config/league';
+import { injuryDetail } from './context';
 
 describe('generated rulebook', () => {
   const text = generateRulebook();
@@ -148,5 +149,18 @@ describe('memory block', () => {
 
   it('renders ordinals correctly', () => {
     expect([1, 2, 3, 4, 11, 21].map(ordinal)).toEqual(['1st', '2nd', '3rd', '4th', '11th', '21st']);
+  });
+});
+
+describe('injuryDetail', () => {
+  it('carries the feed verbatim, so two Questionables can be told apart', () => {
+    expect(
+      injuryDetail({ injury_body_part: 'Knee - Meniscus', injury_notes: 'Surgery' }),
+    ).toEqual({ body_part: 'Knee - Meniscus', notes: 'Surgery', since: null, practice: null, practice_note: null });
+  });
+
+  it('is null when the feed has nothing beyond the status', () => {
+    expect(injuryDetail({})).toBeNull();
+    expect(injuryDetail({ injury_body_part: null, injury_notes: null })).toBeNull();
   });
 });
