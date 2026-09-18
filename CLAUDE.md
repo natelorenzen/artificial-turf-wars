@@ -245,16 +245,18 @@ npx tsx --env-file=.env.local scripts/draft.ts --auction   # dry run
 npx tsx --env-file=.env.local scripts/draft.ts --draft     # dry run
 ```
 
-During the season. The two byline pieces do NOT publish themselves — a cron job writes
-each as a draft and a human reads it and releases it, which is the only manual step in
-a week:
+During the season. The two byline pieces publish themselves (since week 3, 2026): the
+weekend guide as soon as it is written, the weekly column only when its number check
+passes — a failed check holds it as a draft, and the job run says HELD. Nothing in a
+normal week is manual; `publish.ts` handles the exceptions:
 
 ```bash
 npx tsx --env-file=.env.local scripts/health.ts                        # did the jobs run?
 npx tsx --env-file=.env.local scripts/health.ts --at 2026-09-15T18:00:00Z  # as of a moment
 npx tsx --env-file=.env.local scripts/publish.ts                       # what is waiting
 npx tsx --env-file=.env.local scripts/publish.ts --guide --week 1      # read it in full
-npx tsx --env-file=.env.local scripts/publish.ts --guide --week 1 --release
+npx tsx --env-file=.env.local scripts/publish.ts --recap --week 1 --release  # a held column
+npx tsx --env-file=.env.local scripts/publish.ts --guide --week 1 --retract
 ```
 
 ## Env vars
