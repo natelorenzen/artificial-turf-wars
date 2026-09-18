@@ -13,7 +13,7 @@
  * scores them with the same `scoreLineup` the official pass uses — so the numbers agree
  * with Tuesday's rather than being a second opinion — but it never writes a
  * `player_stats` row, never writes a `lineup_scores` row, never touches `standings`,
- * and never calls a model. See the header of `0011_live_scores.sql` for the trap that
+ * and never calls a model. See the header of `0012_live_scores.sql` for the trap that
  * shaped this: a third `status` on `player_stats` would have been read as `provisional`
  * by three separate consumers, one of which publishes the stat-correction diff.
  *

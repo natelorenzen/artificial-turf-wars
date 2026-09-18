@@ -68,7 +68,7 @@ create table live_scores (
 create index on live_scores (week);
 
 comment on table live_scores is
-  'In-progress scores shown while a slate is being played. Never authoritative: no standing, record, FAAB balance or bracket seed is derived from this table, and it stops being written the moment a week is officially scored. See the header of 0011_live_scores.sql for why this is not a third player_stats status.';
+  'In-progress scores shown while a slate is being played. Never authoritative: no standing, record, FAAB balance or bracket seed is derived from this table, and it stops being written the moment a week is officially scored. See the header of 0012_live_scores.sql for why this is not a third player_stats status.';
 
 alter table live_scores enable row level security;
 create policy live_scores_public_read on live_scores
