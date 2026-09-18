@@ -1,8 +1,8 @@
 /**
  * Reading published weekend guides for the site.
  *
- * Only `published = true` rows are ever returned to a page. The cron job writes every
- * guide as a draft; a human flips the flag. Nothing auto-publishes under a byline.
+ * Only `published = true` rows are ever returned to a page. The cron job publishes a
+ * guide as it writes it; a retracted one is set back to false and disappears here.
  */
 
 import { supabaseServer } from '@/lib/supabase-server';

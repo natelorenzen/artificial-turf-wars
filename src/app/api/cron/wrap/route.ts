@@ -22,7 +22,10 @@ export const maxDuration = 300;
  * worded one, and `recaps` is keyed `(season_id, week)`, so the first version would be
  * gone. It is not resumable: there is nothing partial to resume.
  *
- * The draft is stored with `published = false`. Nothing auto-publishes under a byline.
+ * The column publishes itself when the deterministic number check passes — every
+ * figure found in the facts packet, every stated result matching the scores. When it
+ * fails the column is held as a draft and the job run says HELD, so `/api/health` and
+ * `publish.ts` both show it. Release or retract with `publish.ts --recap`.
  */
 export async function GET(request: Request) {
   try {
@@ -72,8 +75,8 @@ export async function GET(request: Request) {
         modelCalls: 1,
         costUsd: result.costUsd,
         detail: result.numbers.passed
-          ? `week ${week} column stored, every figure checked out`
-          : `week ${week} column stored, ${result.numbers.notes.length} unverified figure(s)`,
+          ? `week ${week} column published, every figure checked out`
+          : `week ${week} column HELD as a draft: ${result.numbers.notes.length} unverified figure(s)`,
       });
 
       return Response.json({
@@ -86,7 +89,7 @@ export async function GET(request: Request) {
         numberCheckNotes: result.numbers.notes,
         luck: facts.luck,
         costUsd: Number(result.costUsd.toFixed(4)),
-        published: false,
+        published: result.numbers.passed,
       });
     } catch (err) {
       await failJobRun(db, {

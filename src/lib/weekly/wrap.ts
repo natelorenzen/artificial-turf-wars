@@ -913,8 +913,8 @@ export async function recordRecapDecision(
 }
 
 /**
- * Store a written column as a DRAFT. Nothing publishes under a byline without a human
- * reading it first (`scripts/publish.ts`); a column this replaces goes back to draft too.
+ * Store a written column, published if and only if its number check passed. A column
+ * that fails is held as a draft for `scripts/publish.ts` to release or leave.
  */
 export async function storeRecap(
   db: SupabaseClient,
@@ -939,7 +939,12 @@ export async function storeRecap(
       decision_id: decisionId,
       model_calls: 1,
       cost_usd: result.costUsd,
-      published: false,
+      // Publishes itself when every figure and every result checks out against the
+      // facts packet; nothing else is gating it. A column that fails is held as a
+      // draft, because the check has caught a column naming the wrong winner, and a
+      // wrong result under a byline has already been read by the time anyone fixes it.
+      published: result.numbers.passed,
+      published_at: result.numbers.passed ? new Date().toISOString() : null,
     },
     { onConflict: 'season_id,week' },
   );

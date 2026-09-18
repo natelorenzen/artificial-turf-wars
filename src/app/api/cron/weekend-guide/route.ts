@@ -79,8 +79,11 @@ async function loadTakes(
  * claims a `job_runs` row BEFORE the first call — a duplicate cron delivery must not
  * spend a second time.
  *
- * The guide is stored with `published = false`. A cron job writes the draft; a human
- * releases it. This is a byline piece, and nothing auto-publishes under it.
+ * The guide publishes itself the moment it is written. It used to wait for a human,
+ * and in week 2 that gate cost the article its point: written Thursday afternoon,
+ * still unreleased on Friday, leading with a Thursday-night game already played. A
+ * preview is only worth anything before kickoff, and nobody can be relied on to be
+ * awake for that every week. `publish.ts --guide --retract` still pulls one.
  */
 export async function GET(request: Request) {
   try {
@@ -251,7 +254,7 @@ export async function GET(request: Request) {
           facts_packet_hash: written.factsPacketHash,
           model_calls: callsMade,
           cost_usd: cost,
-          published: false,
+          published: true,
         },
         { onConflict: 'season_id,week' },
       );
@@ -274,7 +277,7 @@ export async function GET(request: Request) {
         headline: written.guide.headline,
         selectionOk: gate.ok,
         costUsd: Number(cost.toFixed(4)),
-        published: false,
+        published: true,
       });
     } catch (err) {
       await failJobRun(db, {
