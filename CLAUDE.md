@@ -173,7 +173,7 @@ client in server-side routes.
 - **Practice participation is effectively absent.** The player pool has
   `practice_participation` / `practice_description` fields, but on 18 Sep 2026 they were
   set for 1 of 2,725 rostered players. The useful injury detail is `injury_body_part`,
-  `injury_notes` and `injury_start_date` — ingested since migration `0012` and sent as
+  `injury_notes` and `injury_start_date` — ingested since migration `0013` and sent as
   `injury_detail`. "Did not practise Wednesday" cannot come from Sleeper.
 - **No bye-week field exists.** Derive byes from
   `api.sleeper.app/schedule/nfl/regular/{season}`: any of the 32 teams absent from a
@@ -337,7 +337,7 @@ each was closed. When any of the three disagree about status, believe `GO-LIVE.m
 | Preseason data | **done** *(16 Aug)* — `preseason_stats`, manual stage, labelled in the briefing for what it is worth |
 | 7 — weekly jobs | **all 8 routes exist and have run on rehearsal data**; none has fired on a week that counts. Every backward-looking firing of 2026 re-simulated 4 Sept: 48 firings, all on a finished week |
 | 8–12 — site, standings, share card | **done** — findings, weekend guide, standings, `/results/[week]` incl. playoff rounds, `/ratings`, OG cards, methodology |
-| Live scores + Saturday preview post | **live** — `0011_live_scores` applied, and the job has written real week-1 rows (8 teams, Wed+Thu games in). Front page shows in-progress matchup scores and projected table movement; the social queue composes a Saturday "highest stakes" post, which first fires unattended **Sat 12 Sept** |
+| Live scores + Saturday preview post | **live** — `0012_live_scores` applied, and the job has written real week-1 rows (8 teams, Wed+Thu games in). Front page shows in-progress matchup scores and projected table movement; the social queue composes a Saturday "highest stakes" post, which first fires unattended **Sat 12 Sept** |
 | Playoffs (§14.5, weeks 15–16) | **done and rehearsed** *(14 Aug)* — bracket, pool, champion |
 | Social | **live** — @PlayATW, and the queue has auto-released on its own three times (17, 24, 27 Aug). The held draft post sat with its `hold_reason` until released by hand, which is both halves of the behaviour working |
 
