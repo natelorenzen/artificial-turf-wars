@@ -170,6 +170,11 @@ client in server-side routes.
   `/results/1` would have served it all weekend. It now answers "the latest week that is
   OVER", meaning the last kickoff plus a game's length. Weeks 1 and 12 are the two 2026
   weeks where those are different questions.
+- **Practice participation is effectively absent.** The player pool has
+  `practice_participation` / `practice_description` fields, but on 18 Sep 2026 they were
+  set for 1 of 2,725 rostered players. The useful injury detail is `injury_body_part`,
+  `injury_notes` and `injury_start_date` — ingested since migration `0012` and sent as
+  `injury_detail`. "Did not practise Wednesday" cannot come from Sleeper.
 - **No bye-week field exists.** Derive byes from
   `api.sleeper.app/schedule/nfl/regular/{season}`: any of the 32 teams absent from a
   week is on bye. Validated for 2026 — all 32 teams, exactly one bye each.

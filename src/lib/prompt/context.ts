@@ -23,8 +23,63 @@ export interface RosterEntry {
   season_ppg: number | null;
   last3_ppg: number | null;
   injury_status: string | null;
+  /**
+   * The rest of the feed's injury record, verbatim. Null when the feed has nothing
+   * beyond the status — which is most players, and keeps the block small.
+   */
+  injury_detail: InjuryDetail | null;
   is_on_bye: boolean;
 }
+
+/**
+ * What separates one "Questionable" from another. Copied from Sleeper, never graded:
+ * a severity score of ours would be our judgement in a block that is meant to hold
+ * only facts, for the same reason §6.4 keeps our win probability out.
+ */
+export interface InjuryDetail {
+  body_part: string | null;
+  notes: string | null;
+  since: string | null;
+  practice: string | null;
+  practice_note: string | null;
+}
+
+/** The `players` columns an `InjuryDetail` is built from. Select these alongside it. */
+export const INJURY_COLUMNS =
+  'injury_status, injury_body_part, injury_notes, injury_start_date, practice_participation, practice_description';
+
+export interface InjuryColumns {
+  injury_body_part?: string | null;
+  injury_notes?: string | null;
+  injury_start_date?: string | null;
+  practice_participation?: string | null;
+  practice_description?: string | null;
+}
+
+export function injuryDetail(row: InjuryColumns): InjuryDetail | null {
+  const detail: InjuryDetail = {
+    body_part: row.injury_body_part ?? null,
+    notes: row.injury_notes ?? null,
+    since: row.injury_start_date ?? null,
+    practice: row.practice_participation ?? null,
+    practice_note: row.practice_description ?? null,
+  };
+  return Object.values(detail).some((v) => v !== null) ? detail : null;
+}
+
+/**
+ * Sent once per weekly DATA block, in the shared base. Two things a model needs to read
+ * the injury fields correctly, and both are traps without it:
+ *
+ * - `practice` is almost always null. Read as "no problem reported", it would make a
+ *   player who missed every practice look fine.
+ * - The DATA RULE forbids "your own memory of … injuries". It was written to stop a
+ *   model recalling what happened to a player last season. Without saying so, a careful
+ *   model may read it as forbidding it to know that surgery is worse than soreness —
+ *   which is the one inference the new fields exist to allow.
+ */
+export const INJURY_NOTE =
+  'injury_detail is copied verbatim from the league\'s player feed: body_part, notes, since (the date the feed says the injury began) and practice / practice_note (participation, when reported). injury_status alone does not distinguish a minor injury from a serious one; injury_detail is the only severity information in this block, and it is not graded — judging what it implies is your call. The DATA RULE forbids recalling what happened to a specific player from memory; it does not forbid general knowledge of what an injury type usually means. The feed rarely reports practice participation, so a null practice field means "not reported", never "practised fully". injury_detail is null when the feed has nothing beyond injury_status.';
 
 export interface OpponentView {
   label: string;

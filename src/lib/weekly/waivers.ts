@@ -28,7 +28,13 @@ import {
   hashSplitContext,
   type SplitHashes,
 } from '@/lib/prompt/assemble';
-import { mean, type RosterEntry } from '@/lib/prompt/context';
+import {
+  INJURY_COLUMNS,
+  injuryDetail,
+  mean,
+  type InjuryColumns,
+  type RosterEntry,
+} from '@/lib/prompt/context';
 import { recordEngineRejection, runDecision } from '@/lib/decisions/run';
 import { waiverSchema, waiverSalvageSchema, type WaiverResponse } from '@/lib/schemas/decisions';
 import {
@@ -123,7 +129,7 @@ export async function loadFreeAgents(
   // filtering after the fact is the only way to get `limit` genuine free agents.
   const { data, error } = await db
     .from('player_projections')
-    .select('player_id, proj_pts, players!inner(name, position, nfl_team, injury_status)')
+    .select(`player_id, proj_pts, players!inner(name, position, nfl_team, ${INJURY_COLUMNS})`)
     .eq('season', context.season)
     .eq('week', context.week)
     .not('proj_pts', 'is', null)
@@ -135,7 +141,7 @@ export async function loadFreeAgents(
   const candidates = (data ?? [])
     .filter((row) => !rostered.has(row.player_id as string))
     .map((row) => {
-      const player = row.players as unknown as {
+      const player = row.players as unknown as InjuryColumns & {
         name: string;
         position: Position;
         nfl_team: string | null;
@@ -150,6 +156,7 @@ export async function loadFreeAgents(
         season_ppg: null as number | null,
         last3_ppg: null as number | null,
         injury_status: player.injury_status,
+        injury_detail: injuryDetail(player),
         is_on_bye: player.nfl_team ? byes.has(player.nfl_team) : false,
       };
     });

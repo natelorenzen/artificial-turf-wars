@@ -11,6 +11,7 @@ const entry = (player_id: string, position: string, projection: number | null, e
   season_ppg: null,
   last3_ppg: null,
   injury_status: null,
+  injury_detail: null,
   is_on_bye: false,
   ...extra,
 });

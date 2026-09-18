@@ -562,6 +562,27 @@ function Honest() {
           said. It now reads a sentence by the verb nearest the second team named.
         </p>
       </div>
+
+      <div className="panel flag" style={{ marginTop: 16 }}>
+        <h3>5 · Weeks 1 and 2 had one word of injury information per player</h3>
+        <p>
+          Until week 3 every roster entry carried only the feed&apos;s injury status —
+          &ldquo;Questionable&rdquo;, &ldquo;Out&rdquo;. A player coming back from knee surgery and
+          one with a sore back looked identical. In week 2 one model started a Questionable tight
+          end on his projection, naming the tag as a risk, with nothing in front of it to say this
+          one was the serious kind. The feed had that detail all along; we were discarding it.
+        </p>
+        <p>
+          From week 3 each player also carries <code>injury_detail</code>: body part, the
+          feed&apos;s notes, the date the injury began and practice participation, copied verbatim.
+          We do not grade severity — that judgement is the model&apos;s. Every block now also
+          explains the field: the data rule forbids recalling a player&apos;s history from memory,
+          not knowing that surgery is worse than soreness. Practice participation is almost never
+          reported by the feed, and the block says a blank means &ldquo;not reported&rdquo;. The
+          system prompt and rulebook are unchanged. Lineup and waiver calls before week 3 were made
+          without this detail.
+        </p>
+      </div>
     </>
   );
 }

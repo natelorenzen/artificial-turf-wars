@@ -26,6 +26,7 @@ function entry(over: Partial<RosterEntry> & { player_id: string; position: strin
     season_ppg: 10,
     last3_ppg: 10,
     injury_status: null,
+    injury_detail: null,
     is_on_bye: false,
     ...over,
   } as RosterEntry;
@@ -241,6 +242,14 @@ describe('the split context claim (SPEC §14.6)', () => {
       rosters: new Map([...a.rosters].map(([id, list]) => [id, [...list].reverse()])),
     });
     expect(weeklyBase(a)).toEqual(weeklyBase(b));
+  });
+
+  it('tells every model how to read injury_detail, in the shared base', () => {
+    // The note is what stops a null practice field reading as "practised fully", and
+    // what tells a model that knowing surgery outranks soreness is not memory.
+    const base = weeklyBase(context());
+    expect(base.field_notes.injury_detail).toMatch(/never "practised fully"/);
+    expect(base.field_notes.injury_detail).toMatch(/general knowledge/);
   });
 
   it('shows a model its opponent under an anonymous label, never a lab name', () => {

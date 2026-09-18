@@ -36,7 +36,11 @@ import {
   buildOpponentView,
   buildStandingView,
   formatRecord,
+  INJURY_COLUMNS,
+  INJURY_NOTE,
+  injuryDetail,
   mean,
+  type InjuryColumns,
   type LookaheadOpponent,
   type OpponentView,
   type RosterEntry,
@@ -237,6 +241,8 @@ export interface WeeklyBase {
   standings: { label: string; record: string; points_for: number; rank: number }[];
   /** Every fixture this week, so a model can see the whole slate, not just its own. */
   matchups: { home: string; away: string }[];
+  /** How to read the roster fields — shared, so it belongs in the base. */
+  field_notes: { injury_detail: string };
 }
 
 /**
@@ -275,6 +281,7 @@ export function weeklyBase(context: WeeklyContext): WeeklyBase {
       }))
       // Sorted so the base block is byte-stable regardless of row order from Postgres.
       .sort((a, b) => (a.home < b.home ? -1 : a.home > b.home ? 1 : 0)),
+    field_notes: { injury_detail: INJURY_NOTE },
   };
 }
 
@@ -413,7 +420,7 @@ async function loadRosters(
 ): Promise<Map<string, RosterEntry[]>> {
   const { data, error } = await db
     .from('rosters')
-    .select('team_id, player_id, players!inner(name, position, nfl_team, injury_status)')
+    .select(`team_id, player_id, players!inner(name, position, nfl_team, ${INJURY_COLUMNS})`)
     .in('team_id', teamIds)
     .eq('active', true);
   if (error) throw new Error(`rosters: ${error.message}`);
@@ -425,7 +432,7 @@ async function loadRosters(
 
   const out = new Map<string, RosterEntry[]>(teamIds.map((id) => [id, []]));
   for (const row of rows) {
-    const player = row.players as unknown as {
+    const player = row.players as unknown as InjuryColumns & {
       name: string;
       position: Position;
       nfl_team: string | null;
@@ -443,6 +450,7 @@ async function loadRosters(
       season_ppg: mean(history),
       last3_ppg: mean(history.slice(-FORM_WEEKS)),
       injury_status: player.injury_status,
+      injury_detail: injuryDetail(player),
       is_on_bye: player.nfl_team ? byeTeams.has(player.nfl_team) : false,
     });
   }
