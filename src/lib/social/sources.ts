@@ -125,7 +125,7 @@ async function waiverPost(
   return composeWaivers(week, outcomes);
 }
 
-/** The weekend guide, which announces itself only once a human has released it. */
+/** The weekend guide, which announces itself once it is published. */
 async function weekendPost(
   db: SupabaseClient,
   seasonId: string,

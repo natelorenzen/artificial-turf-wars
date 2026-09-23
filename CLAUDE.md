@@ -245,16 +245,21 @@ npx tsx --env-file=.env.local scripts/draft.ts --auction   # dry run
 npx tsx --env-file=.env.local scripts/draft.ts --draft     # dry run
 ```
 
-During the season. The two byline pieces do NOT publish themselves — a cron job writes
-each as a draft and a human reads it and releases it, which is the only manual step in
-a week:
+During the season. The two byline pieces publish themselves (since week 3, 2026): the
+weekend guide as soon as it is written, the weekly column as soon as it is written too
+(since week 3). A failed number check no longer holds the column: its notes are printed
+beside it on `/results/[week]`, and the results post falls back to figures only. Both of
+the check's holds in weeks 1–2 were the checker misreading a correct sentence. Nothing in
+a normal week is manual; `publish.ts` handles the exceptions (`--retract` for a column
+that really is wrong):
 
 ```bash
 npx tsx --env-file=.env.local scripts/health.ts                        # did the jobs run?
 npx tsx --env-file=.env.local scripts/health.ts --at 2026-09-15T18:00:00Z  # as of a moment
 npx tsx --env-file=.env.local scripts/publish.ts                       # what is waiting
 npx tsx --env-file=.env.local scripts/publish.ts --guide --week 1      # read it in full
-npx tsx --env-file=.env.local scripts/publish.ts --guide --week 1 --release
+npx tsx --env-file=.env.local scripts/publish.ts --recap --week 1 --release  # a held column
+npx tsx --env-file=.env.local scripts/publish.ts --guide --week 1 --retract
 ```
 
 ## Env vars

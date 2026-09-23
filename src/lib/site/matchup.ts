@@ -630,9 +630,9 @@ export function matchupStory(input: {
 /**
  * The whole week in a handful of lines, for the top of `/results/[week]`.
  *
- * Deterministic, and therefore always there. The beat writer's column needs a human to
- * release it, which is right for a byline and wrong for "who won": a reader arriving on
- * Tuesday should not find a week with no summary because nobody has read the column yet.
+ * Deterministic, and therefore always there. The beat writer's column is held back
+ * whenever its number check fails, which is right for a byline and wrong for "who won":
+ * a reader arriving on Tuesday should not find a week with no summary because of it.
  */
 export function weekBrief(input: {
   views: MatchupView[];

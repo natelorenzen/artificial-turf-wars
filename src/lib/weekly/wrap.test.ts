@@ -228,6 +228,18 @@ describe('regression — the first real wrap', () => {
     ).toBe(false);
   });
 
+  it('reads a loss with a margin in the middle of it', () => {
+    // Week 2, 2026: "posted 139.94—enough to beat five rivals on all-play—only to fall by
+    // 0.78 to Kimi K3". Correct, and held as an inverted result.
+    expect(
+      resultCheck(article('GPT-5.6 Sol posted 122.92—enough to beat five rivals on all-play—only to fall by 16.22 to DeepSeek V4 Pro.'), wk5)
+        .passed,
+    ).toBe(true);
+    expect(
+      resultCheck(article('DeepSeek V4 Pro beat four rivals on all-play, only to lose by 16.22 points to GPT-5.6 Sol.'), wk5).passed,
+    ).toBe(false);
+  });
+
   it('reads a "demolition of" as a win, and gets it right', () => {
     expect(resultCheck(article('Kimi K3 authored an 88.62-point demolition of Muse Spark 1.1.'), wk5).passed).toBe(true);
     expect(resultCheck(article('Muse Spark 1.1 authored a demolition of Kimi K3.'), wk5).passed).toBe(false);

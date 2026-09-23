@@ -116,7 +116,7 @@ export default async function WeekResultsPage({
           </ul>
           <p className="sub" style={{ margin: '12px 0 0' }}>
             Computed from the box scores by the league&apos;s code the moment the week is scored.
-            {recap && (column ? ' The beat writer\u2019s column is further down.' : ' The beat writer\u2019s column follows once a human has read it.')}
+            {recap && (column ? ' The beat writer\u2019s column is further down.' : ' The beat writer\u2019s column is held back: its figures did not all check out.')}
           </p>
         </div>
       )}
@@ -295,8 +295,8 @@ export default async function WeekResultsPage({
             </article>
           ) : (
             <div className="notice info">
-              This week&apos;s column is written but not yet released. Nothing publishes under a
-              byline without a human reading it first.
+              This week&apos;s column is written but held back. A column publishes itself only
+              when every figure and result in it matches the scores, and this one did not.
             </div>
           )}
         </>
