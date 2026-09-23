@@ -145,6 +145,16 @@ export const WEEKEND_GUIDE_FIRINGS: Firing[] = [
   { dow: 4, hour: 18 },
 ];
 
+/**
+ * The NFL picks job's entries — the same Wednesday/Thursday pair, an hour after
+ * lineups, for the same reason: every pick locks before the week's FIRST kickoff, and
+ * in weeks 1 and 12 of 2026 that is a Wednesday night.
+ */
+export const PICKS_FIRINGS: Firing[] = [
+  { dow: 3, hour: 17 },
+  { dow: 4, hour: 17 },
+];
+
 /** The next firing strictly after `now`. */
 function nextFiringAfter(now: Date, firing: Firing): Date {
   const next = new Date(now);
