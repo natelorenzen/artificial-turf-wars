@@ -291,13 +291,21 @@ function judgeRun(
 // The report
 // ---------------------------------------------------------------------------
 
-/** Backward-looking jobs: keyed to the latest week that is OVER. */
-const BACKWARD: { job: string; ledger: string }[] = [
-  { job: '/api/cron/score-provisional', ledger: 'score-provisional' },
+/**
+ * Backward-looking jobs: keyed to the latest week that is OVER.
+ *
+ * The two scoring routes call no model, so they take no `job_runs` claim — a duplicate
+ * delivery re-derives identical numbers. Their evidence is the scores themselves:
+ * `lineup_scores` rows for the week at that status. Judging them by a ledger they never
+ * write reported week 2's provisional scoring LATE on 23 Sept 2026 with every score
+ * sitting in the table.
+ */
+const BACKWARD: { job: string; ledger: string; scores?: 'provisional' | 'final' }[] = [
+  { job: '/api/cron/score-provisional', ledger: 'score-provisional', scores: 'provisional' },
   { job: '/api/cron/wrap', ledger: 'wrap' },
   { job: '/api/cron/waiver-bids', ledger: 'waiver-bids' },
   { job: '/api/cron/waiver-resolve', ledger: 'waiver-resolve' },
-  { job: '/api/cron/score-final', ledger: 'score-final' },
+  { job: '/api/cron/score-final', ledger: 'score-final', scores: 'final' },
 ];
 
 /** Forward-looking jobs: keyed to the next week with a kickoff still ahead. */
@@ -330,7 +338,7 @@ export async function checkHealth(
   const scoredWeek = await resolveScoringWeek(db, season, now);
   const weekOverAt = scoredWeek === null ? null : await weekCompletedAt(db, season, scoredWeek);
 
-  for (const { job, ledger } of BACKWARD) {
+  for (const { job, ledger, scores } of BACKWARD) {
     if (scoredWeek === null || weekOverAt === null) {
       jobs.push({
         job,
@@ -347,7 +355,10 @@ export async function checkHealth(
       jobs.push({ job, state: 'idle', week: scoredWeek, dueBy: null, evidenceAt: null, detail: 'no firing scheduled' });
       continue;
     }
-    jobs.push(judgeRun(job, scoredWeek, hoursAfter(firing, GRACE_HOURS), now, runFor(ledger, scoredWeek)));
+    const run = scores
+      ? await scoresAsRun(db, seasonId, scoredWeek, scores)
+      : runFor(ledger, scoredWeek);
+    jobs.push(judgeRun(job, scoredWeek, hoursAfter(firing, GRACE_HOURS), now, run));
   }
 
   // --- forward-looking ----------------------------------------------------
@@ -399,6 +410,30 @@ export async function checkHealth(
 }
 
 /** The week's opening kickoff — the anchor every forward-looking deadline hangs on. */
+/**
+ * A scoring job's evidence, shaped as the ledger row it does not write: `completed` at
+ * the newest `lineup_scores` row for the week and status, or nothing if there is none.
+ */
+async function scoresAsRun(
+  db: SupabaseClient,
+  seasonId: string,
+  week: number,
+  status: 'provisional' | 'final',
+): Promise<JobRunRow | undefined> {
+  const { data, error } = await db
+    .from('lineup_scores')
+    .select('created_at, lineups!inner(teams!inner(season_id))')
+    .eq('week', week)
+    .eq('status', status)
+    .eq('lineups.teams.season_id', seasonId)
+    .order('created_at', { ascending: false })
+    .limit(1);
+  if (error) throw new Error(`lineup_scores: ${error.message}`);
+  const newest = data?.[0]?.created_at as string | undefined;
+  if (!newest) return undefined;
+  return { job: `score-${status}`, week, status: 'completed', started_at: newest, finished_at: newest };
+}
+
 async function weekFirstKickoff(
   db: SupabaseClient,
   season: number,
