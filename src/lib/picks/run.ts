@@ -34,8 +34,18 @@ const FORBIDDEN_NAMES = [...COHORT.map((m) => m.displayName), ...COHORT.map((m) 
 
 /** Positions whose injuries are listed. K and DEF injuries rarely decide a game. */
 const INJURY_POSITIONS = ['QB', 'RB', 'WR', 'TE'];
-/** Only players this high on their team's depth chart. Backups' injuries are noise. */
+/** Currently this high on the depth chart counts as a starter or first backup. */
 const INJURY_DEPTH_MAX = 2;
+/**
+ * A team's preseason starters: the top N at each position by season-long projection.
+ *
+ * Needed because the depth chart alone loses exactly the injuries that matter. Sleeper
+ * DEMOTES an injured starter: on 23 Sept 2026 Caleb Williams (Doubtful) was CHI's QB3,
+ * Jayden Daniels (Doubtful) WAS's QB2 and Jaxson Dart (Doubtful) NYG's QB3. A depth-1
+ * filter showed each team's backup as its starter with no hint why — to a model whose
+ * memory says Williams starts, that reads as a data error to be overruled.
+ */
+const PRESEASON_STARTERS: Record<string, number> = { QB: 1, RB: 2, WR: 3, TE: 1 };
 
 export const PICKS_SYSTEM = `You are picking the winner of every NFL game this week.
 
@@ -77,32 +87,71 @@ interface InjuryLine {
   position: string;
   status: string;
   body_part: string | null;
+  depth_chart_order: number | null;
+  preseason_starter: boolean;
 }
 
-async function loadInjuries(db: SupabaseClient, teams: string[]): Promise<Record<string, InjuryLine[]>> {
+/** Player ids of each team's preseason starters, from the season-long projections. */
+async function loadPreseasonStarters(db: SupabaseClient, season: number, teams: string[]): Promise<Set<string>> {
+  const { data, error } = await db
+    .from('player_projections')
+    .select('player_id, proj_pts, players!inner(position, nfl_team)')
+    .eq('season', season)
+    .is('week', null)
+    .in('players.nfl_team', teams)
+    .in('players.position', INJURY_POSITIONS)
+    .order('proj_pts', { ascending: false })
+    .order('player_id');
+  if (error) throw new Error(`season-long projections: ${error.message}`);
+
+  const taken = new Map<string, number>();
+  const out = new Set<string>();
+  for (const row of data ?? []) {
+    const player = row.players as unknown as { position: string; nfl_team: string };
+    const slot = `${player.nfl_team}:${player.position}`;
+    const count = taken.get(slot) ?? 0;
+    if (count >= (PRESEASON_STARTERS[player.position] ?? 0)) continue;
+    taken.set(slot, count + 1);
+    out.add(row.player_id as string);
+  }
+  return out;
+}
+
+async function loadInjuries(
+  db: SupabaseClient,
+  season: number,
+  teams: string[],
+): Promise<Record<string, InjuryLine[]>> {
+  const starters = await loadPreseasonStarters(db, season, teams);
   const { data, error } = await db
     .from('players')
-    .select('name, position, nfl_team, injury_status, injury_body_part, depth_chart_order')
+    .select('sleeper_id, name, position, nfl_team, injury_status, injury_body_part, depth_chart_order')
     .in('nfl_team', teams)
     .in('position', INJURY_POSITIONS)
     .not('injury_status', 'is', null)
-    .lte('depth_chart_order', INJURY_DEPTH_MAX)
     .order('nfl_team')
     .order('position')
-    .order('depth_chart_order')
+    .order('depth_chart_order', { nullsFirst: false })
     .order('name');
   if (error) throw new Error(`injuries: ${error.message}`);
 
   const out: Record<string, InjuryLine[]> = {};
   for (const team of [...teams].sort()) out[team] = [];
   for (const row of data ?? []) {
-    // A backup quarterback's hamstring does not move a game; a starter's does.
-    if (row.position === 'QB' && (row.depth_chart_order as number) > 1) continue;
+    const depth = (row.depth_chart_order as number | null) ?? null;
+    const starter = starters.has(row.sleeper_id as string);
+    // Listed if he was a starter going into the season, wherever the depth chart has
+    // moved him since, or if he is a starter or first backup now. A backup QB's
+    // hamstring does not move a game; a starting QB's does.
+    const nowKey = depth !== null && (row.position === 'QB' ? depth <= 1 : depth <= INJURY_DEPTH_MAX);
+    if (!starter && !nowKey) continue;
     out[row.nfl_team as string]?.push({
       name: row.name as string,
       position: row.position as string,
       status: row.injury_status as string,
       body_part: (row.injury_body_part as string | null) ?? null,
+      depth_chart_order: depth,
+      preseason_starter: starter,
     });
   }
   return out;
@@ -186,11 +235,11 @@ export async function buildPicksData(db: SupabaseClient, season: number, week: n
       date: f.kickoffAt ? easternDate(f.kickoffAt) : null,
     })),
     this_season: Object.fromEntries([...teams].sort().map((t) => [t, recordLine(records.get(t))])),
-    injuries: await loadInjuries(db, teams),
+    injuries: await loadInjuries(db, season, teams),
     projected_starting_qb: await loadProjectedQbs(db, season, week, teams),
     data_notes: [
       'Scores in this_season are final NFL scores, most recent week last.',
-      'injuries lists QB/RB/WR/TE listed on the injury report who are first or second on their depth chart (starting QBs only).',
+      'injuries lists QB/RB/WR/TE on the injury report who were preseason starters (preseason_starter: true) or are first or second on the depth chart now (starting QB only). Teams move an injured starter down the depth chart, so a preseason starter with a high depth_chart_order is usually hurt, not benched.',
       'projected_starting_qb is the highest-projected quarterback for that team this week; null if none is projected.',
       'There are no betting lines, spreads, odds or weather in this data set.',
     ],
