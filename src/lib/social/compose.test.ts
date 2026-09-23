@@ -102,10 +102,10 @@ describe('the results post', () => {
     expect(post.link).toBeNull();
   });
 
-  it('HOLDS a post whose column failed its checks', () => {
-    // The case this gate exists for. Week 5 of the rehearsal produced a column saying
-    // DeepSeek "fell to" GPT-5.6 Sol when DeepSeek had won. Broadcasting that would
-    // have put a false result in front of people under this project's own name.
+  it('falls back to figures only when the column failed its checks, and still sends', () => {
+    // Week 5 of the rehearsal produced a column saying DeepSeek "fell to" GPT-5.6 Sol
+    // when DeepSeek had won. The model's sentence must not go out; the figures can, and
+    // holding them made a person the gate for a post with nothing in it to check.
     const post = composeResults({
       season: 2025,
       facts: wk6,
@@ -115,8 +115,8 @@ describe('the results post', () => {
         numberCheckNotes: ['RESULT: says GPT-5.6 Sol beat DeepSeek V4 Pro, but DeepSeek V4 Pro won'],
       },
     });
-    expect(post.autoEligible).toBe(false);
-    expect(post.holdReason).toContain('did not pass its checks');
+    expect(post.autoEligible).toBe(true);
+    expect(post.holdReason).toBeNull();
     // And it does NOT repeat the bad sentence.
     expect(post.body).not.toContain('fell to');
   });

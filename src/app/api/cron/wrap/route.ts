@@ -76,7 +76,7 @@ export async function GET(request: Request) {
         costUsd: result.costUsd,
         detail: result.numbers.passed
           ? `week ${week} column published, every figure checked out`
-          : `week ${week} column HELD as a draft: ${result.numbers.notes.length} unverified figure(s)`,
+          : `week ${week} column published with ${result.numbers.notes.length} check note(s) shown beside it`,
       });
 
       return Response.json({
@@ -89,7 +89,7 @@ export async function GET(request: Request) {
         numberCheckNotes: result.numbers.notes,
         luck: facts.luck,
         costUsd: Number(result.costUsd.toFixed(4)),
-        published: result.numbers.passed,
+        published: true,
       });
     } catch (err) {
       await failJobRun(db, {

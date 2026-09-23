@@ -124,11 +124,11 @@ export function composeResults(source: ResultsSource): ComposedPost {
     dedupeKey: `results:${facts.week}`,
     body: trimToFit(body, null),
     link: null,
-    // The one model-written post, and therefore the one that must not go out on trust.
-    autoEligible: !checksFailed,
-    holdReason: checksFailed
-      ? `the week ${facts.week} column did not pass its checks: ${recap!.numberCheckNotes.join('; ')}`
-      : null,
+    // Always eligible. The model's short post goes out only when its column checked out;
+    // otherwise the body is `deterministicResults`, built from the packet's figures, and
+    // there is nothing left in it to hold for.
+    autoEligible: true,
+    holdReason: null,
   });
 }
 
