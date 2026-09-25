@@ -8,6 +8,7 @@ import {
   firstFiringAtOrAfter,
   lastFiringAtOrBefore,
   parseCron,
+  waiverEvidence,
 } from './health';
 import { LINEUP_FIRINGS } from './upcoming';
 
@@ -130,5 +131,52 @@ describe('decidingFiring', () => {
     // last one that counts and Wednesday is not needed.
     const kickoff = new Date('2026-09-20T17:00:00Z');
     expect(decidingFiring(kickoff, LINEUP_FIRINGS)?.toISOString()).toBe('2026-09-17T16:00:00.000Z');
+  });
+});
+
+/**
+ * waiver-resolve writes no ledger row, and was reported LATE for week 2 with every
+ * bid resolved. Its evidence is the bids.
+ */
+describe('waiverEvidence', () => {
+  const bid = (won: boolean, losing_reason: string | null, created_at = '2026-09-22T16:40:00Z') => ({
+    won,
+    losing_reason,
+    created_at,
+  });
+  const bidRun = {
+    job: 'waiver-bids',
+    week: 2,
+    status: 'completed',
+    started_at: '2026-09-22T16:39:15Z',
+    finished_at: '2026-09-22T16:41:31Z',
+  };
+
+  it('counts a week as resolved once its bids carry an outcome', () => {
+    const run = waiverEvidence(2, [bid(true, null), bid(false, 'outbid')], '2026-09-23T16:05:00Z', bidRun);
+    expect(run?.status).toBe('completed');
+    expect(run?.finished_at).toBe('2026-09-23T16:05:00Z');
+  });
+
+  it('leaves submitted-but-unresolved bids as no evidence, so the job can go late', () => {
+    expect(waiverEvidence(2, [bid(false, null), bid(false, null)], null, bidRun)).toBeUndefined();
+  });
+
+  it('dates a week where every bid lost from the bids, since no roster row moved', () => {
+    const run = waiverEvidence(
+      2,
+      [bid(false, 'outbid', '2026-09-22T16:40:00Z'), bid(false, 'outbid', '2026-09-22T16:41:00Z')],
+      null,
+      bidRun,
+    );
+    expect(run?.finished_at).toBe('2026-09-22T16:41:00Z');
+  });
+
+  it('accepts a week with no bids when the bid job completed, because nothing was left to do', () => {
+    expect(waiverEvidence(2, [], null, bidRun)?.status).toBe('completed');
+  });
+
+  it('does not vouch for a week with no bids when the bid job never ran', () => {
+    expect(waiverEvidence(2, [], null, undefined)).toBeUndefined();
   });
 });
