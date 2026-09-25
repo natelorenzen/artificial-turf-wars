@@ -404,7 +404,7 @@ release queue is detectable, and that is what it checks.
 
 Every model picks the winner of every NFL game with a probability, graded on accuracy
 and Brier score against a coin flip, "always the home team" and the market favourite.
-`src/lib/picks/`, `/picks`, migrations `0013` and `0015`.
+`src/lib/picks/`, `/picks`, migrations `0014` and `0015`.
 
 **Since 25 Sept 2026 (week 3) they bet.** This reversed the original "no odds, ever".
 Each game carries a consensus moneyline from The Odds API (`ODDS_API_KEY`), and each

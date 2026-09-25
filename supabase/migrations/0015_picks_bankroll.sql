@@ -1,7 +1,7 @@
 -- The picks bankroll: every model gets $100 of play money for the rest of the season
 -- and may bet it on moneylines. Added 25 Sept 2026, from week 3's Sunday games.
 --
--- This reverses 0013's "no odds anywhere". Models now see a consensus moneyline for
+-- This reverses 0014's "no odds anywhere". Models now see a consensus moneyline for
 -- every game in the same prompt they pick in, so their win probabilities are no longer
 -- formed blind to the market — disclosed on /methodology, and the reason the market's
 -- own de-vigged probability is published beside them as a baseline.
@@ -9,8 +9,6 @@
 -- Play money. Still no sportsbook named or linked anywhere: a price is the median
 -- across US books, and the book list lives only in the raw snapshot.
 --
--- Numbered 0015, not 0014: PR #52 renumbers the duplicate 0011 and moves game_picks
--- to 0014.
 
 create table odds_snapshots (
   id          uuid primary key default gen_random_uuid(),
