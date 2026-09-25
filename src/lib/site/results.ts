@@ -381,7 +381,7 @@ export interface CurrentWeekTeam {
    *
    * Null means no live row — before kickoff, or once Tuesday has made the week a
    * result and `/results/{week}` is the place to read it. Never authoritative: see the
-   * header of `supabase/migrations/0011_live_scores.sql`.
+   * header of `supabase/migrations/0012_live_scores.sql`.
    */
   livePoints: number | null;
   /**
