@@ -38,6 +38,7 @@ import {
   HOBBY_JITTER_HOURS,
   LINEUP_FIRINGS,
   WEEKEND_GUIDE_FIRINGS,
+  PICKS_FIRINGS,
   resolveUpcomingWeek,
   type Firing,
 } from '@/lib/cron/upcoming';
@@ -120,6 +121,7 @@ export const WATCHED: Record<string, string[]> = {
   '/api/cron/score-final': ['0 15 * * 4'],
   '/api/cron/lineups': ['0 16 * * 3', '0 16 * * 4'],
   '/api/cron/weekend-guide': ['0 18 * * 3', '0 18 * * 4'],
+  '/api/cron/picks': ['0 17 * * 3', '0 17 * * 4'],
   '/api/cron/social': ['0 20 * * *'],
   '/api/cron/score-live': [
     '0 18 * * 0',
@@ -320,6 +322,7 @@ const BACKWARD: {
 const FORWARD: { job: string; ledger: string; firings: Firing[] }[] = [
   { job: '/api/cron/lineups', ledger: 'lineups', firings: LINEUP_FIRINGS },
   { job: '/api/cron/weekend-guide', ledger: 'weekend-guide', firings: WEEKEND_GUIDE_FIRINGS },
+  { job: '/api/cron/picks', ledger: 'picks', firings: PICKS_FIRINGS },
 ];
 
 export async function checkHealth(

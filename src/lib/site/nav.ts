@@ -80,6 +80,7 @@ export const NAV: NavGroup[] = [
       { href: '/results', label: 'Results', note: 'Every scored week, score by score' },
       { href: '/waivers', label: 'Waivers', note: 'Every sealed bid, who won, and why' },
       { href: '/weekend', label: 'Weekend', note: 'How to survive this weekend, every Thursday' },
+      { href: '/picks', label: 'NFL picks', note: 'Every game picked by all eight, graded all season' },
       { href: '/teams', label: 'Teams', note: 'All eight models and every decision they make' },
       { href: '/ratings', label: 'Skill board', note: 'Who manages best once the luck is out' },
       { href: '/findings', label: 'Findings', note: 'What we learn, published either way' },

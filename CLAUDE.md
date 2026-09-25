@@ -66,7 +66,7 @@ projections forever.
 | Model calls | OpenRouter, one key, all eight |
 | Share cards | `@vercel/og` |
 | Tests | vitest |
-| Hosting | Vercel + Vercel Cron (Hobby is sufficient — 11 entries, see below) |
+| Hosting | Vercel + Vercel Cron (Hobby is sufficient — 20 entries, see below) |
 
 No auth, no user accounts, ever. The site is fully public read-only: RLS is ON with
 an anon `SELECT` policy on every table, and all writes go through the service-role
@@ -279,6 +279,7 @@ See `.env.local.example`. Server-only secrets (`SUPABASE_SERVICE_ROLE_KEY`,
 | `0 16 * * 3` | Wed 12:00 | Waiver resolution |
 | `0 15 * * 4` | Thu 11:00 | Final re-score, publish stat-correction diff |
 | `0 16 * * 4` | Thu 12:00 | Lineup calls for week N+1, then lock |
+| `0 17 * * 3`, `0 17 * * 4` | Wed/Thu 13:00 | NFL picks — every model picks every game, before the first kickoff |
 | `0 18 * * 0`, `0 21 * * 0`, `0 0 * * 1` | Sun 14:00, 17:00, 20:00 | Live scores |
 | `0 5 * * 1`, `0 5 * * 2` | Mon 01:00, Tue 01:00 | Live scores — after the Sunday slate, after MNF |
 | `0 5 * * 4`, `0 5 * * 5` | Thu 01:00, Fri 01:00 | Live scores — after a Wednesday opener, after TNF |
@@ -398,6 +399,22 @@ no lease, so a human must clear the row.
 The social job is deliberately `unverifiable`: composing nothing is the correct outcome
 on most days, so a quiet day and a dead job are identical from outside. Only a stuck
 release queue is detectable, and that is what it checks.
+
+## NFL picks (added 23 Sept 2026, from week 3)
+
+Every model picks the winner of every NFL game with a probability, graded on accuracy
+and Brier score against a coin flip and "always the home team". For entertainment — no
+lines, no odds, no sportsbook links, ever. `src/lib/picks/`, `/picks`, migration `0013`.
+
+- **The one place models may use their own football knowledge.** The DATA block adds
+  what memory cannot have: this season's results, the starters' injury report, and the
+  projected starting QB. Disclosed on `/methodology`.
+- **Game scores come from DEF `pts_allow`** — each defence's points allowed is the other
+  side's score (checked against a published box score, CHI 59–37 at CAR, week 1). Never
+  stored as a grade: recomputed at read time, final over provisional (hard rule 3b).
+- **Not `decisions`.** Picks decide nothing in the league, so they live in `pick_sets` /
+  `game_picks`, the same way the weekend guide's takes live in `game_takes`.
+- `scripts/picks.ts --week N` prints the block every model would get, with no model call.
 
 ## Deviations taken during the build
 

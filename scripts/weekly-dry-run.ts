@@ -24,7 +24,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { COHORT, LEAGUE } from '@/lib/config/league';
 import { assemblePrompt } from '@/lib/prompt/assemble';
 import { REQUIRED_SLACK_HOURS } from '@/lib/cron/guard';
-import { LINEUP_FIRINGS, WEEKEND_GUIDE_FIRINGS } from '@/lib/cron/upcoming';
+import { LINEUP_FIRINGS, PICKS_FIRINGS, WEEKEND_GUIDE_FIRINGS } from '@/lib/cron/upcoming';
 import { isPlayoffWeek, LAST_LEAGUE_WEEK } from '@/lib/engine/bracket';
 import { assertNoLabelLeak } from '@/lib/engine/labels';
 import { buildWeeklyContext, type WeeklyContext } from '@/lib/weekly/context';
@@ -96,6 +96,7 @@ async function stageStatus() {
     ['job_runs', 'id'],
     ['weekend_guides', 'sections'],
     ['recaps', 'published'],
+    ['pick_sets', 'context_hash'],
   ] as const) {
     const { error: probe } = await supabase.from(table).select(column).limit(1);
     console.log(`    ${table}.${column.padEnd(10)} ${probe ? `MISSING — ${probe.message}` : 'present'}`);
@@ -119,6 +120,7 @@ const FORWARD_JOBS: { job: string; firings: { dow: number; hour: number }[] }[] 
   // Two entries, and the job stands down on the earlier one whenever the later still
   // clears — so the slack reported here is the LATEST firing that would actually run.
   { job: 'lineups', firings: LINEUP_FIRINGS },
+  { job: 'picks', firings: PICKS_FIRINGS },
   { job: 'weekend-guide', firings: WEEKEND_GUIDE_FIRINGS },
 ];
 
@@ -165,7 +167,7 @@ async function stageCrons(season: number) {
 
   console.log(`\n  CRON SLACK — season ${season}, ${REQUIRED_SLACK_HOURS}h required`);
   console.log(`  Worst-case start assumed, i.e. ${Math.round(HOBBY_JITTER_HOURS * 60)} min into the scheduled hour (Vercel Hobby).\n`);
-  console.log('  wk  first kickoff (UTC)   ET     waiver-bids  waiver-resolve  lineups  weekend-guide');
+  console.log('  wk  first kickoff (UTC)   ET     waiver-bids  waiver-resolve  lineups    picks  weekend-guide');
 
   const failures: string[] = [];
 
