@@ -403,8 +403,33 @@ release queue is detectable, and that is what it checks.
 ## NFL picks (added 23 Sept 2026, from week 3)
 
 Every model picks the winner of every NFL game with a probability, graded on accuracy
-and Brier score against a coin flip and "always the home team". For entertainment — no
-lines, no odds, no sportsbook links, ever. `src/lib/picks/`, `/picks`, migration `0013`.
+and Brier score against a coin flip, "always the home team" and the market favourite.
+`src/lib/picks/`, `/picks`, migrations `0013` and `0015`.
+
+**Since 25 Sept 2026 (week 3) they bet.** This reversed the original "no odds, ever".
+Each game carries a consensus moneyline from The Odds API (`ODDS_API_KEY`), and each
+model has $100 of play money for the rest of the season — whole-dollar moneyline bets on
+either team, no top-ups, most money at the end wins. Still for entertainment: play money,
+no book named, no sportsbook link, ever.
+
+- **Odds are snapshotted once per week** into `odds_snapshots` and read back from there
+  (hard rule 6). A resumed run reuses the week's snapshot so every model sees the same
+  prices. The consensus is a median in DECIMAL odds; an American median across ±100 is
+  meaningless.
+- **The bankroll is outside the DATA block.** The block stays byte-identical and hashed;
+  each model's balance is stated after it. Same base/overlay split as hard rule 11.
+- **Bets are never stored settled.** `game_picks` holds stake, side and price; the
+  balance is recomputed from `pts_allow` at read time, like the grade. Money on an
+  unscored game is at risk, not available.
+- **Odds fail soft.** No key or a dead feed still produces picks, with every moneyline
+  null and betting closed that week — the job detail says so. Losing the picks is not
+  recoverable; losing one week of betting is.
+- **The pick and the bet share one answer**, so from week 3 the probabilities are not
+  blind forecasts. Disclosed on `/methodology`; the market baseline is why it is still
+  a fair comparison.
+- **Week 3 was a manual partial run** (`scripts/picks.ts --week 3 --run`) after its
+  Thursday game. Only games whose feed-reported start is still ahead are offered, and
+  the site grades every baseline on the games actually picked.
 
 - **The one place models may use their own football knowledge.** The DATA block adds
   what memory cannot have: this season's results, the starters' injury report, and the
@@ -415,6 +440,7 @@ lines, no odds, no sportsbook links, ever. `src/lib/picks/`, `/picks`, migration
 - **Not `decisions`.** Picks decide nothing in the league, so they live in `pick_sets` /
   `game_picks`, the same way the weekend guide's takes live in `game_takes`.
 - `scripts/picks.ts --week N` prints the block every model would get, with no model call.
+  `--odds` stores a fresh snapshot; `--run` calls all eight (manual, per-game kickoff guard).
 
 ## Deviations taken during the build
 

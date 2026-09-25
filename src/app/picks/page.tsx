@@ -1,12 +1,13 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
 import { loadPicksBoard, loadPicksWeek } from '@/lib/site/picks';
-import { accuracy, brierText, PicksDisclaimer, PicksWeekView, record } from './week-view';
+import { accuracy, brierText, money, PicksDisclaimer, PicksWeekView, record, signedMoney } from './week-view';
+import { STARTING_BANKROLL } from '@/lib/picks/bankroll';
 
 export const metadata: Metadata = {
   title: 'NFL picks — Artificial Turf War',
   description:
-    'Eight AI models pick the winner of every NFL game each week, with a probability. Graded all season on accuracy and calibration. For entertainment only.',
+    'Eight AI models pick the winner of every NFL game each week, with a probability, and bet $100 of play money on the moneylines for the rest of the season. For entertainment only.',
   alternates: { canonical: '/picks' },
 };
 
@@ -20,7 +21,7 @@ export default async function PicksIndex() {
     <main className="wrap">
       <div className="yard" />
       <h1>NFL picks</h1>
-      <p className="sub">Every game, every week · picked Thursday before the first kickoff · graded by code</p>
+      <p className="sub">Every game, every week · picked before the first kickoff · graded and settled by code</p>
 
       <p className="lede-copy">
         Every week each of the eight models picks the winner of every NFL game and says how sure
@@ -30,15 +31,62 @@ export default async function PicksIndex() {
         picks. They are graded here all season on how often they are right, and on whether their
         confidence was earned.
       </p>
+      <p className="lede-copy">
+        From week 3 they also see the market&apos;s moneyline for every game, and each has $
+        {STARTING_BANKROLL} of play money to bet with for the rest of the season, on either team or
+        none. No top-ups. Whoever has the most money at the end wins.
+      </p>
 
       <PicksDisclaimer />
 
       {!board ? (
         <div className="notice info">
-          No picks yet. The first set is made on Thursday at 13:00 ET, before that night&apos;s game.
+          No picks yet. Each week&apos;s set is made before that week&apos;s first kickoff.
         </div>
       ) : (
         <>
+          <div className="yard" />
+          <h2>Bankroll</h2>
+          <p className="sub">
+            ${STARTING_BANKROLL} each, from week 3, bet on moneylines · money on a game not yet scored is shown at risk
+          </p>
+          <div className="scroll compact">
+            <table>
+              <thead>
+                <tr>
+                  <th className="l">Model</th>
+                  <th>Balance</th>
+                  <th>Profit</th>
+                  <th>Bets</th>
+                  <th>Staked</th>
+                  <th>ROI</th>
+                  <th>At risk</th>
+                </tr>
+              </thead>
+              <tbody>
+                {[...board.rows]
+                  .sort((a, b) => b.bankroll.balance - a.bankroll.balance || a.model.localeCompare(b.model))
+                  .map((row) => {
+                    const b = row.bankroll;
+                    const profit = b.balance - STARTING_BANKROLL;
+                    return (
+                      <tr key={row.modelKey}>
+                        <td className="l tname">
+                          <Link href={`/team/${row.modelKey}`}>{row.model}</Link>
+                        </td>
+                        <td>{money(b.balance)}</td>
+                        <td className={profit > 0 ? 'pos' : profit < 0 ? 'neg' : 'muted'}>{signedMoney(profit)}</td>
+                        <td>{b.won + b.lost + b.push + b.pending === 0 ? '—' : `${b.won}–${b.lost}${b.push ? `–${b.push}` : ''}`}</td>
+                        <td className="muted">{money(b.staked)}</td>
+                        <td className="muted">{b.roi === null ? '—' : `${(b.roi * 100).toFixed(1)}%`}</td>
+                        <td className="muted">{b.atRisk > 0 ? money(b.atRisk) : '—'}</td>
+                      </tr>
+                    );
+                  })}
+              </tbody>
+            </table>
+          </div>
+
           <div className="yard" />
           <h2>Season board</h2>
           <p className="sub">
@@ -79,6 +127,17 @@ export default async function PicksIndex() {
                   <td>{brierText(board.consensus)}</td>
                   <td className="muted">—</td>
                 </tr>
+                {board.market && (
+                  <tr className="picks-total">
+                    <td className="l muted">The market (favourite, margin removed)</td>
+                    <td>{record(board.market)}</td>
+                    <td>{accuracy(board.market)}</td>
+                    <td>{brierText(board.market)}</td>
+                    <td className="muted">
+                      {board.market.meanConfidence === null ? '—' : `${Math.round(board.market.meanConfidence * 100)}%`}
+                    </td>
+                  </tr>
+                )}
                 <tr className="picks-total">
                   <td className="l muted">Always the home team</td>
                   <td>{record(board.home)}</td>

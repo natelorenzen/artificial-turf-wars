@@ -20,10 +20,19 @@ import {
   type PickResult,
   type PickTally,
 } from '@/lib/picks/grade';
+import { bankroll, betPnl, betResult, type BankrollState, type Bet, type BetResult } from '@/lib/picks/bankroll';
+import { fairProbs } from '@/lib/picks/odds';
+
+export interface BetView extends Bet {
+  result: BetResult;
+  /** Net result once settled; null while the game is unscored. */
+  pnl: number | null;
+}
 
 export interface ModelPickView extends Pick {
   reason: string | null;
   result: PickResult;
+  bet: BetView | null;
 }
 
 export interface ModelPickSet {
@@ -38,6 +47,10 @@ export interface ModelPickSet {
   lockedAt: string;
   picks: Map<string, ModelPickView>;
   tally: PickTally;
+  /** What the model was told it could stake; null for weeks before the bankroll. */
+  bankrollAvailable: number | null;
+  /** This week's bets alone, settled against the scores held now. */
+  weekBets: BankrollState;
 }
 
 export interface PicksWeek {
@@ -47,6 +60,8 @@ export interface PicksWeek {
   consensus: (ConsensusPick & { result: PickResult })[];
   consensusTally: PickTally;
   homeTally: PickTally;
+  /** The market favourite at its de-vigged probability, where a line was stored. */
+  marketTally: PickTally | null;
   /** One hash when every model saw the same block, which is the design. */
   contextHashes: string[];
   systemPrompt: string | null;
@@ -58,6 +73,8 @@ export interface BoardRow {
   modelKey: string;
   tally: PickTally;
   weeks: number;
+  /** Every bet this season, settled against the scores held now. */
+  bankroll: BankrollState;
 }
 
 async function seasonId(season: number): Promise<string | null> {
@@ -82,7 +99,7 @@ export async function loadPicksWeek(week: number, season = SEASON): Promise<Pick
   const { data: setRows, error } = await supabase
     .from('pick_sets')
     .select(
-      'id, model_id, headline, valid, provider_failure, validation_error, raw_response, context_hash, locked_at, system_prompt, user_prompt, models(key, display_name)',
+      'id, model_id, headline, valid, provider_failure, validation_error, raw_response, context_hash, locked_at, system_prompt, user_prompt, bankroll_available, models(key, display_name)',
     )
     .eq('season_id', id)
     .eq('week', week);
@@ -90,11 +107,16 @@ export async function loadPicksWeek(week: number, season = SEASON): Promise<Pick
 
   const { data: pickRows } = await supabase
     .from('game_picks')
-    .select('model_id, game_key, pick, win_prob, reason')
+    .select('model_id, game_key, pick, win_prob, reason, bet_team, stake, bet_price, away_price, home_price')
     .eq('season_id', id)
     .eq('week', week);
 
-  const { fixtures, outcomes } = await loadOutcomes(supabase, season, week);
+  const loaded = await loadOutcomes(supabase, season, week);
+  // Only the games somebody picked. A week picked mid-way (week 3 of 2026 began after
+  // Thursday night) must grade its baselines on the same games as the models.
+  const picked = new Set((pickRows ?? []).map((p) => p.game_key as string));
+  const fixtures = loaded.fixtures.filter((f) => picked.has(f.gameKey));
+  const outcomes = loaded.outcomes.filter((o) => picked.has(o.gameKey));
   const byGame = new Map(outcomes.map((o) => [o.gameKey, o]));
 
   const sets: ModelPickSet[] = setRows.map((row) => {
@@ -103,8 +125,20 @@ export async function loadPicksWeek(week: number, season = SEASON): Promise<Pick
     for (const p of pickRows ?? []) {
       if (p.model_id !== row.model_id) continue;
       const pick: Pick = { gameKey: p.game_key as string, pick: p.pick as string, winProb: Number(p.win_prob) };
-      picks.set(pick.gameKey, { ...pick, reason: (p.reason as string | null) ?? null, result: gradePick(pick, byGame.get(pick.gameKey)) });
+      const outcome = byGame.get(pick.gameKey);
+      const stake = Number(p.stake ?? 0);
+      const bet: Bet | null =
+        stake > 0 && p.bet_team && p.bet_price !== null
+          ? { gameKey: pick.gameKey, team: p.bet_team as string, stake, price: Number(p.bet_price) }
+          : null;
+      picks.set(pick.gameKey, {
+        ...pick,
+        reason: (p.reason as string | null) ?? null,
+        result: gradePick(pick, outcome),
+        bet: bet ? { ...bet, result: betResult(bet, outcome), pnl: betPnl(bet, outcome) } : null,
+      });
     }
+    const bets = [...picks.values()].flatMap((v) => (v.bet ? [v.bet] : []));
     return {
       model: model.display_name,
       modelKey: model.key,
@@ -117,8 +151,24 @@ export async function loadPicksWeek(week: number, season = SEASON): Promise<Pick
       lockedAt: row.locked_at as string,
       picks,
       tally: tally([...picks.values()], byGame),
+      bankrollAvailable: row.bankroll_available === null ? null : Number(row.bankroll_available),
+      weekBets: bankroll(bets, byGame, 0),
     };
   });
+
+  // The market's own forecast: the favourite, at its margin-free probability. Every
+  // model saw the same line for a game, so any row carrying it will do.
+  const market: Pick[] = [];
+  for (const f of fixtures) {
+    const row = (pickRows ?? []).find((p) => p.game_key === f.gameKey && p.away_price !== null && p.home_price !== null);
+    if (!row) continue;
+    const fair = fairProbs({ away: Number(row.away_price), home: Number(row.home_price) });
+    market.push(
+      fair.home >= fair.away
+        ? { gameKey: f.gameKey, pick: f.home, winProb: fair.home }
+        : { gameKey: f.gameKey, pick: f.away, winProb: fair.away },
+    );
+  }
 
   sets.sort((a, b) => {
     const acc = (b.tally.accuracy ?? -1) - (a.tally.accuracy ?? -1);
@@ -137,6 +187,7 @@ export async function loadPicksWeek(week: number, season = SEASON): Promise<Pick
     consensus: consensus.map((c) => ({ ...c, result: gradePick(c, byGame.get(c.gameKey)) })),
     consensusTally: tally(consensus, byGame),
     homeTally: tally(homeTeamPicks(fixtures), byGame),
+    marketTally: market.length > 0 ? tally(market, byGame) : null,
     contextHashes: [...new Set(setRows.map((r) => r.context_hash as string))],
     systemPrompt: (first.system_prompt as string | null) ?? null,
     userPrompt: (first.user_prompt as string | null) ?? null,
@@ -148,6 +199,7 @@ export async function loadPicksBoard(season = SEASON): Promise<{
   rows: BoardRow[];
   consensus: PickTally;
   home: PickTally;
+  market: PickTally | null;
   weeks: number[];
 } | null> {
   const weeks = await pickWeeks(season);
@@ -183,20 +235,38 @@ export async function loadPicksBoard(season = SEASON): Promise<{
     };
   };
 
-  const byModel = new Map<string, { model: string; tallies: PickTally[] }>();
+  const byModel = new Map<
+    string,
+    { model: string; tallies: PickTally[]; bets: Bet[]; outcomes: Map<string, GameOutcome> }
+  >();
   for (const week of loaded) {
+    const byGame = new Map(week.outcomes.map((o) => [o.gameKey, o]));
     for (const set of week.sets) {
-      const entry = byModel.get(set.modelKey) ?? { model: set.model, tallies: [] };
+      const entry = byModel.get(set.modelKey) ?? {
+        model: set.model,
+        tallies: [] as PickTally[],
+        bets: [] as Bet[],
+        outcomes: new Map<string, GameOutcome>(),
+      };
       entry.tallies.push(set.tally);
+      // Keyed by week too: a matchup can recur in a season.
+      for (const p of set.picks.values()) {
+        if (!p.bet) continue;
+        const key = `${week.week}:${p.gameKey}`;
+        entry.bets.push({ gameKey: key, team: p.bet.team, stake: p.bet.stake, price: p.bet.price });
+        const o = byGame.get(p.gameKey);
+        if (o) entry.outcomes.set(key, o);
+      }
       byModel.set(set.modelKey, entry);
     }
   }
 
-  const rows: BoardRow[] = [...byModel].map(([modelKey, { model, tallies }]) => ({
+  const rows: BoardRow[] = [...byModel].map(([modelKey, { model, tallies, bets, outcomes }]) => ({
     model,
     modelKey,
     tally: sum(tallies),
     weeks: tallies.length,
+    bankroll: bankroll(bets, outcomes),
   }));
   rows.sort((a, b) => {
     const br = (a.tally.brier ?? 9) - (b.tally.brier ?? 9);
@@ -208,6 +278,7 @@ export async function loadPicksBoard(season = SEASON): Promise<{
     rows,
     consensus: sum(loaded.map((w) => w.consensusTally)),
     home: sum(loaded.map((w) => w.homeTally)),
+    market: loaded.some((w) => w.marketTally) ? sum(loaded.flatMap((w) => (w.marketTally ? [w.marketTally] : []))) : null,
     weeks,
   };
 }

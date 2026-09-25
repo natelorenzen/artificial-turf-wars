@@ -1,8 +1,20 @@
 import Link from "next/link";
 import type { PickResult, PickTally } from "@/lib/picks/grade";
+import type { BetView } from "@/lib/site/picks";
 import type { PicksWeek } from "@/lib/site/picks";
 
 const pct = (p: number) => `${Math.round(p * 100)}%`;
+
+export function money(x: number): string {
+  return `$${x.toFixed(2)}`;
+}
+
+export function signedMoney(x: number): string {
+  const r = Math.round(x * 100) / 100;
+  return r > 0 ? `+$${r.toFixed(2)}` : r < 0 ? `−$${Math.abs(r).toFixed(2)}` : '$0.00';
+}
+
+const price = (p: number) => (p > 0 ? `+${p}` : String(p));
 
 export function record(t: PickTally): string {
   return t.push > 0 ? `${t.won}–${t.lost}–${t.push}` : `${t.won}–${t.lost}`;
@@ -14,6 +26,10 @@ export function accuracy(t: PickTally): string {
 
 export function brierText(t: PickTally): string {
   return t.brier === null ? "—" : t.brier.toFixed(3);
+}
+
+function betText(bet: BetView): string {
+  return `$${bet.stake} ${bet.team} ${price(bet.price)}`;
 }
 
 function resultClass(result: PickResult): string | undefined {
@@ -30,9 +46,9 @@ export function PicksDisclaimer() {
   return (
     <div className="notice info">
       For entertainment only. This is a public record of what eight AI models
-      predict, not betting advice. There are no odds, lines or spreads here, and
-      nothing on this site links to a sportsbook. If gambling stops being fun,
-      call 1-800-GAMBLER.
+      predict, not betting advice. The bankroll is play money: no real bets are
+      placed, the prices are a median across books, and nothing on this site
+      links to a sportsbook. If gambling stops being fun, call 1-800-GAMBLER.
     </div>
   );
 }
@@ -57,7 +73,14 @@ export function PicksWeekView({ week }: { week: PicksWeek }) {
                 : "Best so far"}
               : {week.sets[0].model}, {record(week.sets[0].tally)}. The
               consensus pick is {record(week.consensusTally)}; always picking
-              the home team is {record(week.homeTally)}.
+              the home team is {record(week.homeTally)}
+              {week.marketTally ? `; the market favourite is ${record(week.marketTally)}` : ""}.
+            </li>
+          )}
+          {week.sets.some((s) => s.weekBets.staked > 0) && (
+            <li>
+              {week.sets.reduce((n, s) => n + s.weekBets.won + s.weekBets.lost + s.weekBets.push + s.weekBets.pending, 0)} bets,
+              ${week.sets.reduce((n, s) => n + s.weekBets.staked, 0)} staked in total.
             </li>
           )}
         </ul>
@@ -66,7 +89,8 @@ export function PicksWeekView({ week }: { week: PicksWeek }) {
       <div className="yard" />
       <h2>Game by game</h2>
       <p className="sub">
-        Each model&apos;s pick and how sure it was · green won, red lost
+        Each model&apos;s pick and how sure it was, and its bet if it made one ·
+        green won, red lost
       </p>
       <div className="scroll">
         <table className="picks-grid">
@@ -116,6 +140,12 @@ export function PicksWeekView({ week }: { week: PicksWeek }) {
                         {p ? (
                           <>
                             {p.pick} <small>{pct(p.winProb)}</small>
+                            {p.bet && (
+                              <>
+                                <br />
+                                <small className={resultClass(p.bet.result)}>{betText(p.bet)}</small>
+                              </>
+                            )}
                           </>
                         ) : (
                           "—"
@@ -150,6 +180,13 @@ export function PicksWeekView({ week }: { week: PicksWeek }) {
               {s.tally.brier !== null && (
                 <span>Brier {brierText(s.tally)}</span>
               )}
+              {s.bankrollAvailable !== null && (
+                <span>
+                  staked ${s.weekBets.staked} of {money(s.bankrollAvailable)}
+                  {s.weekBets.won + s.weekBets.lost + s.weekBets.push > 0 &&
+                    ` · ${signedMoney(s.weekBets.balance)}`}
+                </span>
+              )}
               {!s.valid && (
                 <span className="tag">
                   {s.providerFailure ? "provider outage" : "no valid picks"}
@@ -170,6 +207,12 @@ export function PicksWeekView({ week }: { week: PicksWeek }) {
                         {p.pick} {pct(p.winProb)}
                       </span>{" "}
                       <strong>{p.gameKey.replace("@", " @ ")}</strong>
+                      {p.bet && (
+                        <span className={resultClass(p.bet.result)}>
+                          {" "}· bet {betText(p.bet)}
+                          {p.bet.pnl !== null && ` (${signedMoney(p.bet.pnl)})`}
+                        </span>
+                      )}
                       {p.reason && (
                         <span className="claim-why">{p.reason}</span>
                       )}
@@ -195,7 +238,7 @@ export function PicksWeekView({ week }: { week: PicksWeek }) {
       <h2>What every model was sent</h2>
       <p className="sub">
         {week.contextHashes.length === 1
-          ? `One DATA block, identical for all ${week.sets.length} · sha256 ${week.contextHashes[0].slice(0, 16)}…`
+          ? `One DATA block, identical for all ${week.sets.length} · sha256 ${week.contextHashes[0].slice(0, 16)}… · each model's own bankroll is stated after the block, outside the hash`
           : `${week.contextHashes.length} different DATA blocks this week — they should be identical. This is a defect in our code.`}
       </p>
       {week.systemPrompt && (
