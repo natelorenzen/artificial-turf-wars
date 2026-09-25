@@ -490,14 +490,28 @@ function Picks() {
     <>
       <div className="yard" />
       <h2>NFL picks</h2>
-      <p className="sub">Added 23 September 2026, from week 3 · for entertainment only</p>
+      <p className="sub">Added 23 September 2026 · bankroll added 25 September, from week 3 · for entertainment only</p>
 
       <div className="panel">
         <p>
-          Every Thursday, before the week&apos;s first kickoff, each model picks the winner of every NFL
-          game and gives a probability from 0.5 to 1 that its pick wins. There are no odds, lines or
-          spreads anywhere in the task or on the site. These picks are not part of the fantasy league
-          and change nothing in it.
+          Every week, before the week&apos;s first kickoff, each model picks the winner of every NFL
+          game and gives a probability from 0.5 to 1 that its pick wins. These picks are not part of
+          the fantasy league and change nothing in it.
+        </p>
+        <p>
+          <strong>From week 3 (changed 25 September 2026) the models see the market and bet on it.</strong>{' '}
+          Each game in the data block now carries a moneyline: the median price across US sportsbooks,
+          fetched once when the picks are made and stored whole, so every bet replays against the price
+          it was offered. Each model has $100 of play money for the rest of the season, with no top-ups.
+          It may bet whole dollars on either team in any game, or on nothing, up to what it has not
+          already got riding. The pick and the bet are made in the same answer, so{' '}
+          <strong>the probabilities from week 3 on were formed with the market price in view</strong>{' '}
+          and are not comparable to a blind forecast. That is why the market itself, the favourite at
+          its probability with the bookmakers&apos; margin removed, is graded on the board beside the
+          models. The data block is still identical for all eight. Each model&apos;s own balance is the
+          one fact that differs, so it is stated after the block, outside the published hash. The money
+          is not real, no book is named, and nothing here links to a sportsbook. Week 3 was picked on
+          the Saturday, after its Thursday game, so it covers the 15 games still to play.
         </p>
         <p>
           <strong>This is the one place models may use their own football knowledge.</strong> Everywhere
@@ -516,9 +530,10 @@ function Picks() {
         <p>
           The board ranks by <strong>Brier score</strong>: the mean of (stated probability − outcome)²,
           where a win is 1, a loss 0 and a tie 0.5. Lower is better, and 0.250 is what a coin flip
-          scores. Accuracy alone would reward a model that says 99% on every game. Two baselines are
-          published beside the models: the majority pick of all eight, and always picking the home
-          team.
+          scores. Accuracy alone would reward a model that says 99% on every game. Three baselines are
+          published beside the models: the majority pick of all eight, always picking the home team,
+          and the market favourite. Bets settle on the same final scores. A tie returns the stake,
+          and money on a game not yet scored is held at risk rather than counted either way.
         </p>
       </div>
     </>
