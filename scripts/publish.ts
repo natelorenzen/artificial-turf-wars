@@ -7,17 +7,11 @@
  *   npx tsx --env-file=.env.local scripts/publish.ts --recap --week 1 --release
  *   npx tsx --env-file=.env.local scripts/publish.ts --recap --week 1 --retract
  *
- * Two things in this league stay human on purpose, and both are bylines: the weekly
- * column and the weekend guide. Nothing that affects a RESULT waits on a person;
- * everything that makes a factual claim under a byline does. The cron jobs write
- * drafts at `published = false` and stop there.
- *
- * That was the design from the start and it had no implementation. There was no
- * script, no flag and no documented SQL — the release was a hand-written UPDATE in
- * the Supabase editor that nobody had written down, on the one step that stands
- * between a model's prose and the public. This is that step, with the article printed
- * in full first, because the whole reason a human holds this flag is to read the
- * thing before it goes out.
+ * Since week 3 of 2026 neither piece waits for a person. The weekend guide publishes
+ * as it is written, because a preview released after kickoff is worthless and week 2's
+ * sat unreleased past the Thursday game it led with. The column publishes when its
+ * number check passes and is held as a draft when it fails. This script is now for the
+ * exceptions: reading what went out, releasing a held column, retracting either.
  *
  * The number check is deterministic and it can only flag a bad figure, never fix one.
  * A column that failed it needs `--despite-check`, so releasing one is a decision

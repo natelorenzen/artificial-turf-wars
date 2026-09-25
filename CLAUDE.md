@@ -66,7 +66,7 @@ projections forever.
 | Model calls | OpenRouter, one key, all eight |
 | Share cards | `@vercel/og` |
 | Tests | vitest |
-| Hosting | Vercel + Vercel Cron (Hobby is sufficient — 11 entries, see below) |
+| Hosting | Vercel + Vercel Cron (Hobby is sufficient — 20 entries, see below) |
 
 No auth, no user accounts, ever. The site is fully public read-only: RLS is ON with
 an anon `SELECT` policy on every table, and all writes go through the service-role
@@ -245,16 +245,21 @@ npx tsx --env-file=.env.local scripts/draft.ts --auction   # dry run
 npx tsx --env-file=.env.local scripts/draft.ts --draft     # dry run
 ```
 
-During the season. The two byline pieces do NOT publish themselves — a cron job writes
-each as a draft and a human reads it and releases it, which is the only manual step in
-a week:
+During the season. The two byline pieces publish themselves (since week 3, 2026): the
+weekend guide as soon as it is written, the weekly column as soon as it is written too
+(since week 3). A failed number check no longer holds the column: its notes are printed
+beside it on `/results/[week]`, and the results post falls back to figures only. Both of
+the check's holds in weeks 1–2 were the checker misreading a correct sentence. Nothing in
+a normal week is manual; `publish.ts` handles the exceptions (`--retract` for a column
+that really is wrong):
 
 ```bash
 npx tsx --env-file=.env.local scripts/health.ts                        # did the jobs run?
 npx tsx --env-file=.env.local scripts/health.ts --at 2026-09-15T18:00:00Z  # as of a moment
 npx tsx --env-file=.env.local scripts/publish.ts                       # what is waiting
 npx tsx --env-file=.env.local scripts/publish.ts --guide --week 1      # read it in full
-npx tsx --env-file=.env.local scripts/publish.ts --guide --week 1 --release
+npx tsx --env-file=.env.local scripts/publish.ts --recap --week 1 --release  # a held column
+npx tsx --env-file=.env.local scripts/publish.ts --guide --week 1 --retract
 ```
 
 ## Env vars
@@ -274,6 +279,7 @@ See `.env.local.example`. Server-only secrets (`SUPABASE_SERVICE_ROLE_KEY`,
 | `0 16 * * 3` | Wed 12:00 | Waiver resolution |
 | `0 15 * * 4` | Thu 11:00 | Final re-score, publish stat-correction diff |
 | `0 16 * * 4` | Thu 12:00 | Lineup calls for week N+1, then lock |
+| `0 17 * * 3`, `0 17 * * 4` | Wed/Thu 13:00 | NFL picks — every model picks every game, before the first kickoff |
 | `0 18 * * 0`, `0 21 * * 0`, `0 0 * * 1` | Sun 14:00, 17:00, 20:00 | Live scores |
 | `0 5 * * 1`, `0 5 * * 2` | Mon 01:00, Tue 01:00 | Live scores — after the Sunday slate, after MNF |
 | `0 5 * * 4`, `0 5 * * 5` | Thu 01:00, Fri 01:00 | Live scores — after a Wednesday opener, after TNF |
@@ -393,6 +399,48 @@ no lease, so a human must clear the row.
 The social job is deliberately `unverifiable`: composing nothing is the correct outcome
 on most days, so a quiet day and a dead job are identical from outside. Only a stuck
 release queue is detectable, and that is what it checks.
+
+## NFL picks (added 23 Sept 2026, from week 3)
+
+Every model picks the winner of every NFL game with a probability, graded on accuracy
+and Brier score against a coin flip, "always the home team" and the market favourite.
+`src/lib/picks/`, `/picks`, migrations `0013` and `0015`.
+
+**Since 25 Sept 2026 (week 3) they bet.** This reversed the original "no odds, ever".
+Each game carries a consensus moneyline from The Odds API (`ODDS_API_KEY`), and each
+model has $100 of play money for the rest of the season — whole-dollar moneyline bets on
+either team, no top-ups, most money at the end wins. Still for entertainment: play money,
+no book named, no sportsbook link, ever.
+
+- **Odds are snapshotted once per week** into `odds_snapshots` and read back from there
+  (hard rule 6). A resumed run reuses the week's snapshot so every model sees the same
+  prices. The consensus is a median in DECIMAL odds; an American median across ±100 is
+  meaningless.
+- **The bankroll is outside the DATA block.** The block stays byte-identical and hashed;
+  each model's balance is stated after it. Same base/overlay split as hard rule 11.
+- **Bets are never stored settled.** `game_picks` holds stake, side and price; the
+  balance is recomputed from `pts_allow` at read time, like the grade. Money on an
+  unscored game is at risk, not available.
+- **Odds fail soft.** No key or a dead feed still produces picks, with every moneyline
+  null and betting closed that week — the job detail says so. Losing the picks is not
+  recoverable; losing one week of betting is.
+- **The pick and the bet share one answer**, so from week 3 the probabilities are not
+  blind forecasts. Disclosed on `/methodology`; the market baseline is why it is still
+  a fair comparison.
+- **Week 3 was a manual partial run** (`scripts/picks.ts --week 3 --run`) after its
+  Thursday game. Only games whose feed-reported start is still ahead are offered, and
+  the site grades every baseline on the games actually picked.
+
+- **The one place models may use their own football knowledge.** The DATA block adds
+  what memory cannot have: this season's results, the starters' injury report, and the
+  projected starting QB. Disclosed on `/methodology`.
+- **Game scores come from DEF `pts_allow`** — each defence's points allowed is the other
+  side's score (checked against a published box score, CHI 59–37 at CAR, week 1). Never
+  stored as a grade: recomputed at read time, final over provisional (hard rule 3b).
+- **Not `decisions`.** Picks decide nothing in the league, so they live in `pick_sets` /
+  `game_picks`, the same way the weekend guide's takes live in `game_takes`.
+- `scripts/picks.ts --week N` prints the block every model would get, with no model call.
+  `--odds` stores a fresh snapshot; `--run` calls all eight (manual, per-game kickoff guard).
 
 ## Deviations taken during the build
 

@@ -36,6 +36,7 @@ export default async function MethodologyPage() {
       <Yahoo />
       <Deviations />
       <Grading />
+      <Picks />
       <Honest />
       <Seed facts={facts} />
     </main>
@@ -478,6 +479,61 @@ function Grading() {
           than the decision: in week 1 a model that started the autopilot&apos;s nine ranked last on
           it, because of which of its players happened to score. It also penalises a deep bench,
           because every good reserve raises the ceiling it is divided by.
+        </p>
+      </div>
+    </>
+  );
+}
+
+function Picks() {
+  return (
+    <>
+      <div className="yard" />
+      <h2>NFL picks</h2>
+      <p className="sub">Added 23 September 2026 · bankroll added 25 September, from week 3 · for entertainment only</p>
+
+      <div className="panel">
+        <p>
+          Every week, before the week&apos;s first kickoff, each model picks the winner of every NFL
+          game and gives a probability from 0.5 to 1 that its pick wins. These picks are not part of
+          the fantasy league and change nothing in it.
+        </p>
+        <p>
+          <strong>From week 3 (changed 25 September 2026) the models see the market and bet on it.</strong>{' '}
+          Each game in the data block now carries a moneyline: the median price across US sportsbooks,
+          fetched once when the picks are made and stored whole, so every bet replays against the price
+          it was offered. Each model has $100 of play money for the rest of the season, with no top-ups.
+          It may bet whole dollars on either team in any game, or on nothing, up to what it has not
+          already got riding. The pick and the bet are made in the same answer, so{' '}
+          <strong>the probabilities from week 3 on were formed with the market price in view</strong>{' '}
+          and are not comparable to a blind forecast. That is why the market itself, the favourite at
+          its probability with the bookmakers&apos; margin removed, is graded on the board beside the
+          models. The data block is still identical for all eight. Each model&apos;s own balance is the
+          one fact that differs, so it is stated after the block, outside the published hash. The money
+          is not real, no book is named, and nothing here links to a sportsbook. Week 3 was picked on
+          the Saturday, after its Thursday game, so it covers the 15 games still to play.
+        </p>
+        <p>
+          <strong>This is the one place models may use their own football knowledge.</strong> Everywhere
+          else they reason only from the data we send. Here we send this season&apos;s results, the
+          current injury report for starters and the projected starting quarterback for each team,
+          and tell them the data wins where it disagrees with what they remember. All eight get the
+          same block, byte for byte, and none sees another&apos;s picks. Its hash is published every
+          week.
+        </p>
+        <p>
+          Grading is code. A game&apos;s final score comes from Sleeper&apos;s team defense stat line,
+          where each defense&apos;s points allowed is the other team&apos;s score. We checked this
+          against a published box score before relying on it. Grades are recomputed every time the
+          page is built, so a stat correction regrades a pick rather than leaving a stale verdict.
+        </p>
+        <p>
+          The board ranks by <strong>Brier score</strong>: the mean of (stated probability − outcome)²,
+          where a win is 1, a loss 0 and a tie 0.5. Lower is better, and 0.250 is what a coin flip
+          scores. Accuracy alone would reward a model that says 99% on every game. Three baselines are
+          published beside the models: the majority pick of all eight, always picking the home team,
+          and the market favourite. Bets settle on the same final scores. A tie returns the stake,
+          and money on a game not yet scored is held at risk rather than counted either way.
         </p>
       </div>
     </>

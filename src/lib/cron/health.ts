@@ -38,6 +38,7 @@ import {
   HOBBY_JITTER_HOURS,
   LINEUP_FIRINGS,
   WEEKEND_GUIDE_FIRINGS,
+  PICKS_FIRINGS,
   resolveUpcomingWeek,
   type Firing,
 } from '@/lib/cron/upcoming';
@@ -120,6 +121,7 @@ export const WATCHED: Record<string, string[]> = {
   '/api/cron/score-final': ['0 15 * * 4'],
   '/api/cron/lineups': ['0 16 * * 3', '0 16 * * 4'],
   '/api/cron/weekend-guide': ['0 18 * * 3', '0 18 * * 4'],
+  '/api/cron/picks': ['0 17 * * 3', '0 17 * * 4'],
   '/api/cron/social': ['0 20 * * *'],
   '/api/cron/score-live': [
     '0 18 * * 0',
@@ -223,7 +225,7 @@ function iso(d: Date | null): string | null {
 // Evidence
 // ---------------------------------------------------------------------------
 
-interface JobRunRow {
+export interface JobRunRow {
   job: string;
   week: number | null;
   status: string;
@@ -291,19 +293,36 @@ function judgeRun(
 // The report
 // ---------------------------------------------------------------------------
 
-/** Backward-looking jobs: keyed to the latest week that is OVER. */
-const BACKWARD: { job: string; ledger: string }[] = [
-  { job: '/api/cron/score-provisional', ledger: 'score-provisional' },
+/**
+ * Backward-looking jobs: keyed to the latest week that is OVER.
+ *
+ * The two scoring routes call no model, so they take no `job_runs` claim — a duplicate
+ * delivery re-derives identical numbers. Their evidence is the scores themselves:
+ * `lineup_scores` rows for the week at that status. Judging them by a ledger they never
+ * write reported week 2's provisional scoring LATE on 23 Sept 2026 with every score
+ * sitting in the table.
+ *
+ * `waiver-resolve` is the same case: deterministic, no claim, and reported LATE for
+ * week 2 on 25 Sept 2026 with all sixteen bids resolved. Its evidence is the bids.
+ */
+const BACKWARD: {
+  job: string;
+  ledger: string;
+  scores?: 'provisional' | 'final';
+  waivers?: true;
+}[] = [
+  { job: '/api/cron/score-provisional', ledger: 'score-provisional', scores: 'provisional' },
   { job: '/api/cron/wrap', ledger: 'wrap' },
   { job: '/api/cron/waiver-bids', ledger: 'waiver-bids' },
-  { job: '/api/cron/waiver-resolve', ledger: 'waiver-resolve' },
-  { job: '/api/cron/score-final', ledger: 'score-final' },
+  { job: '/api/cron/waiver-resolve', ledger: 'waiver-resolve', waivers: true },
+  { job: '/api/cron/score-final', ledger: 'score-final', scores: 'final' },
 ];
 
 /** Forward-looking jobs: keyed to the next week with a kickoff still ahead. */
 const FORWARD: { job: string; ledger: string; firings: Firing[] }[] = [
   { job: '/api/cron/lineups', ledger: 'lineups', firings: LINEUP_FIRINGS },
   { job: '/api/cron/weekend-guide', ledger: 'weekend-guide', firings: WEEKEND_GUIDE_FIRINGS },
+  { job: '/api/cron/picks', ledger: 'picks', firings: PICKS_FIRINGS },
 ];
 
 export async function checkHealth(
@@ -330,7 +349,7 @@ export async function checkHealth(
   const scoredWeek = await resolveScoringWeek(db, season, now);
   const weekOverAt = scoredWeek === null ? null : await weekCompletedAt(db, season, scoredWeek);
 
-  for (const { job, ledger } of BACKWARD) {
+  for (const { job, ledger, scores, waivers } of BACKWARD) {
     if (scoredWeek === null || weekOverAt === null) {
       jobs.push({
         job,
@@ -347,7 +366,12 @@ export async function checkHealth(
       jobs.push({ job, state: 'idle', week: scoredWeek, dueBy: null, evidenceAt: null, detail: 'no firing scheduled' });
       continue;
     }
-    jobs.push(judgeRun(job, scoredWeek, hoursAfter(firing, GRACE_HOURS), now, runFor(ledger, scoredWeek)));
+    const run = scores
+      ? await scoresAsRun(db, seasonId, scoredWeek, scores)
+      : waivers
+        ? await waiversAsRun(db, seasonId, scoredWeek, runFor('waiver-bids', scoredWeek))
+        : runFor(ledger, scoredWeek);
+    jobs.push(judgeRun(job, scoredWeek, hoursAfter(firing, GRACE_HOURS), now, run));
   }
 
   // --- forward-looking ----------------------------------------------------
@@ -399,6 +423,88 @@ export async function checkHealth(
 }
 
 /** The week's opening kickoff — the anchor every forward-looking deadline hangs on. */
+/**
+ * A scoring job's evidence, shaped as the ledger row it does not write: `completed` at
+ * the newest `lineup_scores` row for the week and status, or nothing if there is none.
+ */
+async function scoresAsRun(
+  db: SupabaseClient,
+  seasonId: string,
+  week: number,
+  status: 'provisional' | 'final',
+): Promise<JobRunRow | undefined> {
+  const { data, error } = await db
+    .from('lineup_scores')
+    .select('created_at, lineups!inner(teams!inner(season_id))')
+    .eq('week', week)
+    .eq('status', status)
+    .eq('lineups.teams.season_id', seasonId)
+    .order('created_at', { ascending: false })
+    .limit(1);
+  if (error) throw new Error(`lineup_scores: ${error.message}`);
+  const newest = data?.[0]?.created_at as string | undefined;
+  if (!newest) return undefined;
+  return { job: `score-${status}`, week, status: 'completed', started_at: newest, finished_at: newest };
+}
+
+/**
+ * The resolution job's evidence, shaped as the ledger row it does not write.
+ *
+ * Bids are written with `won = false` and no `losing_reason`; resolution sets one or
+ * the other on every bid it considers, so a bid still carrying neither is unresolved.
+ * Zero bids is a legal week (every team stood pat) and the route returns without
+ * writing anything — there the bid job's own completed row is the only evidence, and
+ * a sufficient one, because there was nothing left to resolve.
+ */
+export function waiverEvidence(
+  week: number,
+  bids: { won: boolean; losing_reason: string | null; created_at: string }[],
+  newestWaiverAdd: string | null,
+  bidRun: JobRunRow | undefined,
+): JobRunRow | undefined {
+  if (bids.length === 0) {
+    return bidRun?.status === 'completed'
+      ? { ...bidRun, job: 'waiver-resolve' }
+      : undefined;
+  }
+  if (!bids.some((b) => b.won || b.losing_reason !== null)) return undefined;
+  // A week where every bid lost moves no player, so fall back to the bids themselves.
+  const at = newestWaiverAdd ?? bids.map((b) => b.created_at).sort().at(-1)!;
+  return { job: 'waiver-resolve', week, status: 'completed', started_at: at, finished_at: at };
+}
+
+async function waiversAsRun(
+  db: SupabaseClient,
+  seasonId: string,
+  week: number,
+  bidRun: JobRunRow | undefined,
+): Promise<JobRunRow | undefined> {
+  const { data: bids, error } = await db
+    .from('waiver_bids')
+    .select('won, losing_reason, created_at, teams!inner(season_id)')
+    .eq('week', week)
+    .eq('teams.season_id', seasonId);
+  if (error) throw new Error(`waiver_bids: ${error.message}`);
+
+  // Players won on week N's bids join the roster for week N + 1.
+  const { data: adds, error: addError } = await db
+    .from('rosters')
+    .select('created_at, teams!inner(season_id)')
+    .eq('acquired_via', 'waiver')
+    .eq('acquired_week', week + 1)
+    .eq('teams.season_id', seasonId)
+    .order('created_at', { ascending: false })
+    .limit(1);
+  if (addError) throw new Error(`rosters: ${addError.message}`);
+
+  return waiverEvidence(
+    week,
+    (bids ?? []) as { won: boolean; losing_reason: string | null; created_at: string }[],
+    (adds?.[0]?.created_at as string | undefined) ?? null,
+    bidRun,
+  );
+}
+
 async function weekFirstKickoff(
   db: SupabaseClient,
   season: number,

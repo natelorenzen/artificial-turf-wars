@@ -444,7 +444,7 @@ export interface CurrentWeekView {
    */
   carriedForward: number;
   fixtures: CurrentWeekFixture[];
-  /** The released weekend guide for this week, if a human has released one. */
+  /** The published weekend guide for this week, if there is one. */
   guide: { week: number; headline: string } | null;
   /** True once this week has been scored, i.e. it is history rather than in progress. */
   scored: boolean;

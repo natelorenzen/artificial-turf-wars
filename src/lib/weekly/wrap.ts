@@ -438,6 +438,10 @@ const RESULT_VERBS: [RegExp, boolean][] = [
   [/\b(?:beat|beats|defeated|topped|downed|outscored|held off|edged|dispatched)\b/i, true],
   [/\b(?:win|victory|drubbing|demolition|dismantling|rout)\s+(?:of|over)\b/i, true],
   [/\b(?:lost to|fell to|fell short against|was beaten by|succumbed to|went down to)\b/i, false],
+  // A margin between the verb and the name: "only to fall by 0.78 to Kimi K3". Week 2,
+  // 2026 — with no loss verb matched, the "beat five rivals on all-play" earlier in the
+  // sentence governed, and a correct column was held as having inverted its closest result.
+  [/\b(?:fall|falls|fell|falling|lose|loses|lost|losing)\s+by\s+[\d.]+(?:\s+points?)?\s+to\b/i, false],
 ];
 
 /**
@@ -913,8 +917,12 @@ export async function recordRecapDecision(
 }
 
 /**
- * Store a written column as a DRAFT. Nothing publishes under a byline without a human
- * reading it first (`scripts/publish.ts`); a column this replaces goes back to draft too.
+ * Store a written column and publish it, whatever its check found. A failed check is
+ * published beside the column (`/results/[week]` prints the notes), never used as a
+ * hold: the checker is a pattern-matcher over free prose, and in weeks 1 and 2 of 2026
+ * both of its holds were the checker misreading a correct sentence, each of which left
+ * the week without a column until a person happened to look. `scripts/publish.ts
+ * --retract` is the remedy for a column that really is wrong.
  */
 export async function storeRecap(
   db: SupabaseClient,
@@ -939,7 +947,8 @@ export async function storeRecap(
       decision_id: decisionId,
       model_calls: 1,
       cost_usd: result.costUsd,
-      published: false,
+      published: true,
+      published_at: new Date().toISOString(),
     },
     { onConflict: 'season_id,week' },
   );

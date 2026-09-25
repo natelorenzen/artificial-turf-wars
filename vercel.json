@@ -34,6 +34,14 @@
       "schedule": "0 16 * * 4"
     },
     {
+      "path": "/api/cron/picks",
+      "schedule": "0 17 * * 3"
+    },
+    {
+      "path": "/api/cron/picks",
+      "schedule": "0 17 * * 4"
+    },
+    {
       "path": "/api/cron/weekend-guide",
       "schedule": "0 18 * * 3"
     },
