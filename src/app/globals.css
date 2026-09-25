@@ -2112,3 +2112,23 @@ tr.won-row td {
   color: #4d5675;
   font-size: 14px;
 }
+
+/* NFL picks grid. One row per game, one column per model; the percentage is the
+   model's stated probability that its pick wins, set smaller so the team code leads. */
+.picks-grid td small {
+  font-size: 0.78em;
+  color: var(--chalk-dim);
+}
+.picks-grid td.pos small,
+.picks-grid td.neg small {
+  color: inherit;
+  opacity: 0.8;
+}
+.picks-total td {
+  border-top: 2px solid var(--line);
+  font-weight: 600;
+}
+.picks-reasons {
+  padding: 12px 16px 12px 32px;
+  margin: 0;
+}

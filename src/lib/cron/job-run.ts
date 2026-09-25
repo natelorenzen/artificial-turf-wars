@@ -29,6 +29,7 @@ export type JobName =
   | 'lineups'
   | 'wrap'
   | 'weekend-guide'
+  | 'picks'
   | 'score-provisional'
   | 'score-final';
 
