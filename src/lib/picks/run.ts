@@ -17,6 +17,9 @@
  *      moneyline, and each model has $100 of play money for the season. Their win
  *      probabilities are therefore formed WITH the price in view, which is why the
  *      market's own de-vigged probability is graded beside them as a baseline.
+ *      Since picks-v3 (30 Sept 2026) the prompt also says how many weeks the money has
+ *      to last: budgeting across the season is the reasoning worth seeing, and without
+ *      the horizon a model can only guess it.
  *
  * The DATA block is still identical for every model, byte for byte, and hashed. The one
  * per-model fact — its own bankroll — sits OUTSIDE the block, after it, the same split
@@ -30,12 +33,12 @@ import { callModel } from '@/lib/openrouter/client';
 import { assertNoLabelLeak } from '@/lib/engine/labels';
 import { stableHash } from '@/lib/util/hash';
 import { claimJobRun, completeJobRun, failJobRun } from '@/lib/cron/job-run';
-import { loadFixtures, loadOutcomes, type FixtureWithKickoff } from './data';
+import { loadFixtures, loadLastRegularWeek, loadOutcomes, type FixtureWithKickoff } from './data';
 import { teamRecords, type GameOutcome, type TeamRecord } from './grade';
 import { fetchOdds, ODDS_SOURCE, parseOdds, type GameLine, type OddsEvent } from './odds';
-import { bankroll, stakeLimit, STARTING_BANKROLL, type Bet } from './bankroll';
+import { bankroll, BANKROLL_OPENED_WEEK, stakeLimit, STARTING_BANKROLL, type Bet } from './bankroll';
 
-export const PICKS_PROMPT_VERSION = 'picks-v2-bankroll';
+export const PICKS_PROMPT_VERSION = 'picks-v3-horizon';
 
 /** Lab and model names that must never reach a DATA block (hard rule 9). */
 const FORBIDDEN_NAMES = [...COHORT.map((m) => m.displayName), ...COHORT.map((m) => m.lab)];
@@ -72,10 +75,12 @@ before this season started, and the DATA block does not:
 - moneyline is the market price on each side to win the game, in American odds.
 If your reasoning relies on a player, check he is not listed as out.
 
-THE BANKROLL. Every competitor started the season with $${STARTING_BANKROLL}. There are no
-top-ups: what you lose is gone for the rest of the season, and what you win you
-can bet again. The competitor holding the most money at the end of the season
-wins this part. Your current balance is given after the DATA block.
+THE BANKROLL. Every competitor was given $${STARTING_BANKROLL} when betting opened in week
+${BANKROLL_OPENED_WEEK}, and it has to last until the end of the NFL regular season. There
+are no top-ups: what you lose is gone for the rest of the season, and what you win
+you can bet again. The competitor holding the most money after the last regular-season
+week wins this part. Your current balance, and how many weeks are left, are given
+after the DATA block.
 - A bet is on one team to win the game outright, at that team's moneyline.
   +150 means a $10 bet wins $15 profit. -150 means a $15 bet wins $10 profit.
   A losing bet loses the stake. A tie returns the stake.
@@ -233,6 +238,8 @@ function recordLine(r: TeamRecord | undefined) {
 
 export interface PicksData {
   week: number;
+  /** The last NFL regular-season week: when the bankroll competition ends. */
+  lastWeek: number;
   /** The games still open to pick — every game, unless the run is mid-week. */
   fixtures: FixtureWithKickoff[];
   /** Consensus lines for the open games that have one. */
@@ -312,6 +319,7 @@ export async function buildPicksData(
   const now = opts.now ?? new Date();
   const all = await loadFixtures(db, season, week);
   if (all.length === 0) throw new Error(`no fixtures stored for ${season} week ${week}`);
+  const lastWeek = await loadLastRegularWeek(db, season);
 
   const snapshot = opts.seasonId ? await loadOddsSnapshot(db, opts.seasonId, week) : null;
   const allLines = snapshot?.lines ?? new Map<string, GameLine>();
@@ -357,7 +365,7 @@ export async function buildPicksData(
   };
 
   assertNoLabelLeak(JSON.stringify(data), FORBIDDEN_NAMES);
-  return { week, fixtures, lines, oddsSnapshotId: snapshot?.id ?? null, data, contextHash: stableHash(data) };
+  return { week, lastWeek, fixtures, lines, oddsSnapshotId: snapshot?.id ?? null, data, contextHash: stableHash(data) };
 }
 
 // ---------------------------------------------------------------------------
@@ -417,6 +425,14 @@ export function picksSchema(fixtures: FixtureWithKickoff[], lines: Map<string, G
 
 export type PicksResponse = z.infer<ReturnType<typeof picksSchema>>;
 
+/** Identical for every model, like the DATA block: the horizon is a schedule fact. */
+export function weeksLeftLine(week: number, lastWeek: number): string {
+  const left = lastWeek - week + 1;
+  return left <= 1
+    ? `This is week ${week}, the last week of the regular season: whatever you hold after it is your final balance.`
+    : `This is week ${week}. Betting runs through week ${lastWeek}, the last week of the regular season: ${left} weeks including this one.`;
+}
+
 export function picksUserPrompt(input: PicksData, available: number): string {
   const limit = stakeLimit(available);
   return [
@@ -428,6 +444,7 @@ export function picksUserPrompt(input: PicksData, available: number): string {
       (limit > 0
         ? ` Your stakes this week may total at most $${limit}.`
         : ' That is less than the $1 minimum stake, so you cannot bet this week: every stake must be 0.'),
+    weeksLeftLine(input.week, input.lastWeek),
     '',
     `Pick the winner of all ${input.fixtures.length} games in week ${input.week}. Every game_key in games, exactly once.`,
     '',

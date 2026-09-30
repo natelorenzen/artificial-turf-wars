@@ -13,6 +13,13 @@ import type { GameOutcome } from './grade';
 
 export const STARTING_BANKROLL = 100;
 
+/**
+ * The first week anyone could bet. Announced for week 3, but the picks tables were not
+ * in the production database until 30 Sept 2026, so week 3 was never picked and the $100
+ * first went on the table in week 4.
+ */
+export const BANKROLL_OPENED_WEEK = 4;
+
 /** Below this a model cannot place the minimum $1 bet and is out of the game. */
 export const MIN_STAKE = 1;
 

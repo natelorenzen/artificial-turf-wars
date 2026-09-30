@@ -406,7 +406,7 @@ Every model picks the winner of every NFL game with a probability, graded on acc
 and Brier score against a coin flip, "always the home team" and the market favourite.
 `src/lib/picks/`, `/picks`, migrations `0014` and `0015`.
 
-**Since 25 Sept 2026 (week 3) they bet.** This reversed the original "no odds, ever".
+**Since week 4 (announced 25 Sept 2026 for week 3) they bet.** This reversed the original "no odds, ever".
 Each game carries a consensus moneyline from The Odds API (`ODDS_API_KEY`), and each
 model has $100 of play money for the rest of the season — whole-dollar moneyline bets on
 either team, no top-ups, most money at the end wins. Still for entertainment: play money,
@@ -427,9 +427,15 @@ no book named, no sportsbook link, ever.
 - **The pick and the bet share one answer**, so from week 3 the probabilities are not
   blind forecasts. Disclosed on `/methodology`; the market baseline is why it is still
   a fair comparison.
-- **Week 3 was a manual partial run** (`scripts/picks.ts --week 3 --run`) after its
-  Thursday game. Only games whose feed-reported start is still ahead are offered, and
-  the site grades every baseline on the games actually picked.
+- **Picks really began in week 4, not week 3.** Migrations `0014`/`0015` were not
+  applied in production until 30 Sept, so nothing from week 3 was ever stored and the
+  bankroll opened in week 4 (`BANKROLL_OPENED_WEEK`). `db-check.ts` catches a missing
+  table; `health.ts` does not. Disclosed on `/methodology`.
+- **The bankroll lasts through week 18**, the last NFL regular-season week, not the
+  league's week 16. Since `picks-v3-horizon` the prompt states how many weeks are left.
+- A manual mid-week run (`scripts/picks.ts --week N --run`) offers only games whose
+  feed-reported start is still ahead, and the site grades every baseline on the games
+  actually picked.
 
 - **The one place models may use their own football knowledge.** The DATA block adds
   what memory cannot have: this season's results, the starters' injury report, and the
