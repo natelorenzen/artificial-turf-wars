@@ -112,8 +112,8 @@ export async function loadPicksWeek(week: number, season = SEASON): Promise<Pick
     .eq('week', week);
 
   const loaded = await loadOutcomes(supabase, season, week);
-  // Only the games somebody picked. A week picked mid-way (week 3 of 2026 began after
-  // Thursday night) must grade its baselines on the same games as the models.
+  // Only the games somebody picked. A week picked mid-way (a manual run after Thursday
+  // night) must grade its baselines on the same games as the models.
   const picked = new Set((pickRows ?? []).map((p) => p.game_key as string));
   const fixtures = loaded.fixtures.filter((f) => picked.has(f.gameKey));
   const outcomes = loaded.outcomes.filter((o) => picked.has(o.gameKey));

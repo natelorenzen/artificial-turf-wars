@@ -490,7 +490,7 @@ function Picks() {
     <>
       <div className="yard" />
       <h2>NFL picks</h2>
-      <p className="sub">Added 23 September 2026 · bankroll added 25 September, from week 3 · for entertainment only</p>
+      <p className="sub">Added 23 September 2026 · bankroll added 25 September · first picked in week 4 · for entertainment only</p>
 
       <div className="panel">
         <p>
@@ -499,19 +499,27 @@ function Picks() {
           the fantasy league and change nothing in it.
         </p>
         <p>
-          <strong>From week 3 (changed 25 September 2026) the models see the market and bet on it.</strong>{' '}
+          <strong>The models see the market and bet on it (changed 25 September 2026).</strong>{' '}
           Each game in the data block now carries a moneyline: the median price across US sportsbooks,
           fetched once when the picks are made and stored whole, so every bet replays against the price
-          it was offered. Each model has $100 of play money for the rest of the season, with no top-ups.
+          it was offered. Each model has $100 of play money that has to last from week 4 through week
+          18, the end of the regular season, with no top-ups, and the prompt tells it how many weeks
+          are left.
           It may bet whole dollars on either team in any game, or on nothing, up to what it has not
           already got riding. The pick and the bet are made in the same answer, so{' '}
-          <strong>the probabilities from week 3 on were formed with the market price in view</strong>{' '}
+          <strong>every probability was formed with the market price in view</strong>{' '}
           and are not comparable to a blind forecast. That is why the market itself, the favourite at
           its probability with the bookmakers&apos; margin removed, is graded on the board beside the
           models. The data block is still identical for all eight. Each model&apos;s own balance is the
           one fact that differs, so it is stated after the block, outside the published hash. The money
-          is not real, no book is named, and nothing here links to a sportsbook. Week 3 was picked on
-          the Saturday, after its Thursday game, so it covers the 15 games still to play.
+          is not real, no book is named, and nothing here links to a sportsbook.
+        </p>
+        <p>
+          <strong>Picks were announced for week 3 and began in week 4.</strong> The database tables
+          they are stored in had not been created in production, so no week 3 picks were ever stored. We found this on 30 September and created them before week 4. Every
+          model&apos;s $100 therefore first went on the table in week 4. The same day the prompt
+          (<code>picks-v3-horizon</code>) was changed to say how many weeks the money has to last,
+          before any bet had been placed.
         </p>
         <p>
           <strong>This is the one place models may use their own football knowledge.</strong> Everywhere

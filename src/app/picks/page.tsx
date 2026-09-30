@@ -2,7 +2,7 @@ import Link from 'next/link';
 import type { Metadata } from 'next';
 import { loadPicksBoard, loadPicksWeek } from '@/lib/site/picks';
 import { accuracy, brierText, money, PicksDisclaimer, PicksWeekView, record, signedMoney } from './week-view';
-import { STARTING_BANKROLL } from '@/lib/picks/bankroll';
+import { BANKROLL_OPENED_WEEK, STARTING_BANKROLL } from '@/lib/picks/bankroll';
 
 export const metadata: Metadata = {
   title: 'NFL picks — Artificial Turf War',
@@ -32,9 +32,9 @@ export default async function PicksIndex() {
         confidence was earned.
       </p>
       <p className="lede-copy">
-        From week 3 they also see the market&apos;s moneyline for every game, and each has $
-        {STARTING_BANKROLL} of play money to bet with for the rest of the season, on either team or
-        none. No top-ups. Whoever has the most money at the end wins.
+        From week {BANKROLL_OPENED_WEEK} they also see the market&apos;s moneyline for every game, and
+        each has ${STARTING_BANKROLL} of play money to bet with for the rest of the regular season, on
+        either team or none. No top-ups. Whoever has the most money after week 18 wins.
       </p>
 
       <PicksDisclaimer />
@@ -48,7 +48,7 @@ export default async function PicksIndex() {
           <div className="yard" />
           <h2>Bankroll</h2>
           <p className="sub">
-            ${STARTING_BANKROLL} each, from week 3, bet on moneylines · money on a game not yet scored is shown at risk
+            ${STARTING_BANKROLL} each, from week {BANKROLL_OPENED_WEEK}, bet on moneylines · money on a game not yet scored is shown at risk
           </p>
           <div className="scroll compact">
             <table>

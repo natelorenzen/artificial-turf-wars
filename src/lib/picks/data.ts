@@ -35,6 +35,24 @@ export async function loadFixtures(
 }
 
 /**
+ * The last week of the NFL regular season, read from the stored schedule — the week the
+ * bankroll has to last until. 18 in 2026, but a schedule fact, so never hard-coded.
+ */
+export async function loadLastRegularWeek(db: SupabaseClient, season: number): Promise<number> {
+  const { data, error } = await db
+    .from('nfl_games')
+    .select('week')
+    .eq('season', season)
+    .eq('season_type', 'regular')
+    .order('week', { ascending: false })
+    .limit(1);
+  if (error) throw new Error(`nfl_games: ${error.message}`);
+  const week = data?.[0]?.week as number | undefined;
+  if (week === undefined) throw new Error(`no regular-season games stored for ${season}`);
+  return week;
+}
+
+/**
  * What each NFL defence allowed in a week, final where it exists and provisional where
  * it does not (hard rule 3b — never both). A DEF unit's player_id is its team code.
  */
