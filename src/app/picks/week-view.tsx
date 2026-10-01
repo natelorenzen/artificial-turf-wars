@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { PickResult, PickTally } from "@/lib/picks/grade";
 import type { BetView } from "@/lib/site/picks";
 import type { PicksWeek } from "@/lib/site/picks";
+import { dissentKeys } from "@/lib/picks/dissent";
 
 const pct = (p: number) => `${Math.round(p * 100)}%`;
 
@@ -32,6 +33,12 @@ function betText(bet: BetView): string {
   return `$${bet.stake} ${bet.team} ${price(bet.price)}`;
 }
 
+/** Signed percentage points, e.g. +18 pts. */
+const pts = (x: number) => {
+  const r = Math.round(x * 100);
+  return `${r > 0 ? "+" : r < 0 ? "−" : ""}${Math.abs(r)} pts`;
+};
+
 function resultClass(result: PickResult): string | undefined {
   return result === "won"
     ? "pos"
@@ -55,6 +62,7 @@ export function PicksDisclaimer() {
 
 export function PicksWeekView({ week }: { week: PicksWeek }) {
   const decided = week.outcomes.filter((o) => o.winner !== null).length;
+  const dissentCells = dissentKeys(week.dissents);
 
   return (
     <>
@@ -87,10 +95,58 @@ export function PicksWeekView({ week }: { week: PicksWeek }) {
       </div>
 
       <div className="yard" />
+      <h2>Against the grain</h2>
+      <p className="sub">
+        Every pick that went against the rest of the panel. The moneyline is in
+        the prompt, so most picks restate the market; these are where a model
+        claimed to know something the market does not. The edge is the model&apos;s own
+        probability minus the market&apos;s, margin removed — what it asserted,
+        not our forecast.
+      </p>
+      {week.dissents.length === 0 ? (
+        <div className="panel">
+          <p className="muted">
+            No model broke from the panel this week: every game was unanimous or
+            split evenly.
+          </p>
+        </div>
+      ) : (
+        <div className="panel">
+          <ul className="claims dissents">
+            {week.dissents.map((d) => {
+              const [away, home] = d.pick.gameKey.split("@");
+              const other = d.pick.pick === away ? home : away;
+              const against = d.agree === d.of - 1 ? `alone against ${d.agree}` : `${d.of - d.agree} against ${d.agree}`;
+              return (
+                <li key={`${d.pick.gameKey}|${d.modelKey}`}>
+                  <span className={resultClass(d.pick.result)}>
+                    <strong>{d.model}</strong> — {d.pick.pick} over {other}, {pct(d.pick.winProb)}
+                  </span>
+                  {d.marketProb !== null && d.claimedEdge !== null && (
+                    <span className="muted">
+                      {" "}· market {pct(d.marketProb)}, edge {pts(d.claimedEdge)}
+                    </span>
+                  )}
+                  <span className="muted"> · {against}</span>
+                  {d.pick.bet && (
+                    <span className={resultClass(d.pick.bet.result)}>
+                      {" "}· bet {betText(d.pick.bet)}
+                      {d.pick.bet.pnl !== null && ` (${signedMoney(d.pick.bet.pnl)})`}
+                    </span>
+                  )}
+                  {d.pick.reason && <span className="claim-why">{d.pick.reason}</span>}
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
+
+      <div className="yard" />
       <h2>Game by game</h2>
       <p className="sub">
         Each model&apos;s pick and how sure it was, and its bet if it made one ·
-        green won, red lost
+        green won, red lost · outlined against the panel
       </p>
       <div className="scroll">
         <table className="picks-grid">
@@ -134,7 +190,14 @@ export function PicksWeekView({ week }: { week: PicksWeek }) {
                     return (
                       <td
                         key={s.modelKey}
-                        className={p ? resultClass(p.result) : "muted"}
+                        className={
+                          [
+                            p ? resultClass(p.result) : "muted",
+                            dissentCells.has(`${o.gameKey}|${s.modelKey}`) ? "dissent" : undefined,
+                          ]
+                            .filter(Boolean)
+                            .join(" ") || undefined
+                        }
                         title={p?.reason ?? undefined}
                       >
                         {p ? (

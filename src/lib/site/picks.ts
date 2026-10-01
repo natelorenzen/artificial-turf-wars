@@ -22,6 +22,7 @@ import {
 } from '@/lib/picks/grade';
 import { bankroll, betPnl, betResult, type BankrollState, type Bet, type BetResult } from '@/lib/picks/bankroll';
 import { fairProbs } from '@/lib/picks/odds';
+import { dissents, type Dissent } from '@/lib/picks/dissent';
 
 export interface BetView extends Bet {
   result: BetResult;
@@ -62,6 +63,8 @@ export interface PicksWeek {
   homeTally: PickTally;
   /** The market favourite at its de-vigged probability, where a line was stored. */
   marketTally: PickTally | null;
+  /** Picks against the panel's majority, boldest claimed edge first. */
+  dissents: Dissent<ModelPickView>[];
   /** One hash when every model saw the same block, which is the design. */
   contextHashes: string[];
   systemPrompt: string | null;
@@ -159,10 +162,12 @@ export async function loadPicksWeek(week: number, season = SEASON): Promise<Pick
   // The market's own forecast: the favourite, at its margin-free probability. Every
   // model saw the same line for a game, so any row carrying it will do.
   const market: Pick[] = [];
+  const marketByTeam = new Map<string, Map<string, number>>();
   for (const f of fixtures) {
     const row = (pickRows ?? []).find((p) => p.game_key === f.gameKey && p.away_price !== null && p.home_price !== null);
     if (!row) continue;
     const fair = fairProbs({ away: Number(row.away_price), home: Number(row.home_price) });
+    marketByTeam.set(f.gameKey, new Map([[f.away, fair.away], [f.home, fair.home]]));
     market.push(
       fair.home >= fair.away
         ? { gameKey: f.gameKey, pick: f.home, winProb: fair.home }
@@ -188,6 +193,7 @@ export async function loadPicksWeek(week: number, season = SEASON): Promise<Pick
     consensusTally: tally(consensus, byGame),
     homeTally: tally(homeTeamPicks(fixtures), byGame),
     marketTally: market.length > 0 ? tally(market, byGame) : null,
+    dissents: dissents(sets, marketByTeam),
     contextHashes: [...new Set(setRows.map((r) => r.context_hash as string))],
     systemPrompt: (first.system_prompt as string | null) ?? null,
     userPrompt: (first.user_prompt as string | null) ?? null,
