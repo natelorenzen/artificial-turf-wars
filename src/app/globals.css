@@ -2138,3 +2138,17 @@ tr.won-row td {
 .picks-reasons .claim-why {
   color: var(--chalk-dim);
 }
+
+/* Against the grain: picks that broke from the panel. Same dark-panel ink as the
+   reasons list; the grid outlines the same cells in amber so the two read together. */
+.dissents {
+  margin: 0;
+  color: var(--chalk);
+}
+.dissents .claim-why {
+  color: var(--chalk-dim);
+}
+.picks-grid td.dissent {
+  outline: 2px solid var(--amber);
+  outline-offset: -4px;
+}
