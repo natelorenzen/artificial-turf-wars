@@ -2128,7 +2128,13 @@ tr.won-row td {
   border-top: 2px solid var(--line);
   font-weight: 600;
 }
+/* The disclosure is a dark panel inside the light telestrator, so it must reset the
+   telestrator's dark ink — inherited, it put the pick and game near-black on navy. */
 .picks-reasons {
   padding: 12px 16px 12px 32px;
   margin: 0;
+  color: var(--chalk);
+}
+.picks-reasons .claim-why {
+  color: var(--chalk-dim);
 }
