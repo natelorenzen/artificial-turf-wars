@@ -207,22 +207,33 @@ async function draftDeltas(
   const pool = board.slice(0, 1000).map((b) => b.player_id);
   const relevant = [...new Set([...pool, ...picks.map((p) => p.player_id as string)])];
 
-  const seasonPts = new Map<string, number>();
+  // Resolved per player-week, final over provisional (hard rule 3b) — the blind sum this
+  // replaced counted every re-scored week twice, and the draft column dominates the
+  // decision score.
+  const provisionalPts = new Map<string, number>();
+  const finalPts = new Map<string, number>();
   for (let start = 0; start < relevant.length; start += 200) {
     const slice = relevant.slice(start, start + 200);
-    const rows = await fetchAll<{ player_id: string; computed_pts: number | null }>((from, to) =>
-      supabase
-        .from('player_stats')
-        .select('player_id, computed_pts, week')
-        .eq('season', season)
-        .lte('week', LEAGUE.regularSeasonWeeks)
-        .in('player_id', slice)
-        .order('id', { ascending: true })
-        .range(from, to),
+    const rows = await fetchAll<{ player_id: string; computed_pts: number | null; week: number; status: string }>(
+      (from, to) =>
+        supabase
+          .from('player_stats')
+          .select('player_id, computed_pts, week, status')
+          .eq('season', season)
+          .lte('week', LEAGUE.regularSeasonWeeks)
+          .in('player_id', slice)
+          .order('id', { ascending: true })
+          .range(from, to),
     );
     for (const row of rows) {
-      seasonPts.set(row.player_id, (seasonPts.get(row.player_id) ?? 0) + Number(row.computed_pts ?? 0));
+      const target = row.status === 'final' ? finalPts : provisionalPts;
+      target.set(`${row.player_id}:${row.week}`, Number(row.computed_pts ?? 0));
     }
+  }
+  const seasonPts = new Map<string, number>();
+  for (const [key, points] of new Map([...provisionalPts, ...finalPts])) {
+    const playerId = key.slice(0, key.lastIndexOf(':'));
+    seasonPts.set(playerId, (seasonPts.get(playerId) ?? 0) + points);
   }
 
   // The shadow league: same order, every team sorting.
@@ -369,14 +380,27 @@ export async function loadRatings(season = SEASON): Promise<RatingsBoard> {
   // --- lineup efficiency ----------------------------------------------------
   const { data: efficiencyRows } = await supabase
     .from('lineup_scores')
-    .select('efficiency, status, lineups!inner(team_id)')
+    .select('lineup_id, efficiency, status, lineups!inner(team_id)')
     .in('lineups.team_id', teamIds);
 
-  const efficiencyOf = new Map<string, number[]>();
+  // One number per lineup, final over provisional (hard rule 3b). A re-scored week keeps
+  // both rows, and averaging them all counted every week twice — the board printed
+  // "8 weeks" after week 4.
+  const officialEfficiency = new Map<string, { teamId: string; status: string; efficiency: number }>();
   for (const row of efficiencyRows ?? []) {
-    const teamId = (row.lineups as unknown as { team_id: string }).team_id;
+    const existing = officialEfficiency.get(row.lineup_id as string);
+    if (existing?.status === 'final' && row.status !== 'final') continue;
+    officialEfficiency.set(row.lineup_id as string, {
+      teamId: (row.lineups as unknown as { team_id: string }).team_id,
+      status: row.status as string,
+      efficiency: Number(row.efficiency ?? 0),
+    });
+  }
+
+  const efficiencyOf = new Map<string, number[]>();
+  for (const { teamId, efficiency } of officialEfficiency.values()) {
     const list = efficiencyOf.get(teamId) ?? [];
-    list.push(Number(row.efficiency ?? 0));
+    list.push(efficiency);
     efficiencyOf.set(teamId, list);
   }
 
