@@ -67,6 +67,8 @@ export interface PicksWeek {
   dissents: Dissent<ModelPickView>[];
   /** gameKey → team → the market's margin-free probability, where a line was stored. */
   market: Map<string, Map<string, number>>;
+  /** gameKey → the consensus American moneyline every model was shown. */
+  lines: Map<string, { away: number; home: number }>;
   /** One hash when every model saw the same block, which is the design. */
   contextHashes: string[];
   systemPrompt: string | null;
@@ -165,9 +167,11 @@ export async function loadPicksWeek(week: number, season = SEASON): Promise<Pick
   // model saw the same line for a game, so any row carrying it will do.
   const market: Pick[] = [];
   const marketByTeam = new Map<string, Map<string, number>>();
+  const lines = new Map<string, { away: number; home: number }>();
   for (const f of fixtures) {
     const row = (pickRows ?? []).find((p) => p.game_key === f.gameKey && p.away_price !== null && p.home_price !== null);
     if (!row) continue;
+    lines.set(f.gameKey, { away: Number(row.away_price), home: Number(row.home_price) });
     const fair = fairProbs({ away: Number(row.away_price), home: Number(row.home_price) });
     marketByTeam.set(f.gameKey, new Map([[f.away, fair.away], [f.home, fair.home]]));
     market.push(
@@ -197,6 +201,7 @@ export async function loadPicksWeek(week: number, season = SEASON): Promise<Pick
     marketTally: market.length > 0 ? tally(market, byGame) : null,
     dissents: dissents(sets, marketByTeam),
     market: marketByTeam,
+    lines,
     contextHashes: [...new Set(setRows.map((r) => r.context_hash as string))],
     systemPrompt: (first.system_prompt as string | null) ?? null,
     userPrompt: (first.user_prompt as string | null) ?? null,

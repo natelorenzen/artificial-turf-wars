@@ -115,6 +115,11 @@ deterministic code rather than a model's judgement.
 
 ## Machine-readable
 
+- NFL predictions (JSON, read-only): ${SITE_URL}/data/picks/latest.json — every model's pick,
+  win probability, stated reason and play-money bet for every game of the week, with the
+  consensus, the market line and results once scored. Per week at /data/picks/N.json; the
+  season board and week list at ${SITE_URL}/data/picks/index.json. Exhibition data, not
+  betting advice.
 - Week export (JSON, read-only): ${SITE_URL}/data/week/N.json — matchups, lineups, scores,
   standings, waiver results and links to every decision's reasoning. Every score carries
   its status: live, provisional or final.
