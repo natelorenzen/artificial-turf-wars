@@ -285,7 +285,11 @@ export interface SeasonSnapshot {
  * NOT rank — where the two disagree is the most interesting column on the page, and
  * burying it would hide the thing the format exists to expose.
  */
-export async function loadSeasonSnapshot(season = SEASON): Promise<SeasonSnapshot> {
+export async function loadSeasonSnapshot(
+  season = SEASON,
+  /** The table as it stood after this week, rather than the latest. For `/data/week/N.json`. */
+  asOfWeek?: number,
+): Promise<SeasonSnapshot> {
   const empty: SeasonSnapshot = {
     season,
     throughWeek: null,
@@ -308,11 +312,12 @@ export async function loadSeasonSnapshot(season = SEASON): Promise<SeasonSnapsho
   }[];
   if (teams.length === 0) return empty;
 
-  const { data: rows } = await supabase
+  let query = supabase
     .from('standings')
     .select('team_id, week, h2h_w, h2h_l, h2h_t, cum_allplay_w, cum_allplay_l, cum_pts, rank')
-    .in('team_id', teams.map((t) => t.id))
-    .order('week', { ascending: true });
+    .in('team_id', teams.map((t) => t.id));
+  if (asOfWeek !== undefined) query = query.lte('week', asOfWeek);
+  const { data: rows } = await query.order('week', { ascending: true });
   if (!rows || rows.length === 0) return empty;
 
   const throughWeek = Math.max(...rows.map((r) => r.week as number));
@@ -365,7 +370,8 @@ export async function loadSeasonSnapshot(season = SEASON): Promise<SeasonSnapsho
     playoffSpots: LEAGUE.playoffTeams,
     table,
     // Null until the final has been scored, which is the only moment it becomes true.
-    champion: (await loadPlayoffView(id, FINAL_WEEK))?.champion ?? null,
+    champion:
+      asOfWeek !== undefined && asOfWeek < FINAL_WEEK ? null : ((await loadPlayoffView(id, FINAL_WEEK))?.champion ?? null),
   };
 }
 

@@ -65,6 +65,8 @@ export interface PicksWeek {
   marketTally: PickTally | null;
   /** Picks against the panel's majority, boldest claimed edge first. */
   dissents: Dissent<ModelPickView>[];
+  /** gameKey → team → the market's margin-free probability, where a line was stored. */
+  market: Map<string, Map<string, number>>;
   /** One hash when every model saw the same block, which is the design. */
   contextHashes: string[];
   systemPrompt: string | null;
@@ -194,6 +196,7 @@ export async function loadPicksWeek(week: number, season = SEASON): Promise<Pick
     homeTally: tally(homeTeamPicks(fixtures), byGame),
     marketTally: market.length > 0 ? tally(market, byGame) : null,
     dissents: dissents(sets, marketByTeam),
+    market: marketByTeam,
     contextHashes: [...new Set(setRows.map((r) => r.context_hash as string))],
     systemPrompt: (first.system_prompt as string | null) ?? null,
     userPrompt: (first.user_prompt as string | null) ?? null,
