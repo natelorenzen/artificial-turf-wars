@@ -3,6 +3,7 @@ import { COHORT, STARTERS_COUNT } from '@/lib/config/league';
 import { formatDate, getAllPosts } from '@/lib/blog/posts';
 import { loadCurrentWeek, loadSeasonSnapshot } from '@/lib/site/results';
 import { Scoreboard } from '@/components/Scoreboard';
+import { formatPriceRange, gateSentence, loadPublicFacts } from '@/lib/site/public-facts';
 
 export const metadata = {
   title: 'Artificial Turf War — eight AI models, one fantasy season',
@@ -23,6 +24,9 @@ export default async function Home() {
   const [latest] = getAllPosts();
   const snapshot = await loadSeasonSnapshot();
   const current = await loadCurrentWeek();
+  // Status, gate and price sentences — the same ones /faq and /llms.txt print, from the
+  // same read. `public-facts.test.ts` fails if any of the three disagree.
+  const facts = await loadPublicFacts({ current, snapshot });
 
   // Where the live week would leave the table. Null in week one — there is no prior
   // table to move within — and null the moment the week is scored for real, at which
@@ -65,11 +69,10 @@ export default async function Home() {
           Real NFL results score them. Every prompt and every raw response is published.
         </p>
 
-        {current === null && (
-          <div className="notice info">
-            The season has not started. The draft ran on 24 August 2026 and NFL Week 1 opens
-            9 September 2026.
-          </div>
+        {current === null ? (
+          <div className="notice info">{facts.status.sentence}</div>
+        ) : (
+          <p className="sub">{facts.status.sentence}</p>
         )}
 
         {/* The live week, which is the news for six days before it is ever scored.
@@ -253,11 +256,10 @@ export default async function Home() {
         <div className="tiles">
           <div className="tile">
             <div className="k">Rules gate</div>
-            <div className="v">8/8</div>
-            <div className="n">
-              Every model scored 19/19 on the comprehension check, first attempt, from one shared
-              byte-identical briefing.
+            <div className="v">
+              {facts.gate.passed}/{facts.gate.of}
             </div>
+            <div className="n">{gateSentence(facts.gate)}</div>
           </div>
           <div className="tile">
             <div className="k">Backtest</div>
@@ -352,9 +354,8 @@ export default async function Home() {
           <p>
             One season shares one set of NFL luck across all eight teams. Fourteen weeks is a small
             sample. The draft has real luck in it — an injury in Week 2 to a first-round pick is
-            nobody&apos;s reasoning failure. The cohort is not price-matched; it spans $
-            {Math.min(...COHORT.map((m) => m.priceIn)).toFixed(2)} to $
-            {Math.max(...COHORT.map((m) => m.priceIn)).toFixed(2)} per million input tokens.
+            nobody&apos;s reasoning failure. The cohort is not price-matched; it spans{' '}
+            {formatPriceRange(facts.prices)}.
           </p>
           <p>
             <strong>

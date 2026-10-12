@@ -627,6 +627,97 @@ export function matchupStory(input: {
   return lines;
 }
 
+/** One side of a game, named, for the structured brief. */
+export interface BriefSide {
+  model: string;
+  modelKey: string;
+  points: number;
+}
+
+/**
+ * The week's headline numbers as data — what `weekBrief` prints, before it is printed.
+ *
+ * Exported for the video brief (`src/lib/site/video-brief.ts`), which must carry the
+ * same high score, closest game and lineup calls as `/results/[week]` rather than
+ * re-deriving them and risking a second answer to the same question. Ties fall to the
+ * first in fixture order, as the sentences always have.
+ */
+export interface WeekBriefFacts {
+  /** Lowest status among the scored games: provisional unless every one is final. */
+  status: 'final' | 'provisional';
+  high: BriefSide;
+  low: BriefSide;
+  closest: { winner: BriefSide; loser: BriefSide; margin: number };
+  /** Null with a single game, where closest and biggest are the same game. */
+  biggest: { winner: BriefSide; loser: BriefSide; margin: number } | null;
+  playerOfWeek: { name: string; position: string; points: number; model: string; modelKey: string } | null;
+  /** Points against the autopilot. Best only when positive, worst only when negative. */
+  bestCalls: { model: string; modelKey: string; delta: number } | null;
+  worstCalls: { model: string; modelKey: string; delta: number } | null;
+  sameAsAutopilot: { teams: number; of: number } | null;
+  decidedByCalls: { winner: string; loser: string }[];
+  mostLeftOnBench: { model: string; modelKey: string; points: number } | null;
+}
+
+export function weekBriefFacts(views: MatchupView[]): WeekBriefFacts | null {
+  const scored = views.filter(
+    (v) => (v.status === 'final' || v.status === 'provisional') && v.home.points !== null && v.away.points !== null,
+  );
+  if (scored.length === 0) return null;
+
+  const side = (s: MatchupSide): BriefSide => ({ model: s.model, modelKey: s.modelKey, points: s.points! });
+  const sides = scored.flatMap((v) => [v.home, v.away]);
+
+  const games = scored
+    .map((v) => {
+      const [w, l] = v.home.points! >= v.away.points! ? [v.home, v.away] : [v.away, v.home];
+      return { w, l, margin: round2(w.points! - l.points!) };
+    })
+    .sort((a, b) => a.margin - b.margin);
+
+  const byPoints = [...sides].sort((a, b) => b.points! - a.points!);
+  const close = games[0];
+  const blowout = games.at(-1)!;
+
+  const starters = sides.flatMap((s) =>
+    s.starters.filter((slot) => slot.player?.points != null).map((slot) => ({ side: s, p: slot.player! })),
+  );
+  const star = starters.sort((a, b) => b.p.points! - a.p.points!)[0];
+
+  const judged = sides.filter((s) => s.autopilot?.delta != null);
+  const byDelta = [...judged].sort((a, b) => b.autopilot!.delta! - a.autopilot!.delta!);
+  const best = byDelta[0];
+  const worst = byDelta.at(-1);
+
+  const withOptimal = sides.filter((s) => s.optimal !== null && s.points !== null);
+  const bench = [...withOptimal].sort((a, b) => b.optimal! - b.points! - (a.optimal! - a.points!))[0];
+
+  return {
+    status: scored.every((v) => v.status === 'final') ? 'final' : 'provisional',
+    high: side(byPoints[0]),
+    low: side(byPoints.at(-1)!),
+    closest: { winner: side(close.w), loser: side(close.l), margin: close.margin },
+    biggest: games.length > 1 ? { winner: side(blowout.w), loser: side(blowout.l), margin: blowout.margin } : null,
+    playerOfWeek: star
+      ? { name: star.p.name, position: String(star.p.position), points: star.p.points!, model: star.side.model, modelKey: star.side.modelKey }
+      : null,
+    bestCalls: best && best.autopilot!.delta! > 0 ? { model: best.model, modelKey: best.modelKey, delta: best.autopilot!.delta! } : null,
+    worstCalls:
+      worst && worst.autopilot!.delta! < 0 ? { model: worst.model, modelKey: worst.modelKey, delta: worst.autopilot!.delta! } : null,
+    sameAsAutopilot:
+      judged.length > 0 ? { teams: judged.filter((s) => s.autopilot!.swaps.length === 0).length, of: judged.length } : null,
+    decidedByCalls: games
+      .filter(
+        (g) => g.w.autopilot?.points != null && g.l.autopilot?.points != null && g.l.autopilot.points > g.w.autopilot.points,
+      )
+      .map((g) => ({ winner: g.w.model, loser: g.l.model })),
+    mostLeftOnBench:
+      bench && bench.optimal! - bench.points! > 0
+        ? { model: bench.model, modelKey: bench.modelKey, points: round2(bench.optimal! - bench.points!) }
+        : null,
+  };
+}
+
 /**
  * The whole week in a handful of lines, for the top of `/results/[week]`.
  *
@@ -638,75 +729,38 @@ export function weekBrief(input: {
   views: MatchupView[];
   luck: { model: string; note: string }[];
 }): string[] {
-  const { views, luck } = input;
-  const scored = views.filter(
-    (v) => (v.status === 'final' || v.status === 'provisional') && v.home.points !== null && v.away.points !== null,
-  );
-  if (scored.length === 0) return [];
+  const facts = weekBriefFacts(input.views);
+  if (!facts) return [];
 
   const fmt = (n: number) => n.toFixed(2);
   const lines: string[] = [];
-  const sides = scored.flatMap((v) => [v.home, v.away]);
 
-  const games = scored
-    .map((v) => {
-      const [w, l] = v.home.points! >= v.away.points! ? [v.home, v.away] : [v.away, v.home];
-      return { w, l, margin: round2(w.points! - l.points!) };
-    })
-    .sort((a, b) => a.margin - b.margin);
-
-  const byPoints = [...sides].sort((a, b) => b.points! - a.points!);
-  lines.push(
-    `High score: ${byPoints[0].model} with ${fmt(byPoints[0].points!)}. Low: ${byPoints.at(-1)!.model} with ${fmt(byPoints.at(-1)!.points!)}.`,
-  );
-
-  const close = games[0];
-  const blowout = games.at(-1)!;
-  lines.push(`Closest game: ${close.w.model} over ${close.l.model} by ${fmt(close.margin)}.`);
-  if (games.length > 1) {
-    lines.push(`Biggest win: ${blowout.w.model} over ${blowout.l.model} by ${fmt(blowout.margin)}.`);
+  lines.push(`High score: ${facts.high.model} with ${fmt(facts.high.points)}. Low: ${facts.low.model} with ${fmt(facts.low.points)}.`);
+  lines.push(`Closest game: ${facts.closest.winner.model} over ${facts.closest.loser.model} by ${fmt(facts.closest.margin)}.`);
+  if (facts.biggest) {
+    lines.push(`Biggest win: ${facts.biggest.winner.model} over ${facts.biggest.loser.model} by ${fmt(facts.biggest.margin)}.`);
   }
-
-  const starters = sides.flatMap((side) =>
-    side.starters.filter((s) => s.player?.points != null).map((s) => ({ side, p: s.player! })),
-  );
-  const star = starters.sort((a, b) => b.p.points! - a.p.points!)[0];
-  if (star) {
-    lines.push(`Player of the week: ${star.p.name} (${star.p.position}), ${fmt(star.p.points!)} for ${star.side.model}.`);
+  if (facts.playerOfWeek) {
+    const p = facts.playerOfWeek;
+    lines.push(`Player of the week: ${p.name} (${p.position}), ${fmt(p.points)} for ${p.model}.`);
   }
-
-  const judged = sides.filter((s) => s.autopilot?.delta != null);
-  if (judged.length > 0) {
-    const byDelta = [...judged].sort((a, b) => b.autopilot!.delta! - a.autopilot!.delta!);
-    const best = byDelta[0];
-    const worst = byDelta.at(-1)!;
-    const same = judged.filter((s) => s.autopilot!.swaps.length === 0).length;
-    if (best.autopilot!.delta! > 0) {
-      lines.push(`Best lineup calls: ${best.model}, ${signed(best.autopilot!.delta!)} over the autopilot.`);
+  if (facts.sameAsAutopilot) {
+    if (facts.bestCalls) lines.push(`Best lineup calls: ${facts.bestCalls.model}, ${signed(facts.bestCalls.delta)} over the autopilot.`);
+    if (facts.worstCalls) {
+      lines.push(`Costliest lineup calls: ${facts.worstCalls.model}, ${signed(facts.worstCalls.delta)} against the autopilot.`);
     }
-    if (worst.autopilot!.delta! < 0) {
-      lines.push(`Costliest lineup calls: ${worst.model}, ${signed(worst.autopilot!.delta!)} against the autopilot.`);
-    }
-    lines.push(`${same} of ${judged.length} teams started exactly what the autopilot would have.`);
-    const flipped = games.filter(
-      (g) => g.w.autopilot?.points != null && g.l.autopilot?.points != null && g.l.autopilot.points > g.w.autopilot.points,
-    );
-    if (flipped.length > 0) {
+    lines.push(`${facts.sameAsAutopilot.teams} of ${facts.sameAsAutopilot.of} teams started exactly what the autopilot would have.`);
+    if (facts.decidedByCalls.length > 0) {
       lines.push(
-        `Decided by the calls: ${flipped.map((g) => `${g.w.model} over ${g.l.model}`).join(', ')} — on autopilot, the loser wins.`,
+        `Decided by the calls: ${facts.decidedByCalls.map((g) => `${g.winner} over ${g.loser}`).join(', ')} — on autopilot, the loser wins.`,
       );
     }
   }
-
-  const withOptimal = sides.filter((s) => s.optimal !== null && s.points !== null);
-  if (withOptimal.length > 0) {
-    const worst = [...withOptimal].sort((a, b) => b.optimal! - b.points! - (a.optimal! - a.points!))[0];
-    if (worst.optimal! - worst.points! > 0) {
-      lines.push(`Most left on the bench, in hindsight: ${worst.model}, ${fmt(worst.optimal! - worst.points!)} points.`);
-    }
+  if (facts.mostLeftOnBench) {
+    lines.push(`Most left on the bench, in hindsight: ${facts.mostLeftOnBench.model}, ${fmt(facts.mostLeftOnBench.points)} points.`);
   }
 
-  for (const note of luck) lines.push(`${note.model} ${note.note}.`);
+  for (const note of input.luck) lines.push(`${note.model} ${note.note}.`);
 
   return lines;
 }

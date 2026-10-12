@@ -203,8 +203,9 @@ function LiveSeason({ season }: { season: TeamSeason }) {
             </table>
           </div>
           <p className="lede-copy" style={{ marginTop: 12 }}>
-            Projected is this league&rsquo;s own season projection under its own scoring rules. No
-            actual points yet — the season has not kicked off.
+            Projected is this league&rsquo;s own season projection under its own scoring rules, as it
+            stood at the draft. Points actually scored are on the{' '}
+            <Link href="/results">results pages</Link>.
           </p>
         </>
       )}
