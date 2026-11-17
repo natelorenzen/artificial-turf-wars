@@ -15,7 +15,7 @@ import { loadPublicFacts } from '@/lib/site/public-facts';
  * can only be as stale as the front page is. See `src/lib/site/llms.ts`.
  */
 
-export const revalidate = 900;
+export const revalidate = 3600;
 
 export async function GET() {
   const body = llmsBody(await loadPublicFacts(), getAllPosts());
@@ -23,7 +23,7 @@ export async function GET() {
   return new Response(body, {
     headers: {
       'Content-Type': 'text/plain; charset=utf-8',
-      'Cache-Control': 'public, max-age=900, s-maxage=900',
+      'Cache-Control': 'public, max-age=900, s-maxage=3600',
     },
   });
 }

@@ -7,8 +7,16 @@ import { gameTitle } from '@/lib/preview/teams';
 import { absoluteUrl } from '@/lib/site/nav';
 
 /** Published weekly by a cron job, so nothing here can be baked at build time. */
-export const revalidate = 900;
+export const revalidate = 3600;
 export const dynamicParams = true;
+
+/**
+ * Empty on purpose: the site must build without a database. Declaring it is what makes
+ * Next cache each week after its first render — without it this rendered on every request.
+ */
+export async function generateStaticParams() {
+  return [];
+}
 
 export async function generateMetadata({
   params,

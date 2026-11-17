@@ -1,4 +1,5 @@
 import { assertCronAuth, cronErrorResponse } from '@/lib/cron/guard';
+import { refreshesSite } from '@/lib/cron/refresh';
 import {
   ingestPlayers,
   ingestProjections,
@@ -16,7 +17,7 @@ export const maxDuration = 300;
  * Everything is snapshotted with a content hash; decision-time code reads only from
  * these tables, never from a live Sleeper fetch (SPEC §5.2).
  */
-export async function GET(request: Request) {
+async function handle(request: Request) {
   try {
     assertCronAuth(request);
 
@@ -100,3 +101,5 @@ async function lockedWeeks(season: number): Promise<Set<number>> {
   if (error) throw new Error(`lineups: ${error.message}`);
   return new Set((data ?? []).map((row) => row.week as number));
 }
+
+export const GET = refreshesSite(handle);

@@ -9,7 +9,7 @@ export const metadata: Metadata = {
   alternates: { canonical: '/results' },
 };
 
-export const revalidate = 900;
+export const revalidate = 3600;
 
 export default async function ResultsIndex() {
   const weeks = await scoredWeeks();

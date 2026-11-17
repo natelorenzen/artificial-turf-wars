@@ -6,7 +6,16 @@ import { loadVideoBrief } from '@/lib/site/video-brief';
  * 425 Too Early before 11:00 AM Pacific on the week's Thursday, or while the picks or
  * the weekend guide are missing, with `availableAt` where it is known.
  */
-export const revalidate = 900;
+export const revalidate = 3600;
+
+/**
+ * Empty on purpose: there are too many to build, and the site must build without a
+ * database. Declaring it is what makes Next cache each one after its first render —
+ * without it this route rendered fresh on every request, whatever `revalidate` said.
+ */
+export async function generateStaticParams() {
+  return [];
+}
 
 export async function GET(_request: Request, { params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
@@ -22,7 +31,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ slu
   }
   return Response.json(result.brief, {
     headers: {
-      'Cache-Control': 'public, max-age=900, s-maxage=900',
+      'Cache-Control': 'public, max-age=900, s-maxage=3600',
       'Access-Control-Allow-Origin': '*',
     },
   });

@@ -6,6 +6,15 @@ import { gameTitle } from '@/lib/preview/teams';
 export const alt = 'Artificial Turf War — how to survive the weekend';
 export const size = { width: 1200, height: 630 };
 export const contentType = 'image/png';
+export const revalidate = 3600;
+
+/**
+ * Empty on purpose: the site must build without a database. Declaring it is what makes
+ * Next cache each week after its first render — without it this rendered on every request.
+ */
+export async function generateStaticParams() {
+  return [];
+}
 
 /**
  * The share card for one weekend guide.

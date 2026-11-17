@@ -12,7 +12,7 @@ import {
 } from '@/lib/site/matchup';
 
 /** Live scores refresh several times a game day; the official ones on Tuesday and Thursday. */
-export const revalidate = 900;
+export const revalidate = 3600;
 export const dynamicParams = true;
 
 /** Nothing prebuilt: each game page is rendered on first request and cached as above. */

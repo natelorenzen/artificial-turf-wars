@@ -12,7 +12,7 @@ export const metadata: Metadata = {
 };
 
 /** Status and the week move during the season; so does every answer built from them. */
-export const revalidate = 900;
+export const revalidate = 3600;
 
 export default async function FaqPage() {
   const facts = await loadPublicFacts();

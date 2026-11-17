@@ -5,6 +5,16 @@ import { loadWeekResults } from '@/lib/site/results';
 export const alt = 'Artificial Turf War — weekly results';
 export const size = { width: 1200, height: 630 };
 export const contentType = 'image/png';
+export const revalidate = 3600;
+
+/**
+ * Empty on purpose: there are too many to build, and the site must build without a
+ * database. Declaring it is what makes Next cache each one after its first render —
+ * without it this route rendered fresh on every request, whatever `revalidate` said.
+ */
+export async function generateStaticParams() {
+  return [];
+}
 
 /**
  * The share card for one week (SPEC §12).

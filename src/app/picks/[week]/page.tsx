@@ -5,7 +5,7 @@ import { absoluteUrl } from '@/lib/site/nav';
 import { loadPicksWeek, pickWeeks } from '@/lib/site/picks';
 import { PicksDisclaimer, PicksWeekView } from '../week-view';
 
-export const revalidate = 900;
+export const revalidate = 3600;
 export const dynamicParams = true;
 
 export async function generateStaticParams() {

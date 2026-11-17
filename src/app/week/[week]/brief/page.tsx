@@ -9,7 +9,7 @@ import { loadVideoBrief, type Labeled, type Quote } from '@/lib/site/video-brief
  * field for field, so a presenter reading this page and a script reading the JSON are
  * reading one thing. Every number shows the status it was read at.
  */
-export const revalidate = 900;
+export const revalidate = 3600;
 export const dynamicParams = true;
 
 export async function generateStaticParams() {

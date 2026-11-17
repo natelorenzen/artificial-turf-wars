@@ -12,7 +12,7 @@ export const metadata: Metadata = {
   alternates: { canonical: '/backtest/draft' },
 };
 
-export const revalidate = 3600;
+export const revalidate = 86400;
 
 const SEASON = 2025;
 

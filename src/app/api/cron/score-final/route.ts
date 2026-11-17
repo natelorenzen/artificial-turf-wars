@@ -1,4 +1,5 @@
 import { assertCronAuth, cronErrorResponse } from '@/lib/cron/guard';
+import { refreshesSite } from '@/lib/cron/refresh';
 import { supabaseServer } from '@/lib/supabase-server';
 import { resolveScoringWeek, scoreWeek, seasonIdFor } from '@/lib/scoring/week';
 
@@ -16,7 +17,7 @@ export const maxDuration = 300;
  * Runs before the Thursday lineup job, so a correction lands in the standings a model
  * sees before it sets next week's lineup.
  */
-export async function GET(request: Request) {
+async function handle(request: Request) {
   try {
     assertCronAuth(request);
 
@@ -53,3 +54,5 @@ export async function GET(request: Request) {
     return cronErrorResponse(err);
   }
 }
+
+export const GET = refreshesSite(handle);

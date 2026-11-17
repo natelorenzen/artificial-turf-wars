@@ -8,7 +8,7 @@ import { loadFixtureLinks, loadMatchup, signed, weekBrief, type MatchupView } fr
 import { Scoreboard } from '@/components/Scoreboard';
 
 /** Written by a cron job every Tuesday, so nothing here can be baked at build time. */
-export const revalidate = 900;
+export const revalidate = 3600;
 export const dynamicParams = true;
 
 export async function generateStaticParams() {

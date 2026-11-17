@@ -11,12 +11,13 @@ export const metadata = {
 };
 
 /**
- * Standings are written every Tuesday and live scores several times a game day, so this
- * cannot be static. Fifteen minutes is comfortably inside the live refresh cadence —
- * Vercel Hobby fires a cron anywhere within its hour, so a shorter window here would
- * only re-render the same numbers.
+ * Standings are written every Tuesday and live scores several times a game day, but
+ * every job that writes them refreshes the site when it finishes (`refreshesSite`), so
+ * new numbers appear on the next visit. The hour here is only a backstop for text that
+ * turns on the clock alone — a kickoff passing. It was fifteen minutes, and re-rendering
+ * unchanged numbers 96 times a day was most of the project's Vercel CPU.
  */
-export const revalidate = 900;
+export const revalidate = 3600;
 
 export default async function Home() {
   // Findings are the only part of this site that changes before the season starts, so

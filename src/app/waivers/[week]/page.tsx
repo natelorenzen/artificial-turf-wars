@@ -5,7 +5,7 @@ import { absoluteUrl } from '@/lib/site/nav';
 import { loadWaiverRun, waiverWeeks, type WaiverBidView } from '@/lib/site/waivers';
 
 /** Bids land Tuesday, resolve Wednesday; points for the claims arrive every Tuesday after. */
-export const revalidate = 900;
+export const revalidate = 3600;
 export const dynamicParams = true;
 
 export async function generateStaticParams() {

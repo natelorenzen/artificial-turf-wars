@@ -195,6 +195,32 @@ async function setPublished(
 
   const { error } = await supabase.from(table).update(patch).eq('season_id', id).eq('week', week);
   if (error) fail(`${table}: ${error.message}`);
+  await refreshSite();
+}
+
+/**
+ * Pages are cached for up to an hour and refreshed by the jobs that write. This write
+ * happens outside a job, so ask the site to refresh now — a retraction should be gone
+ * on the next visit, not within the hour. Failing here is a warning, not a failure: the
+ * database write already happened and the page timer will catch up.
+ */
+async function refreshSite(): Promise<void> {
+  const site = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://www.artificialturfwar.com';
+  const secret = process.env.CRON_SECRET;
+  if (!secret) {
+    console.warn('  CRON_SECRET not set — the site will show this within the hour.\n');
+    return;
+  }
+  try {
+    const res = await fetch(`${site}/api/revalidate`, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${secret}` },
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    console.log('  Site refreshed.');
+  } catch (err) {
+    console.warn(`  Could not refresh ${site} (${err instanceof Error ? err.message : err}) — it will catch up within the hour.\n`);
+  }
 }
 
 // ---------------------------------------------------------------------------

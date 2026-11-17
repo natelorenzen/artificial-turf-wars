@@ -1,4 +1,5 @@
 import { assertBeforeKickoff, assertCronAuth, cronErrorResponse } from '@/lib/cron/guard';
+import { refreshesSite } from '@/lib/cron/refresh';
 import { claimJobRun, completeJobRun, failJobRun } from '@/lib/cron/job-run';
 import { supabaseServer } from '@/lib/supabase-server';
 import { LEAGUE } from '@/lib/config/league';
@@ -31,7 +32,7 @@ export const maxDuration = 300;
  * which, unlike the lineup job, is the safe direction to fail in, because a team that
  * files no claims has simply stood pat.
  */
-export async function GET(request: Request) {
+async function handle(request: Request) {
   try {
     assertCronAuth(request);
 
@@ -178,3 +179,5 @@ export async function GET(request: Request) {
     return cronErrorResponse(err);
   }
 }
+
+export const GET = refreshesSite(handle);

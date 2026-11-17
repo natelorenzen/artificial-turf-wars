@@ -11,7 +11,7 @@ export const metadata: Metadata = {
   alternates: { canonical: '/ratings' },
 };
 
-export const revalidate = 900;
+export const revalidate = 3600;
 
 const pct = (n: number | null) => (n === null ? '—' : `${(n * 100).toFixed(1)}%`);
 const signed = (n: number | null) => (n === null ? '—' : `${n > 0 ? '+' : ''}${n.toFixed(1)}`);

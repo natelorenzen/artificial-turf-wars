@@ -4,9 +4,18 @@ import { latestPicksWeek, loadPicksExport, loadPicksIndex } from '@/lib/site/pic
  * /data/picks/index.json, /data/picks/latest.json and /data/picks/N.json — every
  * model's NFL predictions as read-only JSON. See `src/lib/site/picks-export.ts`.
  */
-export const revalidate = 900;
+export const revalidate = 3600;
 
-const HEADERS = { 'Cache-Control': 'public, max-age=900, s-maxage=900', 'Access-Control-Allow-Origin': '*' };
+/**
+ * Empty on purpose: there are too many to build, and the site must build without a
+ * database. Declaring it is what makes Next cache each one after its first render —
+ * without it this route rendered fresh on every request, whatever `revalidate` said.
+ */
+export async function generateStaticParams() {
+  return [];
+}
+
+const HEADERS = { 'Cache-Control': 'public, max-age=900, s-maxage=3600', 'Access-Control-Allow-Origin': '*' };
 
 export async function GET(_request: Request, { params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;

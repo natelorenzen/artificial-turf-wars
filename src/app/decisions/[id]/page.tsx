@@ -23,8 +23,17 @@ export async function generateMetadata({
   };
 }
 
-/** Nothing is hidden here, so nothing is cached — a decision never changes. */
+/** A decision never changes once written, so a day is a backstop, not a freshness window. */
 export const revalidate = 86400;
+
+/**
+ * Empty on purpose: there are too many to build, and the site must build without a
+ * database. Declaring it is what makes Next cache each one after its first render —
+ * without it this route rendered fresh on every request, whatever `revalidate` said.
+ */
+export async function generateStaticParams() {
+  return [];
+}
 
 interface DecisionRow {
   id: string;

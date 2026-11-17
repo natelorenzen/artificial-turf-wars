@@ -1,4 +1,5 @@
 import { assertBeforeKickoff, assertCronAuth, cronErrorResponse } from '@/lib/cron/guard';
+import { refreshesSite } from '@/lib/cron/refresh';
 import { defersToLaterFiring, PICKS_FIRINGS, resolveUpcomingWeek } from '@/lib/cron/upcoming';
 import { supabaseServer } from '@/lib/supabase-server';
 import { LEAGUE } from '@/lib/config/league';
@@ -23,7 +24,7 @@ const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
  * week, each stored the moment it lands. A re-invocation calls only the models with no
  * row yet — or whose provider failed, which is an outage and not the model's answer.
  */
-export async function GET(request: Request) {
+async function handle(request: Request) {
   try {
     assertCronAuth(request);
 
@@ -86,3 +87,5 @@ export async function GET(request: Request) {
     return cronErrorResponse(err);
   }
 }
+
+export const GET = refreshesSite(handle);
