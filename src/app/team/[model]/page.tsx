@@ -5,7 +5,7 @@ import { supabase } from '@/lib/supabase';
 import { loadTeamProfile, modelByKey, type TeamSeason } from '@/lib/site/team';
 import { COHORT, LEAGUE } from '@/lib/config/league';
 
-export const revalidate = 900;
+export const revalidate = 3600;
 
 export function generateStaticParams() {
   return COHORT.map((m) => ({ model: m.key }));

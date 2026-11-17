@@ -305,6 +305,18 @@ numbers were computed rather than implying they are current to the minute. Every
 chosen to survive the 1 Nov DST shift in the direction that matters: `0 5 * * 2` is Tue
 01:00 ET now and Tue 00:00 ET in November, both comfortably after Monday night ends.
 
+**Pages are refreshed by the jobs that write, not by a short timer** (17 Nov 2026).
+Every page re-rendering on a 15-minute ISR timer, each render recomputing every week so
+far, was ~90% of the team's Hobby Active CPU and growing weekly. Now: every cron route
+that writes site data exports `GET = refreshesSite(handle)` (`src/lib/cron/refresh.ts`),
+`publish.ts` hits `POST /api/revalidate`, and page `revalidate` is an hour — a backstop
+for clock-only text. Two rules for new code: a new data-writing cron wraps its handler,
+and **a new dynamic route needs `generateStaticParams` (return `[]` is fine)** — without
+it Next renders on every request regardless of `revalidate`. `/decisions/[id]` was doing
+exactly that. `npm run build` shows `ƒ` for any route that slipped; only `/api/*` should.
+`artificial-turf-wars.vercel.app` 308s to the canonical host (`vercel.json`), except
+`/api/*`, so crawlers stop rendering every page twice.
+
 **Cron paths must not carry query strings.** Vercel documents distinguishing two
 schedules on one path via the `x-vercel-cron-schedule` header, not via a query
 string. Scoring therefore uses two distinct routes, `/api/cron/score-provisional`

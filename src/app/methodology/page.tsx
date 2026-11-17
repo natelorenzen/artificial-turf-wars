@@ -11,7 +11,7 @@ export const metadata: Metadata = {
   alternates: { canonical: '/methodology' },
 };
 
-export const revalidate = 900;
+export const revalidate = 3600;
 
 export default async function MethodologyPage() {
   const facts = await loadLeagueFacts(supabase, LEAGUE.season);

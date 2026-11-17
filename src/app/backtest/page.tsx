@@ -11,7 +11,7 @@ export const metadata: Metadata = {
 };
 
 /** 2025 is finished; nothing about this page changes hour to hour. */
-export const revalidate = 3600;
+export const revalidate = 86400;
 
 const BACKTEST_SEASON = 2025;
 

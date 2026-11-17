@@ -11,7 +11,7 @@ export const metadata: Metadata = {
   alternates: { canonical: '/picks' },
 };
 
-export const revalidate = 900;
+export const revalidate = 3600;
 
 export default async function PicksIndex() {
   const board = await loadPicksBoard();

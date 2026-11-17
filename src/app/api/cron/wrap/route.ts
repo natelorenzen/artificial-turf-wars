@@ -1,4 +1,5 @@
 import { assertCronAuth, cronErrorResponse } from '@/lib/cron/guard';
+import { refreshesSite } from '@/lib/cron/refresh';
 import { claimJobRun, completeJobRun, failJobRun } from '@/lib/cron/job-run';
 import { supabaseServer } from '@/lib/supabase-server';
 import { LEAGUE } from '@/lib/config/league';
@@ -27,7 +28,7 @@ export const maxDuration = 300;
  * fails the column is held as a draft and the job run says HELD, so `/api/health` and
  * `publish.ts` both show it. Release or retract with `publish.ts --recap`.
  */
-export async function GET(request: Request) {
+async function handle(request: Request) {
   try {
     assertCronAuth(request);
 
@@ -102,3 +103,5 @@ export async function GET(request: Request) {
     return cronErrorResponse(err);
   }
 }
+
+export const GET = refreshesSite(handle);

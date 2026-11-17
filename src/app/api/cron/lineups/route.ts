@@ -1,4 +1,5 @@
 import { assertBeforeKickoff, assertCronAuth, cronErrorResponse } from '@/lib/cron/guard';
+import { refreshesSite } from '@/lib/cron/refresh';
 import { defersToLaterFiring, LINEUP_FIRINGS, resolveUpcomingWeek } from '@/lib/cron/upcoming';
 import { claimJobRun, completeJobRun, failJobRun } from '@/lib/cron/job-run';
 import { supabaseServer } from '@/lib/supabase-server';
@@ -38,7 +39,7 @@ const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
  * blocks until a human looks at it — and thanks to the seeded lineups, a blocked run
  * is a week decided by code, not a week of zeros.
  */
-export async function GET(request: Request) {
+async function handle(request: Request) {
   try {
     assertCronAuth(request);
 
@@ -180,3 +181,5 @@ export async function GET(request: Request) {
     return cronErrorResponse(err);
   }
 }
+
+export const GET = refreshesSite(handle);

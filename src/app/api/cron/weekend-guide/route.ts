@@ -1,4 +1,5 @@
 import { assertCronAuth, cronErrorResponse } from '@/lib/cron/guard';
+import { refreshesSite } from '@/lib/cron/refresh';
 import { defersToLaterFiring, resolveUpcomingWeek, WEEKEND_GUIDE_FIRINGS } from '@/lib/cron/upcoming';
 import { supabaseServer } from '@/lib/supabase-server';
 import { COHORT, LEAGUE } from '@/lib/config/league';
@@ -85,7 +86,7 @@ async function loadTakes(
  * preview is only worth anything before kickoff, and nobody can be relied on to be
  * awake for that every week. `publish.ts --guide --retract` still pulls one.
  */
-export async function GET(request: Request) {
+async function handle(request: Request) {
   try {
     assertCronAuth(request);
 
@@ -290,3 +291,5 @@ export async function GET(request: Request) {
     return cronErrorResponse(err);
   }
 }
+
+export const GET = refreshesSite(handle);

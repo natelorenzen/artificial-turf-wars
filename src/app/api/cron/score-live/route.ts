@@ -1,4 +1,5 @@
 import { assertCronAuth, cronErrorResponse } from '@/lib/cron/guard';
+import { refreshesSite } from '@/lib/cron/refresh';
 import { supabaseServer } from '@/lib/supabase-server';
 import { seasonIdFor } from '@/lib/scoring/week';
 import { liveWeekIsComplete, resolveLiveWeek, scoreLiveWeek } from '@/lib/scoring/live';
@@ -24,7 +25,7 @@ export const maxDuration = 300;
  * real `lineup_scores` row, so this stops writing about a week as soon as Tuesday makes
  * it a result.
  */
-export async function GET(request: Request) {
+async function handle(request: Request) {
   try {
     assertCronAuth(request);
 
@@ -63,3 +64,5 @@ export async function GET(request: Request) {
     return cronErrorResponse(err);
   }
 }
+
+export const GET = refreshesSite(handle);

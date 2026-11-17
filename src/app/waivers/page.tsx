@@ -10,7 +10,7 @@ export const metadata: Metadata = {
   alternates: { canonical: '/waivers' },
 };
 
-export const revalidate = 900;
+export const revalidate = 3600;
 
 export default async function WaiversIndex() {
   const weeks = await waiverWeeks();

@@ -1,4 +1,5 @@
 import { assertCronAuth, cronErrorResponse } from '@/lib/cron/guard';
+import { refreshesSite } from '@/lib/cron/refresh';
 import { supabaseServer } from '@/lib/supabase-server';
 import { resolveScoringWeek, scoreWeek, seasonIdFor } from '@/lib/scoring/week';
 
@@ -16,7 +17,7 @@ export const maxDuration = 300;
  * Safe to deliver twice: every write is an upsert on a natural key and no model is
  * called, so a duplicate re-derives identical numbers. No `job_runs` claim needed.
  */
-export async function GET(request: Request) {
+async function handle(request: Request) {
   try {
     assertCronAuth(request);
 
@@ -53,3 +54,5 @@ export async function GET(request: Request) {
     return cronErrorResponse(err);
   }
 }
+
+export const GET = refreshesSite(handle);

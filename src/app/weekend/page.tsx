@@ -11,7 +11,7 @@ export const metadata: Metadata = {
 };
 
 /** Generated weekly, so it must not be baked into the build. */
-export const revalidate = 900;
+export const revalidate = 3600;
 
 export default async function WeekendIndex() {
   const guides = await getPublishedGuides();
